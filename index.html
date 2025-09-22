@@ -2,568 +2,265 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Escalation Console — Frontend (Step 1)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root{--bg:#0b1020;--panel:#121937;--muted:#9aa3b2;--accent:#9ad3ff;--good:#37d67a;--warn:#ffbe55;--bad:#ff6b6b;--chip:#2a2f49}
-    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:#eef2ff}
-    .app{max-width:1200px;margin:2vh auto;padding:16px}
-    .topbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
-    .topbar h1{font-size:18px;margin:0}
-    .spacer{flex:1}
-    .btn{cursor:pointer;border:0;border-radius:10px;padding:9px 12px;font-weight:600}
-    .btn.primary{background:#2a59ff;color:#fff}
-    .btn.outline{background:transparent;color:var(--accent);border:1px solid var(--accent)}
-    .btn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.12)}
-    .btn.small{padding:6px 10px;font-weight:600;font-size:12px;border-radius:8px}
-    .card{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px;margin:10px 0}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .stack{display:grid;gap:10px}
-    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-    label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
-    input,select,textarea{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff}
-    textarea{min-height:70px}
-    .help{color:var(--muted);font-size:12px}
-    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:12px;border:1px solid rgba(255,255,255,.16);background:var(--chip)}
-    .pill.urgent{border-color:#ff8b8b;color:#ff8b8b}
-    .pill.deadline{border-color:#8bd4ff;color:#8bd4ff}
-    .pill.status{border-color:#bfbfff;color:#bfbfff}
-    .pill.me{border-color:#7affb3;color:#7affb3}
-    .muted{color:var(--muted)}
-    .err{color:var(--bad);font-size:12px}
-    .ok{color:var(--good)}
-    .split{display:grid;grid-template-columns:320px 1fr;gap:12px}
-    .list{display:grid;gap:8px}
-    .caseCard{cursor:pointer}
-    .badge{display:inline-block;padding:2px 6px;border-radius:7px;background:#2a59ff11;border:1px solid #2a59ff55;font-size:11px}
-    .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .tabs{display:flex;gap:8px;margin:8px 0}
-    .tab{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);cursor:pointer}
-    .tab.active{background:#2a59ff22;border-color:#2a59ff77}
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
-    .modal>.box{max-width:720px;width:100%;background:var(--panel);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px}
-    @media (max-width:980px){.split{grid-template-columns:1fr}.grid,.grid3{grid-template-columns:1fr}}
-  </style>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <title>Escalation — Dashboard</title>
+
+  <!-- Global + dashboard styles -->
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/dashboard.css" />
+
+  <!-- Favicon (optional) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Ctext y='48' x='6' font-size='48'%3E%E2%9C%85%3C/text%3E%3C/svg%3E">
 </head>
 <body>
-  <div class="app">
-    <div class="topbar">
-      <h1>Escalation Console</h1>
-      <div class="pill" id="me">Signed out</div>
-      <div class="spacer"></div>
-      <button id="btnBell" class="btn ghost" title="Notifications">🔔 <span id="bellCount" class="badge">0</span></button>
-      <button id="btnSignin" class="btn primary">Sign in</button>
-      <button id="btnSignout" class="btn outline" disabled>Sign out</button>
-    </div>
-
-    <!-- Filters + Create Case -->
-    <div class="card" id="dashBar" style="display:none">
-      <div class="toolbar">
-        <strong>Filters:</strong>
-        <button class="btn small ghost" data-filter="all">All</button>
-        <button class="btn small ghost" data-filter="waiting">Waiting action</button>
-        <button class="btn small ghost" data-filter="mine">Assigned to me</button>
-        <button class="btn small ghost" data-filter="finished">Finished</button>
-        <input id="search" placeholder="Search name / member / hospital / diagnosis" style="min-width:260px;margin-left:auto"/>
-        <button class="btn small primary" id="btnNew">New Case</button>
+  <!-- App header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark">E</div>
+      <div class="brand-text">
+        <strong>Escalation</strong>
+        <span class="brand-sub">Clinical Review</span>
       </div>
     </div>
 
-    <div class="split">
-      <!-- Left: Cases list -->
-      <div>
-        <div id="listCard" class="card" style="display:none">
-          <div class="list" id="caseList"></div>
-          <div id="listErr" class="err"></div>
+    <div class="header-actions">
+      <div id="roleBadge" class="role-badge" hidden></div>
+      <button id="signInBtn" class="btn btn-primary" data-action="signin">Sign in</button>
+      <button id="signOutBtn" class="btn btn-ghost" data-action="signout" hidden>Sign out</button>
+      <img id="avatar" class="avatar" alt="" hidden />
+    </div>
+  </header>
+
+  <!-- Filters + search -->
+  <section class="controls">
+    <div class="filters">
+      <div class="segmented" role="tablist" aria-label="Case filters">
+        <button class="segmented-btn is-active" data-filter="my-queue">My queue</button>
+        <button class="segmented-btn" data-filter="all">All</button>
+        <button class="segmented-btn" data-filter="awaiting-doctor">Awaiting doctor</button>
+        <button class="segmented-btn" data-filter="awaiting-nurse">Awaiting nurse</button>
+        <button class="segmented-btn" data-filter="reopened">Reopened</button>
+        <button class="segmented-btn" data-filter="finished">Finished</button>
+        <button class="segmented-btn" data-filter="urgent">Urgent</button>
+      </div>
+    </div>
+
+    <div class="searchbar">
+      <input id="searchInput" type="search" class="input" placeholder="Search by Name, MemberID, Hospital, Diagnosis" autocomplete="off" />
+    </div>
+  </section>
+
+  <!-- Persistent banners (e.g., cross-case duplicate MD5 info when returned by API) -->
+  <div id="bannerArea" class="banner-area" aria-live="polite"></div>
+
+  <!-- Case list -->
+  <main id="caseList" class="case-list" aria-live="polite" aria-busy="true">
+    <!-- Cards injected by JS -->
+  </main>
+
+  <!-- Empty state (shown when no results) -->
+  <template id="tpl-empty">
+    <div class="empty">
+      <div class="empty-icon">🗂️</div>
+      <div class="empty-title">No cases found</div>
+      <p class="empty-text">Try changing filters or your search.</p>
+    </div>
+  </template>
+
+  <!-- Case card template -->
+  <template id="tpl-card">
+    <article class="case-card">
+      <div class="case-head">
+        <div class="left">
+          <span class="status-pill"></span>
+          <a class="case-title" href="#" data-link>—</a>
+        </div>
+        <div class="right">
+          <span class="urgent-pill" hidden>URGENT</span>
+          <time class="deadline" hidden></time>
         </div>
       </div>
 
-      <!-- Right: Details / Forms -->
-      <div id="panel">
-        <div id="welcome" class="card">
-          <div class="stack">
-            <div class="help">Sign in to view and manage cases. Use the **New Case** button to create a case. Click any case to open its details, comments, and actions.</div>
-          </div>
-        </div>
-
-        <!-- Create Case form -->
-        <div id="createCard" class="card" style="display:none">
-          <h3 style="margin:0 0 10px 0">Create Case</h3>
-          <form id="caseForm">
-            <div class="grid3">
-              <div>
-                <label>Name *</label>
-                <input id="f_name" required/>
-              </div>
-              <div>
-                <label>MemberID *</label>
-                <input id="f_memberId" required/>
-              </div>
-              <div>
-                <label>Nationality *</label>
-                <input id="f_nationality" required/>
-              </div>
-              <div>
-                <label>DOB *</label>
-                <input id="f_dob" type="date" required/>
-                <div class="help">Age: <span id="ageOut">—</span></div>
-              </div>
-              <div>
-                <label>Policy Effective Date *</label>
-                <input id="f_policyEff" type="date" required/>
-              </div>
-              <div>
-                <label>Exclusion (long text) *</label>
-                <textarea id="f_exclusion" required></textarea>
-              </div>
-              <div>
-                <label>Underwriting Type *</label>
-                <select id="f_uwType" required>
-                  <option value="">— select —</option>
-                  <option>MHD</option>
-                  <option>FMU</option>
-                </select>
-              </div>
-              <div>
-                <label>Type of admission</label>
-                <select id="f_admissionType">
-                  <option value="">— select —</option>
-                  <option>Scheduled</option>
-                  <option>Admit</option>
-                  <option>Discharge</option>
-                </select>
-              </div>
-              <div>
-                <label title="e.g., simple disease, high cost, ex-gratia">Type of consultation *</label>
-                <input id="f_consultType" required title="e.g., simple disease, high cost, ex-gratia"/>
-              </div>
-              <div>
-                <label>Visit Date *</label>
-                <input id="f_visitDate" type="date" required/>
-              </div>
-              <div>
-                <label>Hospital *</label>
-                <input id="f_hospital" required/>
-              </div>
-              <div>
-                <label>Diagnosis *</label>
-                <input id="f_diagnosis" required/>
-              </div>
-              <div>
-                <label>Discharge Date (optional)</label>
-                <input id="f_dischargeDate" type="date"/>
-              </div>
-            </div>
-
-            <div class="grid">
-              <div>
-                <label>Urgent</label>
-                <div class="row"><input id="f_urgent" type="checkbox"/> <span class="help">If checked, Deadline becomes required.</span></div>
-              </div>
-              <div>
-                <label>Deadline (date & time)</label>
-                <input id="f_deadline" type="datetime-local"/>
-                <div class="help">Required when Urgent is checked.</div>
-              </div>
-            </div>
-
-            <div class="grid">
-              <div>
-                <label>Vital Signs (optional)</label>
-                <textarea id="f_vitals"></textarea>
-              </div>
-              <div>
-                <label>Physical Findings (optional)</label>
-                <textarea id="f_findings"></textarea>
-              </div>
-              <div>
-                <label title="Include running bill if appropriate">Summary (optional, long)</label>
-                <textarea id="f_summary" title="Include running bill if appropriate"></textarea>
-              </div>
-              <div>
-                <label>Treatment (optional)</label>
-                <textarea id="f_treatment"></textarea>
-              </div>
-              <div>
-                <label>Reason for Admission *</label>
-                <textarea id="f_reasonAdmission" required></textarea>
-              </div>
-              <div>
-                <label title="Reason for escalating to medical team for case consultation">Reason for consultation *</label>
-                <textarea id="f_reasonConsult" required title="Reason for escalating to medical team for case consultation"></textarea>
-              </div>
-              <div>
-                <label>Other remark (optional)</label>
-                <textarea id="f_remark"></textarea>
-              </div>
-            </div>
-
-            <div class="row" style="margin-top:10px">
-              <button class="btn primary" type="submit" id="btnSave">Save Case</button>
-              <span id="saveMsg" class="help"></span>
-              <span id="formErr" class="err"></span>
-            </div>
-          </form>
-        </div>
-
-        <!-- Case Details panel -->
-        <div id="casePanel" class="card" style="display:none"></div>
-
+      <div class="case-meta">
+        <span class="meta"><strong>MemberID:</strong> <span data-member>—</span></span>
+        <span class="meta"><strong>Hospital:</strong> <span data-hospital>—</span></span>
+        <span class="meta"><strong>Diagnosis:</strong> <span data-dx>—</span></span>
       </div>
-    </div>
-  </div>
 
-  <!-- MQ Modal -->
-  <div id="mqModal" class="modal">
-    <div class="box">
-      <div class="row" style="justify-content:space-between"><h3 style="margin:0">Medical Questionnaire</h3><button class="btn ghost small" id="mqClose">✕</button></div>
-      <textarea id="mqText" style="width:100%;min-height:220px;margin-top:10px"></textarea>
-      <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="btn primary" id="mqSave">Save MQ</button></div>
-    </div>
-  </div>
+      <div class="case-assign">
+        <span class="meta"><strong>Nurse:</strong> <span data-nurse>—</span></span>
+        <span class="meta"><strong>Doctor:</strong> <span data-doctor>—</span></span>
+      </div>
 
-  <!-- Notifications Modal -->
-  <div id="notifModal" class="modal">
-    <div class="box">
-      <div class="row" style="justify-content:space-between"><h3 style="margin:0">Notifications</h3><button class="btn ghost small" id="notifClose">✕</button></div>
-      <div id="notifList" class="stack" style="margin-top:10px"></div>
-    </div>
-  </div>
+      <div class="case-foot">
+        <span class="meta"><strong>Waiting action:</strong> <span data-waiting>—</span></span>
+        <time class="updated" data-updated>—</time>
+      </div>
+    </article>
+  </template>
 
-  <!-- Firebase v10 (modular) -->
+  <!-- New Case (nurse/admin only; hidden otherwise) -->
+  <a id="newCaseBtn" class="fab" href="/case.html#new" hidden aria-label="Create new case">＋</a>
+
+  <!-- Scripts -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithPopup, OAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, Timestamp, query, orderBy, where, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { initFirebase, onAuth, signInWithMicrosoft, signOutNow } from '/js/firebase.js';
+    import { loadRole, queryCases, statusLabel, waitingLabel, sortCasesForDashboard } from '/js/api.js';
+    import { formatDeadline, formatUpdatedAt } from '/js/utils.js';
 
-    // 🔧 YOUR FIREBASE CONFIG
-    const firebaseConfig = {
-      apiKey: "AIzaSyDk9XnkfRtrP8AlYMMKs8pqXeZatc8wmCE",
-      authDomain: "lumacompanion1.firebaseapp.com",
-      projectId: "lumacompanion1",
+    // Boot
+    initFirebase();
+
+    const signInBtn  = document.getElementById('signInBtn');
+    const signOutBtn = document.getElementById('signOutBtn');
+    const avatar     = document.getElementById('avatar');
+    const roleBadge  = document.getElementById('roleBadge');
+    const newCaseBtn = document.getElementById('newCaseBtn');
+
+    const caseListEl   = document.getElementById('caseList');
+    const searchInput  = document.getElementById('searchInput');
+    const segmented    = document.querySelector('.segmented');
+
+    let state = {
+      user: null,
+      role: null,      // 'nurse' | 'doctor' | 'admin'
+      filter: 'my-queue',
+      q: ''
     };
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const msProvider = new OAuthProvider('microsoft.com');
+    function setSignedOutUI() {
+      roleBadge.hidden = true;
+      avatar.hidden = true;
+      signOutBtn.hidden = true;
+      signInBtn.hidden = false;
+      newCaseBtn.hidden = true;
+      caseListEl.innerHTML = '';
+      caseListEl.setAttribute('aria-busy', 'false');
+      renderEmpty();
+    }
 
-    // --- State ---
-    let me = null;               // { email, displayName }
-    let casesCache = [];         // last fetched case docs
-    let activeCaseId = null;     // current case being viewed
-    let mqDraftForComment = null;// commentId for which MQ is being edited
+    function setSignedInUI(user, role) {
+      // Header
+      signInBtn.hidden = true;
+      signOutBtn.hidden = false;
+      avatar.hidden = false;
+      avatar.src = user.photoURL || '';
+      avatar.alt = user.displayName || user.email || 'User';
 
-    // --- UI helpers ---
-    const $ = (id)=>document.getElementById(id);
-    const show = (el, v)=> el.style.display = v ? "" : "none";
-    const esc = (s)=> (s==null?"":String(s)).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-    const fmtTs = (ts)=> ts ? new Date(ts.seconds? ts.seconds*1000 : ts).toLocaleString() : "";
+      // Role badge + new case FAB (nurse/admin)
+      roleBadge.hidden = false;
+      roleBadge.textContent = role.toUpperCase();
+      newCaseBtn.hidden = !(role === 'nurse' || role === 'admin');
+    }
 
-    const bellBtn = $('btnBell');
-    bellBtn.onclick = ()=> { $('notifModal').style.display='flex'; };
-    $('notifClose').onclick = ()=> { $('notifModal').style.display='none'; };
-
-    // --- Auth ---
-    $('btnSignin').onclick = async ()=> { try{ await signInWithPopup(auth, msProvider); }catch(e){ console.error(e);} };
-    $('btnSignout').onclick = async ()=> { try{ await signOut(auth);}catch(e){ console.error(e);} };
-
-    onAuthStateChanged(auth, async (user)=>{
-      if (!user){
-        me = null; activeCaseId = null; casesCache = [];
-        $('me').textContent = 'Signed out';
-        $('btnSignout').disabled = true; $('btnSignin').disabled = false;
-        show($('dashBar'), false); show($('listCard'), false); show($('createCard'), false);
-        $('caseList').innerHTML = ''; $('casePanel').innerHTML=''; show($('casePanel'), false);
-        updateBell([]);
-        return;
-      }
-      me = { email: user.email, displayName: user.displayName };
-      $('me').textContent = me.email || '(no email)';
-      $('btnSignout').disabled = false; $('btnSignin').disabled = true;
-      show($('dashBar'), true); show($('listCard'), true); show($('createCard'), false);
-      attachCasesListener();
-      attachNotificationsListener();
+    // Sign-in/out buttons
+    signInBtn.addEventListener('click', async () => {
+      await signInWithMicrosoft();
+    });
+    signOutBtn.addEventListener('click', async () => {
+      await signOutNow();
     });
 
-    // --- Filters + search ---
-    let filterMode = 'all';
-    document.querySelectorAll('[data-filter]').forEach(btn=>{
-      btn.onclick = ()=> { filterMode = btn.getAttribute('data-filter'); renderCaseList(); };
-    });
-    $('search').addEventListener('input', renderCaseList);
-
-    // --- New Case form visibility ---
-    $('btnNew').onclick = ()=>{ show($('createCard'), true); window.scrollTo({top:0, behavior:'smooth'}); };
-
-    // --- Age calc + urgent toggle ---
-    function calcAgeParts(dobStr){ if (!dobStr) return null; const dob = new Date(dobStr+"T00:00"); const now=new Date(); let y=now.getFullYear()-dob.getFullYear(); let m=now.getMonth()-dob.getMonth(); let d=now.getDate()-dob.getDate(); if(d<0)m--; if(m<0){y--;m+=12;} return {years:y, months:Math.max(0,m)}; }
-    $('f_dob').addEventListener('change', ()=>{ const a=calcAgeParts($('f_dob').value); $('ageOut').textContent = a? `${a.years}y ${a.months}m` : '—'; });
-    $('f_urgent').addEventListener('change', ()=>{ $('f_deadline').required = $('f_urgent').checked; });
-
-    // --- Create Case submit ---
-    $('caseForm').addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const errEl=$('formErr'); errEl.textContent=''; $('saveMsg').textContent='';
-      if ($('f_urgent').checked && !$('f_deadline').value){ errEl.textContent='Deadline is required when Urgent is checked.'; return; }
-      const age=calcAgeParts($('f_dob').value);
-      const payload={
-        status:'New', urgent:$('f_urgent').checked,
-        deadlineAt: $('f_deadline').value? new Date($('f_deadline').value): null,
-        waitingAction: null,
-        details:{
-          Name:$('f_name').value.trim(), MemberID:$('f_memberId').value.trim(), Nationality:$('f_nationality').value.trim(),
-          DOB: $('f_dob').value? new Date($('f_dob').value): null,
-          AgeYears: age?age.years:null, AgeMonths: age?age.months:null,
-          PolicyEffectiveDate: $('f_policyEff').value? new Date($('f_policyEff').value): null,
-          Exclusion:$('f_exclusion').value.trim(), UnderwritingType:$('f_uwType').value,
-          TypeOfAdmission:$('f_admissionType').value||null, TypeOfConsultation:$('f_consultType').value.trim(),
-          VisitDate:$('f_visitDate').value? new Date($('f_visitDate').value): null,
-          Hospital:$('f_hospital').value.trim(), Diagnosis:$('f_diagnosis').value.trim(),
-          DischargeDate:$('f_dischargeDate').value? new Date($('f_dischargeDate').value): null,
-          VitalSigns:$('f_vitals').value.trim()||null, PhysicalFindings:$('f_findings').value.trim()||null,
-          Summary:$('f_summary').value.trim()||null, Treatment:$('f_treatment').value.trim()||null,
-          ReasonForAdmission:$('f_reasonAdmission').value.trim(), ReasonForConsultation:$('f_reasonConsult').value.trim(),
-          OtherRemark:$('f_remark').value.trim()||null
-        },
-        assignedNurse:null, assignedDoctor:null,
-        createdAt: serverTimestamp(), createdBy:{ email: me?.email||null, displayName: me?.displayName||null },
-        updatedAt: serverTimestamp(), updatedBy:{ email: me?.email||null, displayName: me?.displayName||null }
-      };
-      try{
-        $('btnSave').disabled=true;
-        const ref = await addDoc(collection(db,'cases'), payload);
-        await addDoc(collection(db,'notifications'),{
-          type:'CaseCreated', caseId: ref.id,
-          actor:{ email:me.email, displayName:me.displayName },
-          payload:{ name: payload.details.Name, memberId: payload.details.MemberID },
-          createdAt: serverTimestamp(), readBy: []
-        });
-        $('saveMsg').textContent=`✅ Saved (Case ID: ${ref.id})`;
-        $('caseForm').reset(); $('ageOut').textContent='—'; $('f_deadline').required=false;
-        show($('createCard'), false);
-      }catch(err){ errEl.textContent = err.message||String(err); }
-      finally{ $('btnSave').disabled=false; }
+    // Segmented filters
+    segmented.addEventListener('click', (e) => {
+      const btn = e.target.closest('.segmented-btn');
+      if (!btn) return;
+      document.querySelectorAll('.segmented-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+      state.filter = btn.dataset.filter;
+      fetchAndRender();
     });
 
-    // --- Cases listener ---
-    let unsubCases=null;
-    function attachCasesListener(){ if(unsubCases)unsubCases(); const qRef=query(collection(db,'cases'), orderBy('updatedAt','desc'), limit(200)); unsubCases=onSnapshot(qRef,(snap)=>{ casesCache=snap.docs.map(d=>({ id:d.id, ...d.data()})); renderCaseList(); }); }
+    // Search with small debounce
+    let t;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        state.q = searchInput.value.trim();
+        fetchAndRender();
+      }, 180);
+    });
 
-    function renderCaseList(){
-      const list=$('caseList'); list.innerHTML='';
-      const q=($('search').value||'').toLowerCase();
-      const arr = casesCache.filter(c=>{
-        if(filterMode==='finished' && c.status!=='Finished') return false;
-        if(filterMode==='mine'){
-          if(!me) return false; const em=me.email; const an=c.assignedNurse?.email===em; const ad=c.assignedDoctor?.email===em; if(!an && !ad) return false;
+    function renderEmpty() {
+      const tpl = document.getElementById('tpl-empty').content.cloneNode(true);
+      caseListEl.innerHTML = '';
+      caseListEl.appendChild(tpl);
+    }
+
+    function renderCases(cases) {
+      caseListEl.innerHTML = '';
+      if (!cases.length) return renderEmpty();
+
+      const tpl = document.getElementById('tpl-card');
+      for (const c of cases) {
+        const node = tpl.content.cloneNode(true);
+        const el = node.querySelector('.case-card');
+
+        // Title + link
+        const title = `${c.details?.Name || 'Unknown'} — ${c.details?.TypeOfConsultation || ''}`.trim();
+        node.querySelector('.case-title').textContent = title || `Case ${c.id}`;
+        node.querySelector('.case-title').href = `/case.html#${c.id}`;
+
+        // Status + waiting
+        node.querySelector('.status-pill').textContent = statusLabel(c.status);
+        node.querySelector('[data-waiting]').textContent = waitingLabel(c.status);
+
+        // Meta
+        node.querySelector('[data-member]').textContent = c.details?.MemberID || '—';
+        node.querySelector('[data-hospital]').textContent = c.details?.Hospital || '—';
+        node.querySelector('[data-dx]').textContent = c.details?.Diagnosis || '—';
+
+        // Assignments
+        node.querySelector('[data-nurse]').textContent  = c.assignedNurse?.displayName || c.assignedNurse?.email || '—';
+        node.querySelector('[data-doctor]').textContent = c.assignedDoctor?.displayName || c.assignedDoctor?.email || '—';
+
+        // Urgent + deadline
+        const urgentPill = node.querySelector('.urgent-pill');
+        const deadlineEl = node.querySelector('.deadline');
+        if (c.urgent) {
+          urgentPill.hidden = false;
         }
-        if(filterMode==='waiting' && !c.waitingAction) return false;
-        if(q){ const d=c.details||{}; const hay=[d.Name,d.MemberID,d.Hospital,d.Diagnosis].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
-        return true;
-      });
-      arr.forEach(c=>{
-        const div=document.createElement('div'); div.className='card caseCard'; div.onclick=()=>openCase(c.id);
-        const deadlineTxt = c.deadlineAt? fmtTs(c.deadlineAt): null;
-        div.innerHTML = `
-          <div class="row" style="justify-content:space-between">
-            <div>
-              <strong>${esc(c.details?.Name||'(no name)')}</strong>
-              <span class="muted">· ${esc(c.details?.MemberID||'')}</span>
-              ${c.waitingAction? `<span class="badge">Waiting: ${c.waitingAction}</span>`:''}
-            </div>
-            <div class="row">
-              <span class="pill status">${esc(c.status)}</span>
-              ${c.urgent? '<span class="pill urgent">Urgent</span>':''}
-              ${deadlineTxt? `<span class="pill deadline">Deadline: ${esc(deadlineTxt)}</span>`:''}
-            </div>
-          </div>
-          <div class="help" style="margin-top:6px">${esc(c.details?.Hospital||'')} — ${esc(c.details?.Diagnosis||'')}</div>
-          <div class="help" style="margin-top:6px">Nurse: ${esc(c.assignedNurse?.email||'-')} | Doctor: ${esc(c.assignedDoctor?.email||'-')}</div>
-        `;
-        list.appendChild(div);
-      });
-      show($('listCard'), true);
-    }
-
-    // --- Open case ---
-    let unsubComments=null;
-    async function openCase(id){
-      activeCaseId=id; const ref=doc(db,'cases',id); const snap=await getDoc(ref); if(!snap.exists()){ $('casePanel').innerHTML='<div class="err">Case not found</div>'; show($('casePanel'),true); return; }
-      const c=snap.data();
-      renderCasePanel(id,c);
-      if(unsubComments)unsubComments();
-      const qRef=query(collection(db,'comments'), where('caseId','==',id), orderBy('createdAt','asc'));
-      unsubComments=onSnapshot(qRef,(snap)=>{
-        const comments=snap.docs.map(d=>({ id:d.id, ...d.data()}));
-        renderComments(id,c,comments);
-      });
-    }
-
-    function renderCasePanel(id,c){
-      const el=$('casePanel');
-      const d=c.details||{};
-      const deadlineTxt=c.deadlineAt? fmtTs(c.deadlineAt):'';
-      el.innerHTML = `
-        <div class="row" style="justify-content:space-between">
-          <div>
-            <h3 style="margin:0">${esc(d.Name||'(no name)')}</h3>
-            <div class="help">${esc(d.MemberID||'')} · ${esc(d.Nationality||'')} · DOB: ${d.DOB? esc(fmtTs(d.DOB)):'-'}</div>
-          </div>
-          <div class="row">
-            <span class="pill status">${esc(c.status)}</span>
-            ${c.urgent? '<span class="pill urgent">Urgent</span>':''}
-            ${deadlineTxt? `<span class="pill deadline">Deadline: ${esc(deadlineTxt)}</span>`:''}
-          </div>
-        </div>
-
-        <div class="row" style="margin:8px 0; gap:6px">
-          <button class="btn small ghost" id="assignNurse">Assign me (Nurse)</button>
-          <button class="btn small ghost" id="assignDoctor">Assign me (Doctor)</button>
-          ${c.status!=='Finished' ? `<button class="btn small outline" id="finishBtn">Mark Finished</button>`: `<button class="btn small outline" id="undoFinishBtn">Undo Finished</button>`}
-        </div>
-
-        <div class="tabs">
-          <div class="tab active" id="tabDetails">Details</div>
-          <div class="tab" id="tabComments">Comments</div>
-          <div class="tab" id="tabDocs">Documents</div>
-        </div>
-
-        <div id="viewDetails">
-          <div class="grid">
-            <div><label>Hospital</label><div>${esc(d.Hospital||'-')}</div></div>
-            <div><label>Diagnosis</label><div>${esc(d.Diagnosis||'-')}</div></div>
-            <div><label>Visit</label><div>${d.VisitDate? esc(fmtTs(d.VisitDate)):'-'}</div></div>
-            <div><label>Discharge</label><div>${d.DischargeDate? esc(fmtTs(d.DischargeDate)):'-'}</div></div>
-            <div><label>Reason for Admission</label><div>${esc(d.ReasonForAdmission||'-')}</div></div>
-            <div><label>Reason for Consultation</label><div>${esc(d.ReasonForConsultation||'-')}</div></div>
-            <div><label>Exclusion</label><div>${esc(d.Exclusion||'-')}</div></div>
-            <div><label>Underwriting</label><div>${esc(d.UnderwritingType||'-')}</div></div>
-          </div>
-        </div>
-
-        <div id="viewComments" style="display:none">
-          <div id="commentList" class="stack"></div>
-          <div class="card" style="margin-top:10px">
-            <h4 style="margin:0 0 8px 0">Add Comment</h4>
-            <textarea id="cmtBody" placeholder="Write a comment..."></textarea>
-            <div class="row" style="margin-top:8px">
-              <button class="btn small ghost" id="btnMQ">Add/View MQ</button>
-              <select id="flagTo" class="btn small ghost" style="padding-right:28px">
-                <option value="">— no flag —</option>
-                <option value="doctor">Flag to doctor</option>
-                <option value="nurse">Flag to nurse</option>
-              </select>
-              <div class="spacer"></div>
-              <button class="btn small outline" id="cmtSave">Save</button>
-              <button class="btn small primary" id="cmtConfirm">Confirm</button>
-            </div>
-          </div>
-        </div>
-
-        <div id="viewDocs" style="display:none">
-          <div class="help">Documents tab comes next step (uploads via Netlify functions, pdf.js viewer, page tagging).</div>
-        </div>
-      `;
-
-      // Tab handlers
-      const tDet=$('tabDetails'), tCom=$('tabComments'), tDocs=$('tabDocs');
-      const vDet=$('viewDetails'), vCom=$('viewComments'), vDocs=$('viewDocs');
-      function activate(tab){ [tDet,tCom,tDocs].forEach(t=>t.classList.remove('active')); [vDet,vCom,vDocs].forEach(v=>v.style.display='none');
-        if(tab==='det'){tDet.classList.add('active'); vDet.style.display='';}
-        if(tab==='cmt'){tCom.classList.add('active'); vCom.style.display='';}
-        if(tab==='doc'){tDocs.classList.add('active'); vDocs.style.display='';}
-      }
-      tDet.onclick=()=>activate('det'); tCom.onclick=()=>activate('cmt'); tDocs.onclick=()=>activate('doc');
-
-      // Actions
-      $('assignNurse').onclick = async ()=>{
-        if(!me)return; await updateDoc(doc(db,'cases',id),{ assignedNurse:{ email:me.email, displayName:me.displayName, at: serverTimestamp() }, updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }});
-        await addDoc(collection(db,'notifications'),{ type:'AssignmentChanged', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{ role:'nurse', to: me.email }, createdAt: serverTimestamp(), readBy: []});
-      };
-      $('assignDoctor').onclick = async ()=>{
-        if(!me)return; await updateDoc(doc(db,'cases',id),{ assignedDoctor:{ email:me.email, displayName:me.displayName, at: serverTimestamp() }, updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }});
-        await addDoc(collection(db,'notifications'),{ type:'AssignmentChanged', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{ role:'doctor', to: me.email }, createdAt: serverTimestamp(), readBy: []});
-      };
-      if(c.status!=='Finished'){
-        $('finishBtn').onclick = async ()=>{
-          await updateDoc(doc(db,'cases',id),{ status:'Finished', finishedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }});
-          await addDoc(collection(db,'notifications'),{ type:'StatusFinished', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{}, createdAt: serverTimestamp(), readBy: []});
-          openCase(id);
-        };
-      } else {
-        $('undoFinishBtn').onclick = async ()=>{
-          await updateDoc(doc(db,'cases',id),{ status:'InReview', updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }});
-          await addDoc(collection(db,'notifications'),{ type:'StatusUndo', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{}, createdAt: serverTimestamp(), readBy: []});
-          openCase(id);
-        };
-      }
-
-      // Comment actions
-      $('btnMQ').onclick = ()=>{ mqDraftForComment = null; $('mqText').value=''; $('mqModal').style.display='flex'; };
-      $('cmtSave').onclick = ()=> submitComment(false);
-      $('cmtConfirm').onclick = ()=> submitComment(true);
-
-      async function submitComment(isConfirm){
-        const body = ($('#cmtBody').value||'').trim(); if(!body){ alert('Please type a comment'); return; }
-        const ref = await addDoc(collection(db,'comments'),{ caseId:id, author:{ email:me.email, displayName:me.displayName }, body, isEdited:false, editedAt:null, createdAt: serverTimestamp() });
-        await addDoc(collection(db,'notifications'),{ type:'CommentNew', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{}, createdAt: serverTimestamp(), readBy: []});
-        const flag = $('#flagTo').value;
-        if(isConfirm && flag){ await updateDoc(doc(db,'cases',id),{ waitingAction: flag, updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }}); await addDoc(collection(db,'notifications'),{ type:'WaitingActionSet', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{ to: flag }, createdAt: serverTimestamp(), readBy: []}); }
-        $('#cmtBody').value=''; $('#flagTo').value=''; activate('cmt');
-      }
-
-      show($('casePanel'), true);
-    }
-
-    function renderComments(caseId, c, comments){
-      const list=$('commentList'); list.innerHTML='';
-      comments.forEach(cm=>{
-        const row=document.createElement('div'); row.className='card';
-        const mine = me && cm.author?.email===me.email;
-        row.innerHTML = `
-          <div class="row" style="justify-content:space-between">
-            <div><strong>${esc(cm.author?.displayName||cm.author?.email||'')}</strong> <span class="muted">· ${fmtTs(cm.createdAt)}</span> ${cm.isEdited? '<span class="badge">edited</span>':''}</div>
-            <div class="row">${mine? '<button class="btn small ghost" data-edit="1">Edit</button>':''} <button class="btn small ghost" data-mq="1">View MQ</button></div>
-          </div>
-          <div style="margin-top:6px; white-space:pre-wrap">${esc(cm.body||'')}</div>
-        `;
-        // Edit handler
-        if(mine){
-          row.querySelector('[data-edit]')?.addEventListener('click', async()=>{
-            const nv = prompt('Edit your comment:', cm.body||'');
-            if(nv==null) return;
-            await updateDoc(doc(db,'comments', cm.id),{ body: nv, isEdited:true, editedAt: serverTimestamp() });
-            await addDoc(collection(db,'notifications'),{ type:'CommentEdit', caseId:caseId, actor:{email:me.email,displayName:me.displayName}, payload:{}, createdAt: serverTimestamp(), readBy: []});
-          });
+        if (c.deadlineAt) {
+          deadlineEl.hidden = false;
+          deadlineEl.textContent = formatDeadline(c.deadlineAt);
         }
-        // MQ handler
-        row.querySelector('[data-mq]')?.addEventListener('click', async()=>{
-          mqDraftForComment = cm.id;
-          // Load existing MQ if any
-          const mqSnap = await getDoc(doc(db,'commentMQ', cm.id));
-          $('mqText').value = mqSnap.exists()? (mqSnap.data().text||'') : '';
-          $('mqModal').style.display='flex';
-        });
-        list.appendChild(row);
-      });
+
+        // Updated time
+        node.querySelector('[data-updated]').textContent = formatUpdatedAt(c.updatedAt);
+
+        caseListEl.appendChild(node);
+      }
     }
 
-    // MQ modal actions (saved under commentMQ/{commentId})
-    $('mqClose').onclick = ()=>{ $('mqModal').style.display='none'; };
-    $('mqSave').onclick = async ()=>{
-      if(!mqDraftForComment){ $('mqModal').style.display='none'; return; }
-      await setDoc(doc(db,'commentMQ', mqDraftForComment),{ caseId: activeCaseId, commentId: mqDraftForComment, author:{ email:me.email, displayName:me.displayName }, text: $('mqText').value||'', createdAt: serverTimestamp() });
-      $('mqModal').style.display='none';
-    };
+    async function fetchAndRender() {
+      if (!state.user) return;
+      caseListEl.setAttribute('aria-busy', 'true');
 
-    // Notifications listener
-    let unsubNotif=null; function attachNotificationsListener(){ if(unsubNotif)unsubNotif(); const qRef=query(collection(db,'notifications'), orderBy('createdAt','desc'), limit(50)); unsubNotif=onSnapshot(qRef,(snap)=>{ const arr=snap.docs.map(d=>({ id:d.id, ...d.data()})); updateBell(arr); renderNotif(arr); }); }
+      const results = await queryCases({
+        role: state.role,
+        userEmail: state.user.email,
+        filter: state.filter,
+        q: state.q
+      });
 
-    function updateBell(arr){ $('bellCount').textContent = arr.length || 0; }
-    function renderNotif(arr){ const box=$('notifList'); box.innerHTML=''; arr.forEach(n=>{ const div=document.createElement('div'); div.className='card'; div.innerHTML = `<div class="row" style="justify-content:space-between"><div><strong>${esc(n.type)}</strong> · <span class="muted">${fmtTs(n.createdAt)}</span></div><div class="muted">Case: ${esc(n.caseId||'')}</div></div>`; box.appendChild(div); }); }
+      const sorted = sortCasesForDashboard(results);
+      renderCases(sorted);
+      caseListEl.setAttribute('aria-busy', 'false');
+    }
 
+    // Auth lifecycle
+    onAuth(async (user) => {
+      state.user = user;
+      if (!user) return setSignedOutUI();
+
+      // Fetch role via Netlify function (server reads private allowlist)
+      state.role = await loadRole();
+
+      setSignedInUI(user, state.role);
+      await fetchAndRender();
+    });
   </script>
 </body>
 </html>
