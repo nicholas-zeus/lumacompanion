@@ -1,198 +1,233 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>Escalation Console — MVP</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta charset="utf-8" />
+  <title>Escalation Console — Frontend (Step 1)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root{--bg:#0b1020;--panel:#121937;--muted:#9aa3b2;--accent:#9ad3ff;--good:#37d67a;--warn:#ffbe55;--bad:#ff6b6b}
+    :root{--bg:#0b1020;--panel:#121937;--muted:#9aa3b2;--accent:#9ad3ff;--good:#37d67a;--warn:#ffbe55;--bad:#ff6b6b;--chip:#2a2f49}
     html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:#eef2ff}
-    .shell{max-width:1040px;margin:3vh auto;padding:16px}
-    .bar{display:flex;gap:10px;align-items:center;margin-bottom:16px}
-    .bar h1{font-size:18px;margin:0}
+    .app{max-width:1200px;margin:2vh auto;padding:16px}
+    .topbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+    .topbar h1{font-size:18px;margin:0}
+    .spacer{flex:1}
     .btn{cursor:pointer;border:0;border-radius:10px;padding:9px 12px;font-weight:600}
     .btn.primary{background:#2a59ff;color:#fff}
     .btn.outline{background:transparent;color:var(--accent);border:1px solid var(--accent)}
-    .card{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin:12px 0}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .btn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.12)}
+    .btn.small{padding:6px 10px;font-weight:600;font-size:12px;border-radius:8px}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px;margin:10px 0}
     .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .stack{display:grid;gap:10px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
     label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
     input,select,textarea{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff}
     textarea{min-height:70px}
     .help{color:var(--muted);font-size:12px}
-    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:12px;border:1px solid rgba(255,255,255,.16)}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:12px;border:1px solid rgba(255,255,255,.16);background:var(--chip)}
     .pill.urgent{border-color:#ff8b8b;color:#ff8b8b}
     .pill.deadline{border-color:#8bd4ff;color:#8bd4ff}
     .pill.status{border-color:#bfbfff;color:#bfbfff}
+    .pill.me{border-color:#7affb3;color:#7affb3}
+    .muted{color:var(--muted)}
     .err{color:var(--bad);font-size:12px}
     .ok{color:var(--good)}
-    .muted{color:var(--muted)}
-    @media (max-width:840px){.grid,.grid-3{grid-template-columns:1fr}}
+    .split{display:grid;grid-template-columns:320px 1fr;gap:12px}
+    .list{display:grid;gap:8px}
+    .caseCard{cursor:pointer}
+    .badge{display:inline-block;padding:2px 6px;border-radius:7px;background:#2a59ff11;border:1px solid #2a59ff55;font-size:11px}
+    .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .tabs{display:flex;gap:8px;margin:8px 0}
+    .tab{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);cursor:pointer}
+    .tab.active{background:#2a59ff22;border-color:#2a59ff77}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
+    .modal>.box{max-width:720px;width:100%;background:var(--panel);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px}
+    @media (max-width:980px){.split{grid-template-columns:1fr}.grid,.grid3{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="bar">
-      <h1>Escalation Console — MVP</h1>
-      <span id="loginState" class="muted">Signed out</span>
-      <div style="flex:1"></div>
-      <button id="signin" class="btn primary">Sign in with Microsoft</button>
-      <button id="signout" class="btn outline" disabled>Sign out</button>
+  <div class="app">
+    <div class="topbar">
+      <h1>Escalation Console</h1>
+      <div class="pill" id="me">Signed out</div>
+      <div class="spacer"></div>
+      <button id="btnBell" class="btn ghost" title="Notifications">🔔 <span id="bellCount" class="badge">0</span></button>
+      <button id="btnSignin" class="btn primary">Sign in</button>
+      <button id="btnSignout" class="btn outline" disabled>Sign out</button>
     </div>
 
-    <div id="authGate" class="card">
-      <div class="row">
-        <div>Email: <strong id="email">—</strong></div>
-        <div class="muted">|</div>
-        <div>Name: <strong id="displayName">—</strong></div>
+    <!-- Filters + Create Case -->
+    <div class="card" id="dashBar" style="display:none">
+      <div class="toolbar">
+        <strong>Filters:</strong>
+        <button class="btn small ghost" data-filter="all">All</button>
+        <button class="btn small ghost" data-filter="waiting">Waiting action</button>
+        <button class="btn small ghost" data-filter="mine">Assigned to me</button>
+        <button class="btn small ghost" data-filter="finished">Finished</button>
+        <input id="search" placeholder="Search name / member / hospital / diagnosis" style="min-width:260px;margin-left:auto"/>
+        <button class="btn small primary" id="btnNew">New Case</button>
       </div>
-      <div id="authMsg" class="help" style="margin-top:8px;">Sign in to create and view cases.</div>
     </div>
 
-    <!-- Create Case -->
-    <div id="createCard" class="card" style="display:none">
-      <h3 style="margin:0 0 10px 0">Create Case</h3>
-      <form id="caseForm">
-        <!-- Patient/Policy -->
-        <div class="grid">
-          <div>
-            <label>Name *</label>
-            <input id="f_name" required/>
-          </div>
-          <div>
-            <label>MemberID *</label>
-            <input id="f_memberId" required/>
-          </div>
-          <div>
-            <label>Nationality *</label>
-            <input id="f_nationality" required/>
-          </div>
-          <div>
-            <label>DOB *</label>
-            <input id="f_dob" type="date" required/>
-            <div class="help">Age: <span id="ageOut">—</span></div>
-          </div>
-          <div>
-            <label>Policy Effective Date *</label>
-            <input id="f_policyEff" type="date" required/>
-          </div>
-          <div>
-            <label>Exclusion (long text) *</label>
-            <textarea id="f_exclusion" required></textarea>
-          </div>
-          <div>
-            <label>Underwriting Type *</label>
-            <select id="f_uwType" required>
-              <option value="">— select —</option>
-              <option>MHD</option>
-              <option>FMU</option>
-            </select>
-          </div>
-          <div>
-            <label>Type of admission</label>
-            <select id="f_admissionType">
-              <option value="">— select —</option>
-              <option>Scheduled</option>
-              <option>Admit</option>
-              <option>Discharge</option>
-            </select>
-          </div>
-          <div>
-            <label title="e.g., simple disease, high cost, ex-gratia">Type of consultation *</label>
-            <input id="f_consultType" required title="e.g., simple disease, high cost, ex-gratia"/>
+    <div class="split">
+      <!-- Left: Cases list -->
+      <div>
+        <div id="listCard" class="card" style="display:none">
+          <div class="list" id="caseList"></div>
+          <div id="listErr" class="err"></div>
+        </div>
+      </div>
+
+      <!-- Right: Details / Forms -->
+      <div id="panel">
+        <div id="welcome" class="card">
+          <div class="stack">
+            <div class="help">Sign in to view and manage cases. Use the **New Case** button to create a case. Click any case to open its details, comments, and actions.</div>
           </div>
         </div>
 
-        <hr style="border:0;border-top:1px solid rgba(255,255,255,.12);margin:16px 0"/>
-
-        <!-- Visit -->
-        <div class="grid">
-          <div>
-            <label>Visit Date *</label>
-            <input id="f_visitDate" type="date" required/>
-          </div>
-          <div>
-            <label>Hospital *</label>
-            <input id="f_hospital" required/>
-          </div>
-          <div>
-            <label>Diagnosis *</label>
-            <input id="f_diagnosis" required/>
-          </div>
-          <div>
-            <label>Discharge Date (optional)</label>
-            <input id="f_dischargeDate" type="date"/>
-          </div>
-        </div>
-
-        <div class="grid">
-          <div>
-            <label>Urgent</label>
-            <div class="row">
-              <input id="f_urgent" type="checkbox"/>
-              <span class="help">If checked, Deadline becomes required.</span>
+        <!-- Create Case form -->
+        <div id="createCard" class="card" style="display:none">
+          <h3 style="margin:0 0 10px 0">Create Case</h3>
+          <form id="caseForm">
+            <div class="grid3">
+              <div>
+                <label>Name *</label>
+                <input id="f_name" required/>
+              </div>
+              <div>
+                <label>MemberID *</label>
+                <input id="f_memberId" required/>
+              </div>
+              <div>
+                <label>Nationality *</label>
+                <input id="f_nationality" required/>
+              </div>
+              <div>
+                <label>DOB *</label>
+                <input id="f_dob" type="date" required/>
+                <div class="help">Age: <span id="ageOut">—</span></div>
+              </div>
+              <div>
+                <label>Policy Effective Date *</label>
+                <input id="f_policyEff" type="date" required/>
+              </div>
+              <div>
+                <label>Exclusion (long text) *</label>
+                <textarea id="f_exclusion" required></textarea>
+              </div>
+              <div>
+                <label>Underwriting Type *</label>
+                <select id="f_uwType" required>
+                  <option value="">— select —</option>
+                  <option>MHD</option>
+                  <option>FMU</option>
+                </select>
+              </div>
+              <div>
+                <label>Type of admission</label>
+                <select id="f_admissionType">
+                  <option value="">— select —</option>
+                  <option>Scheduled</option>
+                  <option>Admit</option>
+                  <option>Discharge</option>
+                </select>
+              </div>
+              <div>
+                <label title="e.g., simple disease, high cost, ex-gratia">Type of consultation *</label>
+                <input id="f_consultType" required title="e.g., simple disease, high cost, ex-gratia"/>
+              </div>
+              <div>
+                <label>Visit Date *</label>
+                <input id="f_visitDate" type="date" required/>
+              </div>
+              <div>
+                <label>Hospital *</label>
+                <input id="f_hospital" required/>
+              </div>
+              <div>
+                <label>Diagnosis *</label>
+                <input id="f_diagnosis" required/>
+              </div>
+              <div>
+                <label>Discharge Date (optional)</label>
+                <input id="f_dischargeDate" type="date"/>
+              </div>
             </div>
-          </div>
-          <div>
-            <label>Deadline (date & time)</label>
-            <input id="f_deadline" type="datetime-local"/>
-            <div class="help">Required when Urgent is checked.</div>
-          </div>
+
+            <div class="grid">
+              <div>
+                <label>Urgent</label>
+                <div class="row"><input id="f_urgent" type="checkbox"/> <span class="help">If checked, Deadline becomes required.</span></div>
+              </div>
+              <div>
+                <label>Deadline (date & time)</label>
+                <input id="f_deadline" type="datetime-local"/>
+                <div class="help">Required when Urgent is checked.</div>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div>
+                <label>Vital Signs (optional)</label>
+                <textarea id="f_vitals"></textarea>
+              </div>
+              <div>
+                <label>Physical Findings (optional)</label>
+                <textarea id="f_findings"></textarea>
+              </div>
+              <div>
+                <label title="Include running bill if appropriate">Summary (optional, long)</label>
+                <textarea id="f_summary" title="Include running bill if appropriate"></textarea>
+              </div>
+              <div>
+                <label>Treatment (optional)</label>
+                <textarea id="f_treatment"></textarea>
+              </div>
+              <div>
+                <label>Reason for Admission *</label>
+                <textarea id="f_reasonAdmission" required></textarea>
+              </div>
+              <div>
+                <label title="Reason for escalating to medical team for case consultation">Reason for consultation *</label>
+                <textarea id="f_reasonConsult" required title="Reason for escalating to medical team for case consultation"></textarea>
+              </div>
+              <div>
+                <label>Other remark (optional)</label>
+                <textarea id="f_remark"></textarea>
+              </div>
+            </div>
+
+            <div class="row" style="margin-top:10px">
+              <button class="btn primary" type="submit" id="btnSave">Save Case</button>
+              <span id="saveMsg" class="help"></span>
+              <span id="formErr" class="err"></span>
+            </div>
+          </form>
         </div>
 
-        <hr style="border:0;border-top:1px solid rgba(255,255,255,.12);margin:16px 0"/>
+        <!-- Case Details panel -->
+        <div id="casePanel" class="card" style="display:none"></div>
 
-        <!-- Clinical -->
-        <div class="grid">
-          <div>
-            <label>Vital Signs (optional)</label>
-            <textarea id="f_vitals"></textarea>
-          </div>
-          <div>
-            <label>Physical Findings (optional)</label>
-            <textarea id="f_findings"></textarea>
-          </div>
-          <div>
-            <label title="Include running bill if appropriate">Summary (optional, long)</label>
-            <textarea id="f_summary" title="Include running bill if appropriate"></textarea>
-          </div>
-          <div>
-            <label>Treatment (optional)</label>
-            <textarea id="f_treatment"></textarea>
-          </div>
-          <div>
-            <label>Reason for Admission *</label>
-            <textarea id="f_reasonAdmission" required></textarea>
-          </div>
-          <div>
-            <label title="Reason for escalating to medical team for case consultation">Reason for consultation *</label>
-            <textarea id="f_reasonConsult" required title="Reason for escalating to medical team for case consultation"></textarea>
-          </div>
-          <div>
-            <label>Other remark (optional)</label>
-            <textarea id="f_remark"></textarea>
-          </div>
-        </div>
-
-        <div class="row" style="margin-top:12px">
-          <button class="btn primary" type="submit" id="btnSave">Save Case</button>
-          <span id="saveMsg" class="help"></span>
-        </div>
-        <div id="formErr" class="err"></div>
-      </form>
-    </div>
-
-    <!-- Cases list -->
-    <div id="listCard" class="card" style="display:none">
-      <div class="row" style="justify-content:space-between">
-        <h3 style="margin:0">Cases</h3>
-        <div class="row">
-          <input id="searchBox" placeholder="Search name / member / hospital / diagnosis" style="min-width:240px"/>
-        </div>
       </div>
-      <div id="cases"></div>
-      <div id="listErr" class="err"></div>
+    </div>
+  </div>
+
+  <!-- MQ Modal -->
+  <div id="mqModal" class="modal">
+    <div class="box">
+      <div class="row" style="justify-content:space-between"><h3 style="margin:0">Medical Questionnaire</h3><button class="btn ghost small" id="mqClose">✕</button></div>
+      <textarea id="mqText" style="width:100%;min-height:220px;margin-top:10px"></textarea>
+      <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="btn primary" id="mqSave">Save MQ</button></div>
+    </div>
+  </div>
+
+  <!-- Notifications Modal -->
+  <div id="notifModal" class="modal">
+    <div class="box">
+      <div class="row" style="justify-content:space-between"><h3 style="margin:0">Notifications</h3><button class="btn ghost small" id="notifClose">✕</button></div>
+      <div id="notifList" class="stack" style="margin-top:10px"></div>
     </div>
   </div>
 
@@ -200,10 +235,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, onAuthStateChanged, signInWithPopup, OAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import {
-      getFirestore, collection, addDoc, serverTimestamp, onSnapshot,
-      query, orderBy, limit, Timestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, Timestamp, query, orderBy, where, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     // 🔧 YOUR FIREBASE CONFIG
     const firebaseConfig = {
@@ -212,202 +244,326 @@
       projectId: "lumacompanion1",
     };
 
-    // Init
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
     const msProvider = new OAuthProvider('microsoft.com');
 
-    // UI helpers
+    // --- State ---
+    let me = null;               // { email, displayName }
+    let casesCache = [];         // last fetched case docs
+    let activeCaseId = null;     // current case being viewed
+    let mqDraftForComment = null;// commentId for which MQ is being edited
+
+    // --- UI helpers ---
     const $ = (id)=>document.getElementById(id);
     const show = (el, v)=> el.style.display = v ? "" : "none";
-    const setText = (id, v)=> $(id).textContent = v ?? "—";
+    const esc = (s)=> (s==null?"":String(s)).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+    const fmtTs = (ts)=> ts ? new Date(ts.seconds? ts.seconds*1000 : ts).toLocaleString() : "";
 
-    // --- Auth wiring ---
-    $('signin').onclick = async ()=> {
-      try { await signInWithPopup(auth, msProvider); } catch (e){ console.error(e); }
-    };
-    $('signout').onclick = async ()=> { try { await signOut(auth); } catch(e){ console.error(e); } };
+    const bellBtn = $('btnBell');
+    bellBtn.onclick = ()=> { $('notifModal').style.display='flex'; };
+    $('notifClose').onclick = ()=> { $('notifModal').style.display='none'; };
 
-    onAuthStateChanged(auth, (user)=>{
+    // --- Auth ---
+    $('btnSignin').onclick = async ()=> { try{ await signInWithPopup(auth, msProvider); }catch(e){ console.error(e);} };
+    $('btnSignout').onclick = async ()=> { try{ await signOut(auth);}catch(e){ console.error(e);} };
+
+    onAuthStateChanged(auth, async (user)=>{
       if (!user){
-        // signed out
-        setText('loginState','Signed out');
-        setText('email','—'); setText('displayName','—');
-        show($('createCard'), false);
-        show($('listCard'), false);
-        $('signout').disabled = true;
-        $('signin').disabled = false;
-        setText('authMsg','Sign in to create and view cases.');
+        me = null; activeCaseId = null; casesCache = [];
+        $('me').textContent = 'Signed out';
+        $('btnSignout').disabled = true; $('btnSignin').disabled = false;
+        show($('dashBar'), false); show($('listCard'), false); show($('createCard'), false);
+        $('caseList').innerHTML = ''; $('casePanel').innerHTML=''; show($('casePanel'), false);
+        updateBell([]);
         return;
       }
-      setText('loginState','Signed in');
-      setText('email', user.email || '(no email)');
-      setText('displayName', user.displayName || '—');
-      $('signout').disabled = false;
-      $('signin').disabled = true;
-      setText('authMsg','');
-      show($('createCard'), true);
-      show($('listCard'), true);
-      startCasesListener();
+      me = { email: user.email, displayName: user.displayName };
+      $('me').textContent = me.email || '(no email)';
+      $('btnSignout').disabled = false; $('btnSignin').disabled = true;
+      show($('dashBar'), true); show($('listCard'), true); show($('createCard'), false);
+      attachCasesListener();
+      attachNotificationsListener();
     });
 
-    // --- Age calculation from DOB ---
-    function calcAgeParts(dobStr){
-      if (!dobStr) return null;
-      const dob = new Date(dobStr + "T00:00");
-      const now = new Date();
-      let years = now.getFullYear() - dob.getFullYear();
-      let months = now.getMonth() - dob.getMonth();
-      let days = now.getDate() - dob.getDate();
-      if (days < 0){ months -= 1; }
-      if (months < 0){ years -= 1; months += 12; }
-      return { years, months: Math.max(0, months) };
-    }
-    $('f_dob').addEventListener('change', ()=>{
-      const a = calcAgeParts($('f_dob').value);
-      $('ageOut').textContent = a ? `${a.years}y ${a.months}m` : '—';
+    // --- Filters + search ---
+    let filterMode = 'all';
+    document.querySelectorAll('[data-filter]').forEach(btn=>{
+      btn.onclick = ()=> { filterMode = btn.getAttribute('data-filter'); renderCaseList(); };
     });
+    $('search').addEventListener('input', renderCaseList);
 
-    // --- Urgent → deadline required toggle ---
-    $('f_urgent').addEventListener('change', ()=>{
-      const chk = $('f_urgent').checked;
-      $('f_deadline').required = chk;
-    });
+    // --- New Case form visibility ---
+    $('btnNew').onclick = ()=>{ show($('createCard'), true); window.scrollTo({top:0, behavior:'smooth'}); };
 
-    // --- Save Case ---
+    // --- Age calc + urgent toggle ---
+    function calcAgeParts(dobStr){ if (!dobStr) return null; const dob = new Date(dobStr+"T00:00"); const now=new Date(); let y=now.getFullYear()-dob.getFullYear(); let m=now.getMonth()-dob.getMonth(); let d=now.getDate()-dob.getDate(); if(d<0)m--; if(m<0){y--;m+=12;} return {years:y, months:Math.max(0,m)}; }
+    $('f_dob').addEventListener('change', ()=>{ const a=calcAgeParts($('f_dob').value); $('ageOut').textContent = a? `${a.years}y ${a.months}m` : '—'; });
+    $('f_urgent').addEventListener('change', ()=>{ $('f_deadline').required = $('f_urgent').checked; });
+
+    // --- Create Case submit ---
     $('caseForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
-      $('formErr').textContent = '';
-      $('saveMsg').textContent = '';
-
-      // Validate urgent/deadline
-      if ($('f_urgent').checked && !$('f_deadline').value){
-        $('formErr').textContent = "Deadline is required when Urgent is checked.";
-        return;
-      }
-
-      // Build details object (exact field names as you listed)
-      const dob = $('f_dob').value ? new Date($('f_dob').value) : null;
-      const age = calcAgeParts($('f_dob').value);
-      const payload = {
-        status: "New",
-        urgent: $('f_urgent').checked,
-        deadlineAt: $('f_deadline').value ? new Date($('f_deadline').value) : null,
-
-        details: {
-          Name: $('f_name').value.trim(),
-          MemberID: $('f_memberId').value.trim(),
-          Nationality: $('f_nationality').value.trim(),
-          DOB: dob,
-          AgeYears: age ? age.years : null,
-          AgeMonths: age ? age.months : null,
-          PolicyEffectiveDate: $('f_policyEff').value ? new Date($('f_policyEff').value) : null,
-          Exclusion: $('f_exclusion').value.trim(),
-          UnderwritingType: $('f_uwType').value,
-          TypeOfAdmission: $('f_admissionType').value || null,
-          TypeOfConsultation: $('f_consultType').value.trim(),
-
-          VisitDate: $('f_visitDate').value ? new Date($('f_visitDate').value) : null,
-          Hospital: $('f_hospital').value.trim(),
-          Diagnosis: $('f_diagnosis').value.trim(),
-          DischargeDate: $('f_dischargeDate').value ? new Date($('f_dischargeDate').value) : null,
-
-          VitalSigns: $('f_vitals').value.trim() || null,
-          PhysicalFindings: $('f_findings').value.trim() || null,
-          Summary: $('f_summary').value.trim() || null,
-          Treatment: $('f_treatment').value.trim() || null,
-          ReasonForAdmission: $('f_reasonAdmission').value.trim(),
-          ReasonForConsultation: $('f_reasonConsult').value.trim(),
-          OtherRemark: $('f_remark').value.trim() || null
+      const errEl=$('formErr'); errEl.textContent=''; $('saveMsg').textContent='';
+      if ($('f_urgent').checked && !$('f_deadline').value){ errEl.textContent='Deadline is required when Urgent is checked.'; return; }
+      const age=calcAgeParts($('f_dob').value);
+      const payload={
+        status:'New', urgent:$('f_urgent').checked,
+        deadlineAt: $('f_deadline').value? new Date($('f_deadline').value): null,
+        waitingAction: null,
+        details:{
+          Name:$('f_name').value.trim(), MemberID:$('f_memberId').value.trim(), Nationality:$('f_nationality').value.trim(),
+          DOB: $('f_dob').value? new Date($('f_dob').value): null,
+          AgeYears: age?age.years:null, AgeMonths: age?age.months:null,
+          PolicyEffectiveDate: $('f_policyEff').value? new Date($('f_policyEff').value): null,
+          Exclusion:$('f_exclusion').value.trim(), UnderwritingType:$('f_uwType').value,
+          TypeOfAdmission:$('f_admissionType').value||null, TypeOfConsultation:$('f_consultType').value.trim(),
+          VisitDate:$('f_visitDate').value? new Date($('f_visitDate').value): null,
+          Hospital:$('f_hospital').value.trim(), Diagnosis:$('f_diagnosis').value.trim(),
+          DischargeDate:$('f_dischargeDate').value? new Date($('f_dischargeDate').value): null,
+          VitalSigns:$('f_vitals').value.trim()||null, PhysicalFindings:$('f_findings').value.trim()||null,
+          Summary:$('f_summary').value.trim()||null, Treatment:$('f_treatment').value.trim()||null,
+          ReasonForAdmission:$('f_reasonAdmission').value.trim(), ReasonForConsultation:$('f_reasonConsult').value.trim(),
+          OtherRemark:$('f_remark').value.trim()||null
         },
-
-        assignedNurse: null,
-        assignedDoctor: null,
-        waitingAction: null, // we'll toggle to "doctor"/"nurse" later via Confirm
-        createdAt: serverTimestamp(),
-        createdBy: { email: (auth.currentUser && auth.currentUser.email) || null, displayName: (auth.currentUser && auth.currentUser.displayName) || null },
-        updatedAt: serverTimestamp(),
-        updatedBy: { email: (auth.currentUser && auth.currentUser.email) || null, displayName: (auth.currentUser && auth.currentUser.displayName) || null }
+        assignedNurse:null, assignedDoctor:null,
+        createdAt: serverTimestamp(), createdBy:{ email: me?.email||null, displayName: me?.displayName||null },
+        updatedAt: serverTimestamp(), updatedBy:{ email: me?.email||null, displayName: me?.displayName||null }
       };
-
-      // Basic required checks (besides HTML required)
-      const requiredStrings = [
-        payload.details.Name, payload.details.MemberID, payload.details.Nationality,
-        payload.details.Exclusion, payload.details.UnderwritingType,
-        payload.details.TypeOfConsultation, payload.details.Hospital,
-        payload.details.Diagnosis, payload.details.ReasonForAdmission,
-        payload.details.ReasonForConsultation
-      ];
-      if (requiredStrings.some(v => !v)){
-        $('formErr').textContent = "Please fill all mandatory fields.";
-        return;
-      }
-      if (!payload.details.DOB || !payload.details.PolicyEffectiveDate || !payload.details.VisitDate){
-        $('formErr').textContent = "Please fill all required dates (DOB, Policy Effective Date, Visit Date).";
-        return;
-      }
-
       try{
-        $('btnSave').disabled = true;
-        const ref = await addDoc(collection(db, 'cases'), payload);
-        $('saveMsg').textContent = `✅ Saved (Case ID: ${ref.id})`;
-        $('caseForm').reset();
-        $('ageOut').textContent = '—';
-        $('f_deadline').required = false;
-      }catch(err){
-        $('formErr').textContent = err.message || String(err);
-      }finally{
-        $('btnSave').disabled = false;
-      }
+        $('btnSave').disabled=true;
+        const ref = await addDoc(collection(db,'cases'), payload);
+        await addDoc(collection(db,'notifications'),{
+          type:'CaseCreated', caseId: ref.id,
+          actor:{ email:me.email, displayName:me.displayName },
+          payload:{ name: payload.details.Name, memberId: payload.details.MemberID },
+          createdAt: serverTimestamp(), readBy: []
+        });
+        $('saveMsg').textContent=`✅ Saved (Case ID: ${ref.id})`;
+        $('caseForm').reset(); $('ageOut').textContent='—'; $('f_deadline').required=false;
+        show($('createCard'), false);
+      }catch(err){ errEl.textContent = err.message||String(err); }
+      finally{ $('btnSave').disabled=false; }
     });
 
-    // --- Cases list (live) ---
-    let unsubCases = null;
-    function renderCases(cases){
-      const q = ($('searchBox').value || '').toLowerCase();
-      const el = $('cases');
-      el.innerHTML = '';
-      cases
-        .filter(c=>{
-          if (!q) return true;
-          const d = c.details || {};
-          return [d.Name, d.MemberID, d.Hospital, d.Diagnosis].some(x=> (x||'').toLowerCase().includes(q));
-        })
-        .forEach(c=>{
-          const div = document.createElement('div');
-          div.className = 'card';
-          const deadlineTxt = c.deadlineAt ? new Date(c.deadlineAt.seconds ? c.deadlineAt.seconds*1000 : c.deadlineAt).toLocaleString() : null;
-          div.innerHTML = `
-            <div class="row" style="justify-content:space-between">
-              <div><strong>${c.details?.Name || '(no name)'}</strong> <span class="muted">· ${c.details?.MemberID || ''}</span></div>
-              <div class="row">
-                <span class="pill status">${c.status}</span>
-                ${c.urgent ? `<span class="pill urgent">Urgent</span>` : ``}
-                ${deadlineTxt ? `<span class="pill deadline">Deadline: ${deadlineTxt}</span>` : ``}
-              </div>
+    // --- Cases listener ---
+    let unsubCases=null;
+    function attachCasesListener(){ if(unsubCases)unsubCases(); const qRef=query(collection(db,'cases'), orderBy('updatedAt','desc'), limit(200)); unsubCases=onSnapshot(qRef,(snap)=>{ casesCache=snap.docs.map(d=>({ id:d.id, ...d.data()})); renderCaseList(); }); }
+
+    function renderCaseList(){
+      const list=$('caseList'); list.innerHTML='';
+      const q=($('search').value||'').toLowerCase();
+      const arr = casesCache.filter(c=>{
+        if(filterMode==='finished' && c.status!=='Finished') return false;
+        if(filterMode==='mine'){
+          if(!me) return false; const em=me.email; const an=c.assignedNurse?.email===em; const ad=c.assignedDoctor?.email===em; if(!an && !ad) return false;
+        }
+        if(filterMode==='waiting' && !c.waitingAction) return false;
+        if(q){ const d=c.details||{}; const hay=[d.Name,d.MemberID,d.Hospital,d.Diagnosis].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
+        return true;
+      });
+      arr.forEach(c=>{
+        const div=document.createElement('div'); div.className='card caseCard'; div.onclick=()=>openCase(c.id);
+        const deadlineTxt = c.deadlineAt? fmtTs(c.deadlineAt): null;
+        div.innerHTML = `
+          <div class="row" style="justify-content:space-between">
+            <div>
+              <strong>${esc(c.details?.Name||'(no name)')}</strong>
+              <span class="muted">· ${esc(c.details?.MemberID||'')}</span>
+              ${c.waitingAction? `<span class="badge">Waiting: ${c.waitingAction}</span>`:''}
             </div>
-            <div class="help" style="margin-top:6px">${c.details?.Hospital || ''} — ${c.details?.Diagnosis || ''}</div>
-          `;
-          el.appendChild(div);
-        });
+            <div class="row">
+              <span class="pill status">${esc(c.status)}</span>
+              ${c.urgent? '<span class="pill urgent">Urgent</span>':''}
+              ${deadlineTxt? `<span class="pill deadline">Deadline: ${esc(deadlineTxt)}</span>`:''}
+            </div>
+          </div>
+          <div class="help" style="margin-top:6px">${esc(c.details?.Hospital||'')} — ${esc(c.details?.Diagnosis||'')}</div>
+          <div class="help" style="margin-top:6px">Nurse: ${esc(c.assignedNurse?.email||'-')} | Doctor: ${esc(c.assignedDoctor?.email||'-')}</div>
+        `;
+        list.appendChild(div);
+      });
+      show($('listCard'), true);
     }
 
-    function startCasesListener(){
-      if (unsubCases) unsubCases();
-      const qRef = query(collection(db,'cases'), orderBy('updatedAt','desc'), limit(50));
-      unsubCases = onSnapshot(qRef, (snap)=>{
-        const arr = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
-        renderCases(arr);
-      }, (err)=>{
-        $('listErr').textContent = err.message || String(err);
-      });
-      $('searchBox').addEventListener('input', ()=> {
-        // reuse last snapshot if available
-        // no-op here; list re-renders on input if we cached; simplest is to refetch arr from onSnapshot closure
-        // for simplicity we just trigger a manual rebuild using last known 'arr' captured:
+    // --- Open case ---
+    let unsubComments=null;
+    async function openCase(id){
+      activeCaseId=id; const ref=doc(db,'cases',id); const snap=await getDoc(ref); if(!snap.exists()){ $('casePanel').innerHTML='<div class="err">Case not found</div>'; show($('casePanel'),true); return; }
+      const c=snap.data();
+      renderCasePanel(id,c);
+      if(unsubComments)unsubComments();
+      const qRef=query(collection(db,'comments'), where('caseId','==',id), orderBy('createdAt','asc'));
+      unsubComments=onSnapshot(qRef,(snap)=>{
+        const comments=snap.docs.map(d=>({ id:d.id, ...d.data()}));
+        renderComments(id,c,comments);
       });
     }
+
+    function renderCasePanel(id,c){
+      const el=$('casePanel');
+      const d=c.details||{};
+      const deadlineTxt=c.deadlineAt? fmtTs(c.deadlineAt):'';
+      el.innerHTML = `
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <h3 style="margin:0">${esc(d.Name||'(no name)')}</h3>
+            <div class="help">${esc(d.MemberID||'')} · ${esc(d.Nationality||'')} · DOB: ${d.DOB? esc(fmtTs(d.DOB)):'-'}</div>
+          </div>
+          <div class="row">
+            <span class="pill status">${esc(c.status)}</span>
+            ${c.urgent? '<span class="pill urgent">Urgent</span>':''}
+            ${deadlineTxt? `<span class="pill deadline">Deadline: ${esc(deadlineTxt)}</span>`:''}
+          </div>
+        </div>
+
+        <div class="row" style="margin:8px 0; gap:6px">
+          <button class="btn small ghost" id="assignNurse">Assign me (Nurse)</button>
+          <button class="btn small ghost" id="assignDoctor">Assign me (Doctor)</button>
+          ${c.status!=='Finished' ? `<button class="btn small outline" id="finishBtn">Mark Finished</button>`: `<button class="btn small outline" id="undoFinishBtn">Undo Finished</button>`}
+        </div>
+
+        <div class="tabs">
+          <div class="tab active" id="tabDetails">Details</div>
+          <div class="tab" id="tabComments">Comments</div>
+          <div class="tab" id="tabDocs">Documents</div>
+        </div>
+
+        <div id="viewDetails">
+          <div class="grid">
+            <div><label>Hospital</label><div>${esc(d.Hospital||'-')}</div></div>
+            <div><label>Diagnosis</label><div>${esc(d.Diagnosis||'-')}</div></div>
+            <div><label>Visit</label><div>${d.VisitDate? esc(fmtTs(d.VisitDate)):'-'}</div></div>
+            <div><label>Discharge</label><div>${d.DischargeDate? esc(fmtTs(d.DischargeDate)):'-'}</div></div>
+            <div><label>Reason for Admission</label><div>${esc(d.ReasonForAdmission||'-')}</div></div>
+            <div><label>Reason for Consultation</label><div>${esc(d.ReasonForConsultation||'-')}</div></div>
+            <div><label>Exclusion</label><div>${esc(d.Exclusion||'-')}</div></div>
+            <div><label>Underwriting</label><div>${esc(d.UnderwritingType||'-')}</div></div>
+          </div>
+        </div>
+
+        <div id="viewComments" style="display:none">
+          <div id="commentList" class="stack"></div>
+          <div class="card" style="margin-top:10px">
+            <h4 style="margin:0 0 8px 0">Add Comment</h4>
+            <textarea id="cmtBody" placeholder="Write a comment..."></textarea>
+            <div class="row" style="margin-top:8px">
+              <button class="btn small ghost" id="btnMQ">Add/View MQ</button>
+              <select id="flagTo" class="btn small ghost" style="padding-right:28px">
+                <option value="">— no flag —</option>
+                <option value="doctor">Flag to doctor</option>
+                <option value="nurse">Flag to nurse</option>
+              </select>
+              <div class="spacer"></div>
+              <button class="btn small outline" id="cmtSave">Save</button>
+              <button class="btn small primary" id="cmtConfirm">Confirm</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="viewDocs" style="display:none">
+          <div class="help">Documents tab comes next step (uploads via Netlify functions, pdf.js viewer, page tagging).</div>
+        </div>
+      `;
+
+      // Tab handlers
+      const tDet=$('tabDetails'), tCom=$('tabComments'), tDocs=$('tabDocs');
+      const vDet=$('viewDetails'), vCom=$('viewComments'), vDocs=$('viewDocs');
+      function activate(tab){ [tDet,tCom,tDocs].forEach(t=>t.classList.remove('active')); [vDet,vCom,vDocs].forEach(v=>v.style.display='none');
+        if(tab==='det'){tDet.classList.add('active'); vDet.style.display='';}
+        if(tab==='cmt'){tCom.classList.add('active'); vCom.style.display='';}
+        if(tab==='doc'){tDocs.classList.add('active'); vDocs.style.display='';}
+      }
+      tDet.onclick=()=>activate('det'); tCom.onclick=()=>activate('cmt'); tDocs.onclick=()=>activate('doc');
+
+      // Actions
+      $('assignNurse').onclick = async ()=>{
+        if(!me)return; await updateDoc(doc(db,'cases',id),{ assignedNurse:{ email:me.email, displayName:me.displayName, at: serverTimestamp() }, updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }});
+        await addDoc(collection(db,'notifications'),{ type:'AssignmentChanged', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{ role:'nurse', to: me.email }, createdAt: serverTimestamp(), readBy: []});
+      };
+      $('assignDoctor').onclick = async ()=>{
+        if(!me)return; await updateDoc(doc(db,'cases',id),{ assignedDoctor:{ email:me.email, displayName:me.displayName, at: serverTimestamp() }, updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }});
+        await addDoc(collection(db,'notifications'),{ type:'AssignmentChanged', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{ role:'doctor', to: me.email }, createdAt: serverTimestamp(), readBy: []});
+      };
+      if(c.status!=='Finished'){
+        $('finishBtn').onclick = async ()=>{
+          await updateDoc(doc(db,'cases',id),{ status:'Finished', finishedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }});
+          await addDoc(collection(db,'notifications'),{ type:'StatusFinished', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{}, createdAt: serverTimestamp(), readBy: []});
+          openCase(id);
+        };
+      } else {
+        $('undoFinishBtn').onclick = async ()=>{
+          await updateDoc(doc(db,'cases',id),{ status:'InReview', updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }});
+          await addDoc(collection(db,'notifications'),{ type:'StatusUndo', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{}, createdAt: serverTimestamp(), readBy: []});
+          openCase(id);
+        };
+      }
+
+      // Comment actions
+      $('btnMQ').onclick = ()=>{ mqDraftForComment = null; $('mqText').value=''; $('mqModal').style.display='flex'; };
+      $('cmtSave').onclick = ()=> submitComment(false);
+      $('cmtConfirm').onclick = ()=> submitComment(true);
+
+      async function submitComment(isConfirm){
+        const body = ($('#cmtBody').value||'').trim(); if(!body){ alert('Please type a comment'); return; }
+        const ref = await addDoc(collection(db,'comments'),{ caseId:id, author:{ email:me.email, displayName:me.displayName }, body, isEdited:false, editedAt:null, createdAt: serverTimestamp() });
+        await addDoc(collection(db,'notifications'),{ type:'CommentNew', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{}, createdAt: serverTimestamp(), readBy: []});
+        const flag = $('#flagTo').value;
+        if(isConfirm && flag){ await updateDoc(doc(db,'cases',id),{ waitingAction: flag, updatedAt: serverTimestamp(), updatedBy:{ email:me.email, displayName:me.displayName }}); await addDoc(collection(db,'notifications'),{ type:'WaitingActionSet', caseId:id, actor:{email:me.email,displayName:me.displayName}, payload:{ to: flag }, createdAt: serverTimestamp(), readBy: []}); }
+        $('#cmtBody').value=''; $('#flagTo').value=''; activate('cmt');
+      }
+
+      show($('casePanel'), true);
+    }
+
+    function renderComments(caseId, c, comments){
+      const list=$('commentList'); list.innerHTML='';
+      comments.forEach(cm=>{
+        const row=document.createElement('div'); row.className='card';
+        const mine = me && cm.author?.email===me.email;
+        row.innerHTML = `
+          <div class="row" style="justify-content:space-between">
+            <div><strong>${esc(cm.author?.displayName||cm.author?.email||'')}</strong> <span class="muted">· ${fmtTs(cm.createdAt)}</span> ${cm.isEdited? '<span class="badge">edited</span>':''}</div>
+            <div class="row">${mine? '<button class="btn small ghost" data-edit="1">Edit</button>':''} <button class="btn small ghost" data-mq="1">View MQ</button></div>
+          </div>
+          <div style="margin-top:6px; white-space:pre-wrap">${esc(cm.body||'')}</div>
+        `;
+        // Edit handler
+        if(mine){
+          row.querySelector('[data-edit]')?.addEventListener('click', async()=>{
+            const nv = prompt('Edit your comment:', cm.body||'');
+            if(nv==null) return;
+            await updateDoc(doc(db,'comments', cm.id),{ body: nv, isEdited:true, editedAt: serverTimestamp() });
+            await addDoc(collection(db,'notifications'),{ type:'CommentEdit', caseId:caseId, actor:{email:me.email,displayName:me.displayName}, payload:{}, createdAt: serverTimestamp(), readBy: []});
+          });
+        }
+        // MQ handler
+        row.querySelector('[data-mq]')?.addEventListener('click', async()=>{
+          mqDraftForComment = cm.id;
+          // Load existing MQ if any
+          const mqSnap = await getDoc(doc(db,'commentMQ', cm.id));
+          $('mqText').value = mqSnap.exists()? (mqSnap.data().text||'') : '';
+          $('mqModal').style.display='flex';
+        });
+        list.appendChild(row);
+      });
+    }
+
+    // MQ modal actions (saved under commentMQ/{commentId})
+    $('mqClose').onclick = ()=>{ $('mqModal').style.display='none'; };
+    $('mqSave').onclick = async ()=>{
+      if(!mqDraftForComment){ $('mqModal').style.display='none'; return; }
+      await setDoc(doc(db,'commentMQ', mqDraftForComment),{ caseId: activeCaseId, commentId: mqDraftForComment, author:{ email:me.email, displayName:me.displayName }, text: $('mqText').value||'', createdAt: serverTimestamp() });
+      $('mqModal').style.display='none';
+    };
+
+    // Notifications listener
+    let unsubNotif=null; function attachNotificationsListener(){ if(unsubNotif)unsubNotif(); const qRef=query(collection(db,'notifications'), orderBy('createdAt','desc'), limit(50)); unsubNotif=onSnapshot(qRef,(snap)=>{ const arr=snap.docs.map(d=>({ id:d.id, ...d.data()})); updateBell(arr); renderNotif(arr); }); }
+
+    function updateBell(arr){ $('bellCount').textContent = arr.length || 0; }
+    function renderNotif(arr){ const box=$('notifList'); box.innerHTML=''; arr.forEach(n=>{ const div=document.createElement('div'); div.className='card'; div.innerHTML = `<div class="row" style="justify-content:space-between"><div><strong>${esc(n.type)}</strong> · <span class="muted">${fmtTs(n.createdAt)}</span></div><div class="muted">Case: ${esc(n.caseId||'')}</div></div>`; box.appendChild(div); }); }
+
   </script>
 </body>
 </html>
