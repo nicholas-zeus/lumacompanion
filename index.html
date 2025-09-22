@@ -1,5 +1,413 @@
-<html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Escalation Console — MVP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    :root{--bg:#0b1020;--panel:#121937;--muted:#9aa3b2;--accent:#9ad3ff;--good:#37d67a;--warn:#ffbe55;--bad:#ff6b6b}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:#eef2ff}
+    .shell{max-width:1040px;margin:3vh auto;padding:16px}
+    .bar{display:flex;gap:10px;align-items:center;margin-bottom:16px}
+    .bar h1{font-size:18px;margin:0}
+    .btn{cursor:pointer;border:0;border-radius:10px;padding:9px 12px;font-weight:600}
+    .btn.primary{background:#2a59ff;color:#fff}
+    .btn.outline{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin:12px 0}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+    input,select,textarea{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff}
+    textarea{min-height:70px}
+    .help{color:var(--muted);font-size:12px}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:12px;border:1px solid rgba(255,255,255,.16)}
+    .pill.urgent{border-color:#ff8b8b;color:#ff8b8b}
+    .pill.deadline{border-color:#8bd4ff;color:#8bd4ff}
+    .pill.status{border-color:#bfbfff;color:#bfbfff}
+    .err{color:var(--bad);font-size:12px}
+    .ok{color:var(--good)}
+    .muted{color:var(--muted)}
+    @media (max-width:840px){.grid,.grid-3{grid-template-columns:1fr}}
+  </style>
+</head>
 <body>
-<h1> Hello!! Welcome to Escalation Page. </h1>
+  <div class="shell">
+    <div class="bar">
+      <h1>Escalation Console — MVP</h1>
+      <span id="loginState" class="muted">Signed out</span>
+      <div style="flex:1"></div>
+      <button id="signin" class="btn primary">Sign in with Microsoft</button>
+      <button id="signout" class="btn outline" disabled>Sign out</button>
+    </div>
+
+    <div id="authGate" class="card">
+      <div class="row">
+        <div>Email: <strong id="email">—</strong></div>
+        <div class="muted">|</div>
+        <div>Name: <strong id="displayName">—</strong></div>
+      </div>
+      <div id="authMsg" class="help" style="margin-top:8px;">Sign in to create and view cases.</div>
+    </div>
+
+    <!-- Create Case -->
+    <div id="createCard" class="card" style="display:none">
+      <h3 style="margin:0 0 10px 0">Create Case</h3>
+      <form id="caseForm">
+        <!-- Patient/Policy -->
+        <div class="grid">
+          <div>
+            <label>Name *</label>
+            <input id="f_name" required/>
+          </div>
+          <div>
+            <label>MemberID *</label>
+            <input id="f_memberId" required/>
+          </div>
+          <div>
+            <label>Nationality *</label>
+            <input id="f_nationality" required/>
+          </div>
+          <div>
+            <label>DOB *</label>
+            <input id="f_dob" type="date" required/>
+            <div class="help">Age: <span id="ageOut">—</span></div>
+          </div>
+          <div>
+            <label>Policy Effective Date *</label>
+            <input id="f_policyEff" type="date" required/>
+          </div>
+          <div>
+            <label>Exclusion (long text) *</label>
+            <textarea id="f_exclusion" required></textarea>
+          </div>
+          <div>
+            <label>Underwriting Type *</label>
+            <select id="f_uwType" required>
+              <option value="">— select —</option>
+              <option>MHD</option>
+              <option>FMU</option>
+            </select>
+          </div>
+          <div>
+            <label>Type of admission</label>
+            <select id="f_admissionType">
+              <option value="">— select —</option>
+              <option>Scheduled</option>
+              <option>Admit</option>
+              <option>Discharge</option>
+            </select>
+          </div>
+          <div>
+            <label title="e.g., simple disease, high cost, ex-gratia">Type of consultation *</label>
+            <input id="f_consultType" required title="e.g., simple disease, high cost, ex-gratia"/>
+          </div>
+        </div>
+
+        <hr style="border:0;border-top:1px solid rgba(255,255,255,.12);margin:16px 0"/>
+
+        <!-- Visit -->
+        <div class="grid">
+          <div>
+            <label>Visit Date *</label>
+            <input id="f_visitDate" type="date" required/>
+          </div>
+          <div>
+            <label>Hospital *</label>
+            <input id="f_hospital" required/>
+          </div>
+          <div>
+            <label>Diagnosis *</label>
+            <input id="f_diagnosis" required/>
+          </div>
+          <div>
+            <label>Discharge Date (optional)</label>
+            <input id="f_dischargeDate" type="date"/>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <label>Urgent</label>
+            <div class="row">
+              <input id="f_urgent" type="checkbox"/>
+              <span class="help">If checked, Deadline becomes required.</span>
+            </div>
+          </div>
+          <div>
+            <label>Deadline (date & time)</label>
+            <input id="f_deadline" type="datetime-local"/>
+            <div class="help">Required when Urgent is checked.</div>
+          </div>
+        </div>
+
+        <hr style="border:0;border-top:1px solid rgba(255,255,255,.12);margin:16px 0"/>
+
+        <!-- Clinical -->
+        <div class="grid">
+          <div>
+            <label>Vital Signs (optional)</label>
+            <textarea id="f_vitals"></textarea>
+          </div>
+          <div>
+            <label>Physical Findings (optional)</label>
+            <textarea id="f_findings"></textarea>
+          </div>
+          <div>
+            <label title="Include running bill if appropriate">Summary (optional, long)</label>
+            <textarea id="f_summary" title="Include running bill if appropriate"></textarea>
+          </div>
+          <div>
+            <label>Treatment (optional)</label>
+            <textarea id="f_treatment"></textarea>
+          </div>
+          <div>
+            <label>Reason for Admission *</label>
+            <textarea id="f_reasonAdmission" required></textarea>
+          </div>
+          <div>
+            <label title="Reason for escalating to medical team for case consultation">Reason for consultation *</label>
+            <textarea id="f_reasonConsult" required title="Reason for escalating to medical team for case consultation"></textarea>
+          </div>
+          <div>
+            <label>Other remark (optional)</label>
+            <textarea id="f_remark"></textarea>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" type="submit" id="btnSave">Save Case</button>
+          <span id="saveMsg" class="help"></span>
+        </div>
+        <div id="formErr" class="err"></div>
+      </form>
+    </div>
+
+    <!-- Cases list -->
+    <div id="listCard" class="card" style="display:none">
+      <div class="row" style="justify-content:space-between">
+        <h3 style="margin:0">Cases</h3>
+        <div class="row">
+          <input id="searchBox" placeholder="Search name / member / hospital / diagnosis" style="min-width:240px"/>
+        </div>
+      </div>
+      <div id="cases"></div>
+      <div id="listErr" class="err"></div>
+    </div>
+  </div>
+
+  <!-- Firebase v10 (modular) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithPopup, OAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import {
+      getFirestore, collection, addDoc, serverTimestamp, onSnapshot,
+      query, orderBy, limit, Timestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // 🔧 YOUR FIREBASE CONFIG
+    const firebaseConfig = {
+      apiKey: "AIzaSyDk9XnkfRtrP8AlYMMKs8pqXeZatc8wmCE",
+      authDomain: "lumacompanion1.firebaseapp.com",
+      projectId: "lumacompanion1",
+    };
+
+    // Init
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const msProvider = new OAuthProvider('microsoft.com');
+
+    // UI helpers
+    const $ = (id)=>document.getElementById(id);
+    const show = (el, v)=> el.style.display = v ? "" : "none";
+    const setText = (id, v)=> $(id).textContent = v ?? "—";
+
+    // --- Auth wiring ---
+    $('signin').onclick = async ()=> {
+      try { await signInWithPopup(auth, msProvider); } catch (e){ console.error(e); }
+    };
+    $('signout').onclick = async ()=> { try { await signOut(auth); } catch(e){ console.error(e); } };
+
+    onAuthStateChanged(auth, (user)=>{
+      if (!user){
+        // signed out
+        setText('loginState','Signed out');
+        setText('email','—'); setText('displayName','—');
+        show($('createCard'), false);
+        show($('listCard'), false);
+        $('signout').disabled = true;
+        $('signin').disabled = false;
+        setText('authMsg','Sign in to create and view cases.');
+        return;
+      }
+      setText('loginState','Signed in');
+      setText('email', user.email || '(no email)');
+      setText('displayName', user.displayName || '—');
+      $('signout').disabled = false;
+      $('signin').disabled = true;
+      setText('authMsg','');
+      show($('createCard'), true);
+      show($('listCard'), true);
+      startCasesListener();
+    });
+
+    // --- Age calculation from DOB ---
+    function calcAgeParts(dobStr){
+      if (!dobStr) return null;
+      const dob = new Date(dobStr + "T00:00");
+      const now = new Date();
+      let years = now.getFullYear() - dob.getFullYear();
+      let months = now.getMonth() - dob.getMonth();
+      let days = now.getDate() - dob.getDate();
+      if (days < 0){ months -= 1; }
+      if (months < 0){ years -= 1; months += 12; }
+      return { years, months: Math.max(0, months) };
+    }
+    $('f_dob').addEventListener('change', ()=>{
+      const a = calcAgeParts($('f_dob').value);
+      $('ageOut').textContent = a ? `${a.years}y ${a.months}m` : '—';
+    });
+
+    // --- Urgent → deadline required toggle ---
+    $('f_urgent').addEventListener('change', ()=>{
+      const chk = $('f_urgent').checked;
+      $('f_deadline').required = chk;
+    });
+
+    // --- Save Case ---
+    $('caseForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      $('formErr').textContent = '';
+      $('saveMsg').textContent = '';
+
+      // Validate urgent/deadline
+      if ($('f_urgent').checked && !$('f_deadline').value){
+        $('formErr').textContent = "Deadline is required when Urgent is checked.";
+        return;
+      }
+
+      // Build details object (exact field names as you listed)
+      const dob = $('f_dob').value ? new Date($('f_dob').value) : null;
+      const age = calcAgeParts($('f_dob').value);
+      const payload = {
+        status: "New",
+        urgent: $('f_urgent').checked,
+        deadlineAt: $('f_deadline').value ? new Date($('f_deadline').value) : null,
+
+        details: {
+          Name: $('f_name').value.trim(),
+          MemberID: $('f_memberId').value.trim(),
+          Nationality: $('f_nationality').value.trim(),
+          DOB: dob,
+          AgeYears: age ? age.years : null,
+          AgeMonths: age ? age.months : null,
+          PolicyEffectiveDate: $('f_policyEff').value ? new Date($('f_policyEff').value) : null,
+          Exclusion: $('f_exclusion').value.trim(),
+          UnderwritingType: $('f_uwType').value,
+          TypeOfAdmission: $('f_admissionType').value || null,
+          TypeOfConsultation: $('f_consultType').value.trim(),
+
+          VisitDate: $('f_visitDate').value ? new Date($('f_visitDate').value) : null,
+          Hospital: $('f_hospital').value.trim(),
+          Diagnosis: $('f_diagnosis').value.trim(),
+          DischargeDate: $('f_dischargeDate').value ? new Date($('f_dischargeDate').value) : null,
+
+          VitalSigns: $('f_vitals').value.trim() || null,
+          PhysicalFindings: $('f_findings').value.trim() || null,
+          Summary: $('f_summary').value.trim() || null,
+          Treatment: $('f_treatment').value.trim() || null,
+          ReasonForAdmission: $('f_reasonAdmission').value.trim(),
+          ReasonForConsultation: $('f_reasonConsult').value.trim(),
+          OtherRemark: $('f_remark').value.trim() || null
+        },
+
+        assignedNurse: null,
+        assignedDoctor: null,
+        waitingAction: null, // we'll toggle to "doctor"/"nurse" later via Confirm
+        createdAt: serverTimestamp(),
+        createdBy: { email: (auth.currentUser && auth.currentUser.email) || null, displayName: (auth.currentUser && auth.currentUser.displayName) || null },
+        updatedAt: serverTimestamp(),
+        updatedBy: { email: (auth.currentUser && auth.currentUser.email) || null, displayName: (auth.currentUser && auth.currentUser.displayName) || null }
+      };
+
+      // Basic required checks (besides HTML required)
+      const requiredStrings = [
+        payload.details.Name, payload.details.MemberID, payload.details.Nationality,
+        payload.details.Exclusion, payload.details.UnderwritingType,
+        payload.details.TypeOfConsultation, payload.details.Hospital,
+        payload.details.Diagnosis, payload.details.ReasonForAdmission,
+        payload.details.ReasonForConsultation
+      ];
+      if (requiredStrings.some(v => !v)){
+        $('formErr').textContent = "Please fill all mandatory fields.";
+        return;
+      }
+      if (!payload.details.DOB || !payload.details.PolicyEffectiveDate || !payload.details.VisitDate){
+        $('formErr').textContent = "Please fill all required dates (DOB, Policy Effective Date, Visit Date).";
+        return;
+      }
+
+      try{
+        $('btnSave').disabled = true;
+        const ref = await addDoc(collection(db, 'cases'), payload);
+        $('saveMsg').textContent = `✅ Saved (Case ID: ${ref.id})`;
+        $('caseForm').reset();
+        $('ageOut').textContent = '—';
+        $('f_deadline').required = false;
+      }catch(err){
+        $('formErr').textContent = err.message || String(err);
+      }finally{
+        $('btnSave').disabled = false;
+      }
+    });
+
+    // --- Cases list (live) ---
+    let unsubCases = null;
+    function renderCases(cases){
+      const q = ($('searchBox').value || '').toLowerCase();
+      const el = $('cases');
+      el.innerHTML = '';
+      cases
+        .filter(c=>{
+          if (!q) return true;
+          const d = c.details || {};
+          return [d.Name, d.MemberID, d.Hospital, d.Diagnosis].some(x=> (x||'').toLowerCase().includes(q));
+        })
+        .forEach(c=>{
+          const div = document.createElement('div');
+          div.className = 'card';
+          const deadlineTxt = c.deadlineAt ? new Date(c.deadlineAt.seconds ? c.deadlineAt.seconds*1000 : c.deadlineAt).toLocaleString() : null;
+          div.innerHTML = `
+            <div class="row" style="justify-content:space-between">
+              <div><strong>${c.details?.Name || '(no name)'}</strong> <span class="muted">· ${c.details?.MemberID || ''}</span></div>
+              <div class="row">
+                <span class="pill status">${c.status}</span>
+                ${c.urgent ? `<span class="pill urgent">Urgent</span>` : ``}
+                ${deadlineTxt ? `<span class="pill deadline">Deadline: ${deadlineTxt}</span>` : ``}
+              </div>
+            </div>
+            <div class="help" style="margin-top:6px">${c.details?.Hospital || ''} — ${c.details?.Diagnosis || ''}</div>
+          `;
+          el.appendChild(div);
+        });
+    }
+
+    function startCasesListener(){
+      if (unsubCases) unsubCases();
+      const qRef = query(collection(db,'cases'), orderBy('updatedAt','desc'), limit(50));
+      unsubCases = onSnapshot(qRef, (snap)=>{
+        const arr = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+        renderCases(arr);
+      }, (err)=>{
+        $('listErr').textContent = err.message || String(err);
+      });
+      $('searchBox').addEventListener('input', ()=> {
+        // reuse last snapshot if available
+        // no-op here; list re-renders on input if we cached; simplest is to refetch arr from onSnapshot closure
+        // for simplicity we just trigger a manual rebuild using last known 'arr' captured:
+      });
+    }
+  </script>
 </body>
 </html>
