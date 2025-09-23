@@ -1,4 +1,4 @@
-/* Tabs */
+/* =============== Core Tabs =============== */
 .tabs{
   display:flex; gap:8px; padding:10px 16px; border-bottom:1px solid var(--line);
   background: linear-gradient(180deg, #fff, #fff0);
@@ -11,7 +11,7 @@
 .tabpanel{ display:none; padding:16px; }
 .tabpanel.is-active{ display:block; }
 
-/* Details form */
+/* =============== Details Form =============== */
 .form-grid{
   display:grid; gap:12px; grid-template-columns: 1fr 1fr;
   background:#fff; border:1px solid var(--line); border-radius: var(--radius);
@@ -25,11 +25,7 @@
   border:1px solid var(--line); background:#fff; border-radius:10px; padding:10px 12px; outline:none;
 }
 .input:focus{ border-color: var(--accent); box-shadow: 0 0 0 4px rgba(163,213,255,0.35); }
-.input:disabled {
-  background: #f6f7f9;
-  color: #666;
-  cursor: not-allowed;
-}
+.input:disabled { background:#f6f7f9; color:#666; cursor:not-allowed; }
 
 .split{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; }
 .right-actions{ display:flex; gap:8px; }
@@ -41,7 +37,7 @@
 /* Finished lock banner */
 .banner{ margin-bottom:12px; }
 
-/* Upload Documents tab */
+/* =============== Upload Documents Tab =============== */
 .docs-toolbar{
   display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;
 }
@@ -58,25 +54,35 @@
 }
 .upload-row .meta{ color:var(--muted); font-size:12px; }
 .viewer{
-  min-height: 300px; background:#fff; border:1px solid var(--line); border-radius: var(--radius); padding:10px; box-shadow: var(--shadow);
+  min-height:300px; background:#fff; border:1px solid var(--line); border-radius: var(--radius); padding:10px; box-shadow: var(--shadow);
 }
-.pdf-grid-empty{ color:var(--muted); display:grid; place-items:center; height: 200px; }
+.pdf-grid-empty{ color:var(--muted); display:grid; place-items:center; height:200px; }
 .pdf-grid{ display:grid; grid-template-columns: 1fr; gap:16px; }
 .pdf-page{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; box-shadow: var(--shadow); }
 .pdf-footer{ display:flex; align-items:center; justify-content:space-between; padding:6px 4px 0; }
-.pdf-pg { opacity: 0.7; }
+.pdf-pg { opacity:0.7; }
 .tag-select{ border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
 
-/* View Documents tab */
+/* =============== View Documents Tab =============== */
+/* Two-column shell: left = sticky list, right = canvas/image stack */
 .docview-shell{
   display:grid; grid-template-columns: 280px 1fr; gap:12px;
 }
 @media (max-width: 900px){
   .docview-shell{ grid-template-columns: 1fr; }
 }
-.list-card, .viewer-card{
+
+/* LEFT: floating/sticky file list */
+.list-card{
   background:#fff; border:1px solid var(--line); border-radius: var(--radius);
-  box-shadow: var(--shadow); padding:10px; overflow:auto; max-height: calc(100vh - 260px);
+  box-shadow: var(--shadow); padding:10px;
+
+  /* Sticky so it "floats" while scrolling pages */
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
 }
 .doc-list-item{
   padding:8px; border:1px solid var(--line); border-radius:10px; background:#fff;
@@ -86,14 +92,48 @@
 .doc-file{ font-weight:700; word-break:break-word; }
 .doc-sub{ font-size:12px; color:var(--muted); }
 .doc-actions a{ font-size:12px; }
-.viewer-section{ display:flex; justify-content:space-between; align-items:center; margin:4px 0 10px; }
+
+/* RIGHT: viewer card with page-level scroll */
+.viewer-card{
+  background:#fff; border:1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding:10px;
+}
+
+/* Section header inside viewer (filename + actions) */
+.viewer-section{
+  display:flex; justify-content:space-between; align-items:center; margin:4px 0 10px;
+}
 .viewer-section h3{ margin:0; }
+
+/* Each file block container */
+.pdf-block{ margin-bottom:16px; }
+
+/* Canvas-first page card (PDF) or image card (JPG/PNG) */
+.page-card{
+  background:#fff; border:1px solid var(--line); border-radius:12px;
+  padding:8px; box-shadow: var(--shadow); margin-bottom:12px;
+}
+.page-card canvas{ width:100%; height:auto; display:block; }
+.page-card img{
+  width:100%; height:auto; display:block;
+  border:1px solid var(--line); border-radius:8px;
+}
+
+/* Inline PDF frame (legacy; kept if needed) */
 .pdf-frame{ width:100%; height:680px; border:1px solid var(--line); border-radius:8px; }
+
+/* Tag-hits grid when filtering to a specific tag */
 .tag-hits{ display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
 .tag-hit{ border:1px solid var(--line); border-radius:10px; background:#fff; padding:8px; }
-.tag-hit .hit-meta{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted); }
+.tag-hit .hit-meta{
+  display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted);
+}
 
-/* Comments */
+/* Misc helpers */
+.muted{ color:var(--muted); }
+.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+/* =============== Comments =============== */
 .comments{ display:grid; gap:12px; }
 .comments-list{ display:grid; gap:10px; }
 .comment{
@@ -101,15 +141,21 @@
 }
 .comment .who{ font-weight:700; }
 .comment .when{ color:var(--muted); font-size:12px; }
-.comment .mq{ background:#f1f5f9; border:1px dashed #cbd5e1; border-radius:8px; padding:8px; margin-top:6px; }
+.comment .mq{
+  background:#f1f5f9; border:1px dashed #cbd5e1; border-radius:8px; padding:8px; margin-top:6px;
+}
 .comment-form{
   background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px; display:grid; gap:8px; box-shadow: var(--shadow);
 }
 .comment-form textarea{ width:100%; }
 
-/* Mobile */
+/* =============== Mobile tweaks =============== */
 @media (max-width: 860px){
   .form-grid{ grid-template-columns: 1fr; }
   .span-2{ grid-column: 1; }
   .uploads{ grid-template-columns: 1fr; }
+  .list-card{
+    position: static; /* disable sticky on narrow screens */
+    max-height: none;
+  }
 }
