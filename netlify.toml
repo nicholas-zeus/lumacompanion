@@ -1,28 +1,22 @@
 # Netlify config for static pages + Functions
 
 [build]
-  # Your HTML lives at the project root
   publish = "."
   command = ""
 
 [build.environment]
-  # Ensure Node 18 at build/runtime
   NODE_VERSION = "18"
 
 [functions]
-  # Where your functions live
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # Leave heavy/native deps unbundled so Netlify provides them at runtime
-  external_node_modules = ["googleapis", "firebase-admin"]
+  external_node_modules = ["googleapis"]  # removed firebase-admin
 
 [dev]
-  # Makes `netlify dev` pick up your functions and static root
   functions = "netlify/functions"
   publish = "."
   framework = "#static"
 
-# Optional: pretty URL for the POC page
 [[redirects]]
   from = "/poctest"
   to = "/poctest.html"

@@ -5,7 +5,7 @@ import { contains, toDate } from "/js/utils.js";
 
 import {
   collection, doc, getDoc, getDocs, query, where, orderBy, limit,
-  addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp
+  addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ------------------------------ Labels ------------------------------ */
@@ -37,16 +37,13 @@ async function authorizedFetch(path, opts = {}) {
 }
 
 /* ------------------------------- Roles ---------------------------------- */
+// NEW: read role directly from Firestore allowlist (self-read)
 export async function loadRole() {
-  try {
-    const res = await authorizedFetch("/my-role", { method: "GET" });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.role || null; // 'nurse' | 'doctor' | 'admin'
-  } catch (e) {
-    console.error("loadRole:", e);
-    return null;
-  }
+  const user = auth.currentUser;
+  if (!user) return null;
+  const ref = doc(db, COLLECTIONS.allowlist, user.email);
+  const snap = await getDoc(ref);
+  return snap.exists() ? (snap.data().role || null) : null;
 }
 
 /* ---------------------------- Cases (list) ------------------------------ */
@@ -80,7 +77,6 @@ export async function queryCases({ role, userEmail, filter, q }) {
           limit(PAGE_SIZE)
         );
       } else {
-        // admin: show any cases where admin is self-assigned as doctor (common pattern)
         qRef = query(
           col,
           where("assignedDoctor.email", "==", myEmail),
@@ -138,17 +134,14 @@ export async function getCase(caseId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-/** Compute urgent flag (deadline within 24h of now, per rule) */
 export function computeUrgent(deadlineAt) {
   if (!deadlineAt) return false;
   const d = toDate(deadlineAt);
   if (!d) return false;
-  const now = Date.now();
-  return d.getTime() <= (now + 24 * 60 * 60 * 1000);
+  return d.getTime() <= (Date.now() + 24 * 60 * 60 * 1000);
 }
 
 export async function createCase(initial, currentUser) {
-  // initial must already include status: "awaiting doctor" (rules enforce)
   const col = collection(db, COLLECTIONS.cases);
   const payload = {
     ...initial,
@@ -172,25 +165,18 @@ export async function createCase(initial, currentUser) {
 export async function updateCase(caseId, partial, currentUser) {
   const ref = doc(db, COLLECTIONS.cases, caseId);
   const fields = { ...partial };
-
-  // Keep urgent invariant in sync with deadlineAt
-  if ("deadlineAt" in fields) {
-    fields.urgent = computeUrgent(fields.deadlineAt);
-  }
+  if ("deadlineAt" in fields) fields.urgent = computeUrgent(fields.deadlineAt);
   fields.updatedAt = serverTimestamp();
   fields.updatedBy = {
     email: currentUser.email,
     displayName: currentUser.displayName || currentUser.email
   };
-
   await updateDoc(ref, fields);
 }
 
-/** Convenience: mark finished (nurse/admin only; rules enforce) */
 export function finishCase(caseId, currentUser) {
   return updateCase(caseId, { status: "finished", finishedAt: serverTimestamp() }, currentUser);
 }
-/** Convenience: undo finish → reopened (nurse/admin only; rules enforce) */
 export function undoFinish(caseId, currentUser) {
   return updateCase(caseId, { status: "reopened", finishedAt: null }, currentUser);
 }
@@ -202,7 +188,6 @@ export async function listComments(caseId) {
   const snap = await getDocs(qRef);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
-
 export async function addComment(caseId, body, currentUser) {
   const col = collection(db, COLLECTIONS.comments);
   const payload = {
@@ -215,7 +200,6 @@ export async function addComment(caseId, body, currentUser) {
   const ref = await addDoc(col, payload);
   return { id: ref.id, ...payload };
 }
-
 export async function editComment(commentId, body) {
   const ref = doc(db, COLLECTIONS.comments, commentId);
   await updateDoc(ref, { body, isEdited: true, editedAt: serverTimestamp() });
@@ -224,8 +208,6 @@ export function deleteComment(commentId) {
   const ref = doc(db, COLLECTIONS.comments, commentId);
   return deleteDoc(ref);
 }
-
-/** MQ stored with doc id == commentId */
 export async function getCommentMQ(commentId) {
   const ref = doc(db, COLLECTIONS.commentMQ, commentId);
   const snap = await getDoc(ref);
@@ -250,14 +232,10 @@ export async function listUploads(caseId) {
   const snap = await getDocs(qRef);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
-
-/** Soft delete: set deletedAt (rules enforce identity fields unchanged) */
 export async function softDeleteUpload(uploadId) {
   const ref = doc(db, COLLECTIONS.uploads, uploadId);
   await updateDoc(ref, { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
-
-/** Upload a file via Netlify function; returns {fileId, fileName, size, mimeType, md5, uploadedAt, uploader, dupCases?, mappingReused?} */
 export async function uploadFile({ file, caseId, batchNo = 1 }) {
   const form = new FormData();
   form.append("file", file);
@@ -268,19 +246,14 @@ export async function uploadFile({ file, caseId, batchNo = 1 }) {
   if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
   return res.json();
 }
-
-/** Stream URL (for <embed> / pdf.js / download) */
 export function streamFileUrl(fileId) {
   return `${functionsBase}/file/${encodeURIComponent(fileId)}`;
 }
 
 /* ------------------------------ Page Tags ------------------------------ */
-/** Opinionated idempotent doc id: `${uploadId}_${pageNumber}` */
 function pageTagDocId(uploadId, pageNumber) {
   return `${uploadId}_${pageNumber}`;
 }
-
-/** Get all tags for an upload (returns Map<number,pageTag>) */
 export async function getPageTagsForUpload(caseId, uploadId, maxPagesHint = 200) {
   const col = collection(db, COLLECTIONS.pageTags);
   const qRef = query(col, where("caseId", "==", caseId), where("uploadId", "==", uploadId), limit(maxPagesHint));
@@ -292,19 +265,13 @@ export async function getPageTagsForUpload(caseId, uploadId, maxPagesHint = 200)
   }
   return out;
 }
-
-/** Set/overwrite a tag for a single page */
 export async function setPageTag({ caseId, uploadId, pageNumber, tag }) {
   const id = pageTagDocId(uploadId, pageNumber);
   const ref = doc(db, COLLECTIONS.pageTags, id);
-  await setDoc(ref, {
-    caseId, uploadId, pageNumber, tag,
-    updatedAt: serverTimestamp()
-  }, { merge: true });
+  await setDoc(ref, { caseId, uploadId, pageNumber, tag, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 /* ----------------------------- Tag Options ----------------------------- */
-/** Fetch tags from settings; if missing, return defaults from your spec */
 export async function getTagOptions() {
   try {
     const ref = doc(db, COLLECTIONS.settings, "tags");
@@ -314,7 +281,6 @@ export async function getTagOptions() {
       if (Array.isArray(arr) && arr.length) return arr;
     }
   } catch(_) {}
-  // Defaults per your decision (modifiable later via settings UI)
   return ["progress note", "vital chart", "doctor order", "lab tests", "medical questionnaire"];
 }
 
