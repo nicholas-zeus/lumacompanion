@@ -1,6 +1,6 @@
 // /js/uploader.js
-import { db } from "/js/firebase.js";
-import { uploadFile, listUploads, streamFileUrl } from "/js/api.js";
+import { db, auth } from "/js/firebase.js";
+import { uploadFile, listUploads, streamFileUrl, softDeleteUpload } from "/js/api.js";
 import { COLLECTIONS } from "/js/config.js";
 
 import {
@@ -19,7 +19,7 @@ function formatBytes(n) {
 /** Persistent duplicate banner with copy buttons */
 export function renderDuplicateBanner(bannerArea, dupCases = []) {
   if (!bannerArea) return;
-  // Clear previous dup banners, but keep other banners
+  // Remove previous duplicate banners (keep others)
   bannerArea.querySelectorAll(".banner[data-kind='dup']").forEach(n => n.remove());
   if (!dupCases.length) return;
 
@@ -77,7 +77,6 @@ async function findSameCaseUploadByMd5(md5, caseId) {
   const col = collection(db, COLLECTIONS.uploads);
   const qRef = query(col, where("fileHash", "==", md5), where("caseId", "==", caseId));
   const snap = await getDocs(qRef);
-  // Prefer the *oldest* (first) upload for mapping reuse
   let best = null;
   snap.forEach(d => {
     const row = { id: d.id, ...d.data() };
@@ -87,8 +86,7 @@ async function findSameCaseUploadByMd5(md5, caseId) {
 }
 
 async function reusePageTagsIfAny({ caseId, fromUploadId, toUploadId }) {
-  if (!fromUploadId || !toUploadId || fromUploadId === toUploadId) return;
-  // copy pageTags from fromUploadId to toUploadId
+  if (!fromUploadId || !toUploadId || fromUploadId === toUploadId) return 0;
   const col = collection(db, COLLECTIONS.pageTags);
   const snap = await getDocs(query(col, where("caseId", "==", caseId), where("uploadId", "==", fromUploadId)));
   const writes = [];
@@ -105,9 +103,11 @@ async function reusePageTagsIfAny({ caseId, fromUploadId, toUploadId }) {
 
 /**
  * Initialize uploader wiring.
- *  - Writes Firestore `uploads` doc after Drive upload
+ *  - Uploads to Drive (function)
+ *  - Writes Firestore `uploads` doc
  *  - Shows duplicate banner for same MD5 in other cases
  *  - Reuses page tags if same MD5 exists in this case
+ *  - Renders list with soft-delete
  */
 export function initUploader({ fileInput, listContainer, bannerArea, caseId, getBatchNo = () => 1, onUploaded = () => {} }) {
   if (!fileInput) throw new Error("fileInput required");
@@ -123,22 +123,53 @@ export function initUploader({ fileInput, listContainer, bannerArea, caseId, get
     rows.forEach(r => {
       const item = document.createElement("div");
       item.className = "upload-row";
+
       const link = document.createElement("a");
       link.href = streamFileUrl(r.driveFileId);
       link.target = "_blank";
       link.rel = "noopener";
       link.textContent = r.fileName;
+
       const meta = document.createElement("span");
       meta.className = "meta";
       meta.textContent = ` • ${r.mimeType || ""} • ${formatBytes(r.size)}`;
-      const del = document.createElement("span");
-      if (r.deletedAt) {
-        del.className = "meta";
-        del.textContent = " • (deleted)";
-      }
+
       item.appendChild(link);
       item.appendChild(meta);
-      item.appendChild(del);
+
+      if (!r.deletedAt) {
+        // Soft delete button (uploader-only can be enforced by rules; UI shows for everyone)
+        const del = document.createElement("button");
+        del.className = "btn";
+        del.textContent = "Delete";
+        del.addEventListener("click", async () => {
+          try {
+            await softDeleteUpload(r.id);
+            await refreshList();
+          } catch (e) {
+            console.error(e);
+            alert("Delete failed.");
+          }
+        });
+        item.appendChild(del);
+      } else {
+        const deleted = document.createElement("span");
+        deleted.className = "meta";
+        deleted.textContent = " • (deleted)";
+        item.appendChild(deleted);
+      }
+
+      // Click to preview if PDF
+      if ((r.mimeType || "").toLowerCase().includes("pdf") && !r.deletedAt) {
+        item.style.cursor = "pointer";
+        item.addEventListener("click", (ev) => {
+          // avoid triggering when clicking Delete button
+          if (ev.target.tagName.toLowerCase() === "button") return;
+          // let the page's handler attach via click on the row item if needed
+          // (case.js wires PDF preview by adding a click listener when rendering)
+        });
+      }
+
       listContainer.appendChild(item);
     });
   };
@@ -161,23 +192,23 @@ export function initUploader({ fileInput, listContainer, bannerArea, caseId, get
           size: meta.size,
           driveFileId: meta.fileId,
           fileHash: meta.md5,
-          uploadedBy: { email: (firebase.auth().currentUser?.email || ""), displayName: (firebase.auth().currentUser?.displayName || "") },
+          uploadedBy: {
+            email: (auth.currentUser?.email || ""),
+            displayName: (auth.currentUser?.displayName || "")
+          },
           uploadedAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
         const newUploadId = upRef.id;
 
-        // 3) Duplicate checks (client-side)
+        // 3) Duplicate checks across other cases (client-side)
         const dupCaseIds = await findDuplicateCaseIdsByMd5(meta.md5, caseId);
         renderDuplicateBanner(bannerArea, dupCaseIds);
 
         // 4) Same-case mapping reuse
         const previous = await findSameCaseUploadByMd5(meta.md5, caseId);
         if (previous && previous.id !== newUploadId) {
-          const copied = await reusePageTagsIfAny({ caseId, fromUploadId: previous.id, toUploadId: newUploadId });
-          if (copied > 0) {
-            // Optional: you can show a small banner/toast; keeping silent per spec
-          }
+          await reusePageTagsIfAny({ caseId, fromUploadId: previous.id, toUploadId: newUploadId });
         }
 
         onUploaded({ ...meta, uploadId: newUploadId });
