@@ -189,6 +189,7 @@
           <div id="statusText" class="status-readout">—</div>
         </div>
         <div class="right-actions">
+          <!-- stays hidden by default; JS keeps it hidden on new case and auto-assigns the nurse creator -->
           <button id="assignNurseBtn" class="btn" hidden>Assign me (Nurse)</button>
           <button id="assignDoctorBtn" class="btn" hidden>Assign me (Doctor)</button>
           <button id="saveDetailsBtn" class="btn btn-primary">Save</button>
@@ -207,16 +208,23 @@
   <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
     <div class="docs-toolbar">
       <div class="left">
-        <input id="fileInput" type="file" multiple />
-        <small class="hint">Any file ≤ 50 MB. Only PDFs support page tagging.</small>
+        <!-- single-file staged flow -->
+        <input id="fileInput" type="file" />
+        <small class="hint">Any file ≤ 50 MB. PDFs will show page thumbnails for tagging before upload.</small>
+        <div id="stagedInfo" class="muted" style="margin-top:6px; display:none;">
+          Selected: <span id="stagedName" class="mono"></span>
+        </div>
       </div>
-      <div class="right">
-        <label class="tag-filter">
+      <div class="right" style="display:flex; gap:8px; align-items:center;">
+        <!-- hidden until a PDF is staged -->
+        <label class="tag-filter" id="tagFilterWrap" style="display:none;">
           <span>Filter pages:</span>
           <select id="tagFilter">
             <option value="">All</option>
           </select>
         </label>
+        <button id="docCancelBtn" class="btn" disabled>Discard</button>
+        <button id="docSaveBtn" class="btn btn-primary" disabled>Save Document</button>
       </div>
     </div>
 
@@ -228,7 +236,7 @@
 
       <div class="viewer">
         <h3>PDF Viewer</h3>
-        <div id="pdfContainer" class="pdf-grid-empty">Select a PDF to preview & tag pages.</div>
+        <div id="pdfContainer" class="pdf-grid-empty">Select a PDF to preview & tag pages (will upload on Save).</div>
       </div>
     </div>
   </section>

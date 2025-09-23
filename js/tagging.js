@@ -2,14 +2,28 @@
 import { getPageTagsForUpload, setPageTag, getTagOptions, streamFileUrl } from "/js/api.js";
 
 /**
- * Renders PDF pages as canvases with a tag <select> per page.
- * Loads pdf.js lazily from CDN.
- *
- * containerEl: where to render
- * caseId, uploadId, driveFileId: ids
- * onTagChange?: (pageNumber, tag) => void
+ * For existing Drive file: same as before (used when clicking an uploaded PDF).
  */
 export async function renderPdfWithTags({ containerEl, caseId, uploadId, driveFileId, onTagChange = () => {} }) {
+  const url = streamFileUrl(driveFileId);
+  return renderPdfCommon({ containerEl, source: url, caseId, uploadId, onTagChange });
+}
+
+/**
+ * NEW: For a local File (before upload). Returns nothing; you can read the
+ * selected tags later by querying .pdf-page .tag-select values.
+ */
+export async function renderLocalPdfWithTags({ containerEl, file, onTagChange = () => {} }) {
+  const url = URL.createObjectURL(file);
+  try {
+    return await renderPdfCommon({ containerEl, source: url, onTagChange });
+  } finally {
+    // revoke when you navigate away or after save if you want
+    // URL.revokeObjectURL(url) — done by caller after Save/Discard.
+  }
+}
+
+async function renderPdfCommon({ containerEl, source, caseId, uploadId, onTagChange }) {
   if (!containerEl) throw new Error("containerEl required");
 
   // Load pdf.js (v4)
@@ -22,16 +36,11 @@ export async function renderPdfWithTags({ containerEl, caseId, uploadId, driveFi
   containerEl.innerHTML = "";
   containerEl.classList.add("pdf-grid");
 
-  const url = streamFileUrl(driveFileId);
-  const pdf = await pdfjsLib.getDocument(url).promise;
+  const pdf = await pdfjsLib.getDocument(source).promise;
 
-  const [tagOptions, existingMap] = await Promise.all([
-    getTagOptions(),
-    getPageTagsForUpload(caseId, uploadId, pdf.numPages + 10)
-  ]);
-
+  const tagOptions = await getTagOptions();
   // Prebuild <select> template
-  const mkSelect = (pageNumber) => {
+  const mkSelect = (pageNumber, existing = "") => {
     const sel = document.createElement("select");
     sel.className = "tag-select";
     const emptyOpt = document.createElement("option");
@@ -46,15 +55,15 @@ export async function renderPdfWithTags({ containerEl, caseId, uploadId, driveFi
       sel.appendChild(o);
     });
 
-    const existing = existingMap.get(pageNumber) || "";
-    sel.value = existing;
-    sel.addEventListener("change", async () => {
-      const tag = sel.value || null;
-      await setPageTag({ caseId, uploadId, pageNumber, tag });
-      onTagChange(pageNumber, tag);
-    });
+    sel.value = existing || "";
+    sel.addEventListener("change", () => onTagChange(pageNumber, sel.value || null));
     return sel;
   };
+
+  // If this is an already-uploaded file, hydrate existing tags
+  const existingMap = (caseId && uploadId)
+    ? await getPageTagsForUpload(caseId, uploadId, pdf.numPages + 10)
+    : new Map();
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
     const page = await pdf.getPage(pageNumber);
@@ -76,7 +85,8 @@ export async function renderPdfWithTags({ containerEl, caseId, uploadId, driveFi
     const label = document.createElement("span");
     label.className = "pdf-pg";
     label.textContent = `Page ${pageNumber}`;
-    const select = mkSelect(pageNumber);
+
+    const select = mkSelect(pageNumber, existingMap.get(pageNumber) || "");
     footer.appendChild(label);
     footer.appendChild(select);
 

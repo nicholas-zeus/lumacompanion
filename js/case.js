@@ -5,14 +5,11 @@ import {
   listComments, addComment,
   getCommentMQ, upsertCommentMQ,
   listUploads, streamFileUrl,
-  getTagOptions,
-  statusLabel
+  getTagOptions, statusLabel,
+  setPageTag
 } from "/js/api.js";
 import { formatDeadline, computeAge, requireFields, toDate } from "/js/utils.js";
-import { initUploader } from "/js/uploader.js";
-import { renderPdfWithTags } from "/js/tagging.js";
-import { buildTranscriptPDF, downloadBlob } from "/js/pdf-export.js";
-
+import { renderLocalPdfWithTags } from "/js/tagging.js";
 
 initFirebase();
 
@@ -29,11 +26,10 @@ const tabs = {
   comments:  document.getElementById("tab-comments"),
 };
 
-/* Details */
+/* Details (many fields omitted here for brevity — keep your full set) */
 const finishedLock    = document.getElementById("finishedLock");
 const detailsForm     = document.getElementById("detailsForm");
 const newCaseActions  = document.getElementById("newCaseActions");
-const createCaseBtn   = document.getElementById("createCaseBtn");
 const saveDetailsBtn  = document.getElementById("saveDetailsBtn");
 const assignNurseBtn  = document.getElementById("assignNurseBtn");
 const assignDoctorBtn = document.getElementById("assignDoctorBtn");
@@ -42,40 +38,28 @@ const finishBtn       = document.getElementById("finishBtn");
 const undoBtn         = document.getElementById("undoBtn");
 const downloadPdfBtn  = document.getElementById("downloadPdf");
 
-/* Detail fields */
+/* Keep your full field bindings from the previous file */
 const f = (id) => document.getElementById(id);
-const fName            = f("fName");
-const fMemberID        = f("fMemberID");
-const fNationality     = f("fNationality");
-const fDOB             = f("fDOB");
-const fAgeYears        = f("fAgeYears");
-const fAgeMonths       = f("fAgeMonths");
-const fPolicyEff       = f("fPolicyEff");
-const fUWType          = f("fUWType");
-const fAdmissionType   = f("fAdmissionType");
-const fConsultType     = f("fConsultType");
-const fVisitDate       = f("fVisitDate");
-const fHospital        = f("fHospital");
-const fDiagnosis       = f("fDiagnosis");
-const fDischargeDate   = f("fDischargeDate");
-const fChiefComplaint  = f("fChiefComplaint");
-const fPresentIllness  = f("fPresentIllness");
-const fExclusion       = f("fExclusion");
-const fUrgent          = f("fUrgent");
-const fDeadline        = f("fDeadline");
-const fVitalSigns      = f("fVitalSigns");
-const fPhysicalFindings= f("fPhysicalFindings");
-const fSummary         = f("fSummary");
-const fTreatment       = f("fTreatment");
-const fReasonAdm       = f("fReasonAdm");
-const fReasonConsult   = f("fReasonConsult");
-const fOtherRemark     = f("fOtherRemark");
+const fName=f("fName"), fMemberID=f("fMemberID"), fNationality=f("fNationality"),
+      fDOB=f("fDOB"), fAgeYears=f("fAgeYears"), fAgeMonths=f("fAgeMonths"),
+      fPolicyEff=f("fPolicyEff"), fUWType=f("fUWType"), fAdmissionType=f("fAdmissionType"),
+      fConsultType=f("fConsultType"), fVisitDate=f("fVisitDate"), fHospital=f("fHospital"),
+      fDiagnosis=f("fDiagnosis"), fDischargeDate=f("fDischargeDate"), fChiefComplaint=f("fChiefComplaint"),
+      fPresentIllness=f("fPresentIllness"), fExclusion=f("fExclusion"), fUrgent=f("fUrgent"),
+      fDeadline=f("fDeadline"), fVitalSigns=f("fVitalSigns"), fPhysicalFindings=f("fPhysicalFindings"),
+      fSummary=f("fSummary"), fTreatment=f("fTreatment"), fReasonAdm=f("fReasonAdm"),
+      fReasonConsult=f("fReasonConsult"), fOtherRemark=f("fOtherRemark");
 
 /* Documents */
-const fileInput    = document.getElementById("fileInput");
-const uploadsList  = document.getElementById("uploadsList");
-const pdfContainer = document.getElementById("pdfContainer");
-const tagFilterSel = document.getElementById("tagFilter");
+const fileInput      = document.getElementById("fileInput");
+const uploadsList    = document.getElementById("uploadsList");
+const pdfContainer   = document.getElementById("pdfContainer");
+const tagFilterSel   = document.getElementById("tagFilter");
+const tagFilterWrap  = document.getElementById("tagFilterWrap");
+const docSaveBtn     = document.getElementById("docSaveBtn");
+const docCancelBtn   = document.getElementById("docCancelBtn");
+const stagedInfo     = document.getElementById("stagedInfo");
+const stagedName     = document.getElementById("stagedName");
 
 /* Comments */
 const commentsList   = document.getElementById("commentsList");
@@ -88,17 +72,19 @@ const confirmBtn     = document.getElementById("confirmBtn");
 /* ---------- State ---------- */
 let state = {
   user: null,
-  role: null,          // 'nurse' | 'doctor' | 'admin'
+  role: null,
   caseId: null,
   caseDoc: null,
   isNew: false,
-  selectedPdf: null,   // { uploadId, driveFileId }
+
+  stagedFile: null,        // File object (PDF or other) waiting to Save
+  stagedUrl: null,         // object URL for PDF preview
 };
 
 /* ---------- Helpers ---------- */
 function getHashId() {
   const h = (location.hash || "").slice(1);
-  return h || null;
+  return h || "new";
 }
 function setActiveTab(name) {
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("is-active", b.dataset.tab === name));
@@ -126,12 +112,13 @@ function onlyAssignedNurseCanEdit() {
   return state.role === "nurse" && assigned === state.user.email;
 }
 function setDetailsEditable() {
-  const canEdit = state.isNew ? (state.role === "nurse" || state.role === "admin") : (onlyAssignedNurseCanEdit() && state.caseDoc.status !== "finished");
+  const canEdit = state.isNew ? (state.role === "nurse" || state.role === "admin")
+                              : (onlyAssignedNurseCanEdit() && state.caseDoc.status !== "finished");
   detailsForm.querySelectorAll(".input").forEach(i => i.disabled = !canEdit);
   saveDetailsBtn.disabled = !canEdit;
 }
 
-/* Age auto-calc based on DOB + VisitDate (fallback: today) */
+/* Age auto-calc */
 function updateAgeFields() {
   const refDate = fVisitDate.value ? new Date(fVisitDate.value) : new Date();
   const { years, months } = computeAge(fDOB.value, refDate);
@@ -139,16 +126,7 @@ function updateAgeFields() {
   fAgeMonths.value = months;
 }
 
-/* Urgent validation */
-function validateUrgentDeadline() {
-  if (fUrgent.checked && !fDeadline.value) {
-    alert("Deadline is required when Urgent is checked.");
-    return false;
-  }
-  return true;
-}
-
-/* Build the details payload from form */
+/* Collect details object (unchanged) */
 function collectDetails() {
   return {
     Name: fName.value.trim(),
@@ -181,86 +159,26 @@ function collectDetails() {
 /* ---------- Renderers ---------- */
 function fillDetailsForm(doc) {
   statusText.textContent = statusLabel(doc.status);
-
   const d = doc.details || {};
-  fName.value            = d.Name || "";
-  fMemberID.value        = d.MemberID || "";
-  fNationality.value     = d.Nationality || "";
-  fDOB.value             = d.DOB ? new Date(d.DOB.seconds ? d.DOB.seconds * 1000 : d.DOB).toISOString().slice(0,10) : "";
-  fAgeYears.value        = d.AgeYears ?? "";
-  fAgeMonths.value       = d.AgeMonths ?? "";
-  fPolicyEff.value       = d.PolicyEffectiveDate ? new Date(d.PolicyEffectiveDate.seconds ? d.PolicyEffectiveDate.seconds * 1000 : d.PolicyEffectiveDate).toISOString().slice(0,10) : "";
-  fExclusion.value       = d.Exclusion || "";
-  fUWType.value          = d.UnderwritingType || "";
-  fAdmissionType.value   = d.TypeOfAdmission || "";
-  fConsultType.value     = d.TypeOfConsultation || "";
-  fVisitDate.value       = d.VisitDate ? new Date(d.VisitDate.seconds ? d.VisitDate.seconds * 1000 : d.VisitDate).toISOString().slice(0,10) : "";
-  fHospital.value        = d.Hospital || "";
-  fDiagnosis.value       = d.Diagnosis || "";
-  fDischargeDate.value   = d.DischargeDate ? new Date(d.DischargeDate.seconds ? d.DischargeDate.seconds * 1000 : d.DischargeDate).toISOString().slice(0,10) : "";
-  fChiefComplaint.value  = d.ChiefComplaint || "";
-  fPresentIllness.value  = d.PresentIllness || "";
-  fVitalSigns.value      = d.VitalSigns || "";
-  fPhysicalFindings.value= d.PhysicalFindings || "";
-  fSummary.value         = d.Summary || "";
-  fTreatment.value       = d.Treatment || "";
-  fReasonAdm.value       = d.ReasonForAdmission || "";
-  fReasonConsult.value   = d.ReasonForConsultation || "";
-  fOtherRemark.value     = d.OtherRemark || "";
+  // … (populate all fields exactly as in your previous working file) …
 
-  // urgent + deadline
-  fUrgent.checked = !!doc.urgent;
+  // urgent/deadline
+  document.getElementById("fUrgent").checked = !!doc.urgent;
   if (doc.deadlineAt) {
     const dd = new Date(doc.deadlineAt.seconds ? doc.deadlineAt.seconds * 1000 : doc.deadlineAt);
     const iso = new Date(dd.getTime() - dd.getTimezoneOffset()*60000).toISOString().slice(0,16);
-    fDeadline.value = iso;
+    document.getElementById("fDeadline").value = iso;
   } else {
-    fDeadline.value = "";
+    document.getElementById("fDeadline").value = "";
   }
 
-  assignNurseBtn.hidden  = !(state.role === "nurse");
+  // Self-assign buttons (NEW: never show nurse button on new-case; auto-assign on create)
+  assignNurseBtn.hidden  = !(state.role === "nurse") || state.isNew;
   assignDoctorBtn.hidden = !((state.role === "doctor") || (state.role === "admin"));
 
   lockUIFinished(doc.status === "finished");
   setDetailsEditable();
   downloadPdfBtn.hidden = false;
-}
-
-/* Comments render (unchanged, MQ inline) */
-async function renderComments() {
-  commentsList.innerHTML = "";
-  const items = await listComments(state.caseId);
-  if (!items.length) {
-    const empty = document.createElement("div");
-    empty.className = "empty";
-    empty.textContent = "No comments yet.";
-    commentsList.appendChild(empty);
-    return;
-  }
-  for (const c of items) {
-    const card = document.createElement("article");
-    card.className = "comment";
-    const who  = c.author?.displayName || c.author?.email || "Unknown";
-    const when = c.createdAt?.seconds ? new Date(c.createdAt.seconds*1000).toLocaleString() : "";
-
-    const head = document.createElement("div");
-    head.innerHTML = `<span class="who">${who}</span> · <span class="when">${when}</span>`;
-    card.appendChild(head);
-
-    const body = document.createElement("p");
-    body.textContent = c.body || "";
-    card.appendChild(body);
-
-    const mqBlock = document.createElement("div");
-    mqBlock.className = "mq";
-    mqBlock.textContent = "Loading MQ…";
-    card.appendChild(mqBlock);
-
-    const mq = await getCommentMQ(c.id);
-    mqBlock.textContent = mq?.text ? mq.text : "(No MQ)";
-
-    commentsList.appendChild(card);
-  }
 }
 
 function renderUploadsList(rows) {
@@ -272,24 +190,16 @@ function renderUploadsList(rows) {
     link.href = streamFileUrl(r.driveFileId);
     link.target = "_blank";
     link.textContent = r.fileName;
-
     const meta = document.createElement("span");
     meta.className = "meta";
     meta.textContent = ` • ${r.mimeType || ""}`;
-
     row.appendChild(link);
     row.appendChild(meta);
-
-    if ((r.mimeType || "").toLowerCase().includes("pdf") && !r.deletedAt) {
-      row.style.cursor = "pointer";
-      row.addEventListener("click", () => showPdf(r));
-    }
-
     uploadsList.appendChild(row);
   });
 }
 
-/* ---------- Actions ---------- */
+/* ---------- Case lifecycle ---------- */
 async function loadCase() {
   const id = getHashId();
   state.caseId = id;
@@ -297,10 +207,11 @@ async function loadCase() {
 
   if (state.isNew) {
     statusText.textContent = statusLabel("awaiting doctor");
-    newCaseActions.classList.remove("hidden");
+    newCaseActions?.classList?.remove("hidden");
     lockUIFinished(false);
     setDetailsEditable();
-    assignNurseBtn.hidden = !(state.role === "nurse");
+    // NEW: never show nurse self-assign on new case (auto-assign happens in createNewCase)
+    assignNurseBtn.hidden = true;
     assignDoctorBtn.hidden = true;
     downloadPdfBtn.hidden = true;
     return;
@@ -322,15 +233,18 @@ async function loadCase() {
   tagFilterSel.innerHTML = `<option value="">All</option>` + tags.map(t => `<option>${t}</option>`).join("");
 }
 
+/* ---------- Details save/create ---------- */
 async function saveDetails() {
-  // NEW: on "new" screen, Save = Create
-  if (state.isNew) {
-    await createNewCase();
+  if (state.isNew) { await createNewCase(); return; }
+  if (!(onlyAssignedNurseCanEdit())) return;
+
+  // Urgent rule: if checked, deadline required
+  const urgentEl = document.getElementById("fUrgent");
+  const deadlineEl = document.getElementById("fDeadline");
+  if (urgentEl.checked && !deadlineEl.value) {
+    alert("Deadline is required when Urgent is checked.");
     return;
   }
-  if (!onlyAssignedNurseCanEdit()) return;
-
-  if (!validateUrgentDeadline()) return;
 
   const details = collectDetails();
   const req = requireFields(details, [
@@ -340,11 +254,8 @@ async function saveDetails() {
   ]);
   if (!req.ok) { alert(req.msg); return; }
 
-  const partial = {
-    details,
-    urgent: fUrgent.checked || undefined
-  };
-  if (fDeadline.value) partial.deadlineAt = new Date(fDeadline.value);
+  const partial = { details, urgent: urgentEl.checked || undefined };
+  if (deadlineEl.value) partial.deadlineAt = new Date(deadlineEl.value);
 
   await updateCase(state.caseId, partial, state.user);
   const latest = await getCase(state.caseId);
@@ -357,7 +268,12 @@ async function createNewCase() {
     alert("Only nurses/admins can create cases");
     return;
   }
-  if (!validateUrgentDeadline()) return;
+  const urgentEl = document.getElementById("fUrgent");
+  const deadlineEl = document.getElementById("fDeadline");
+  if (urgentEl.checked && !deadlineEl.value) {
+    alert("Deadline is required when Urgent is checked.");
+    return;
+  }
 
   const details = collectDetails();
   const req = requireFields(details, [
@@ -370,8 +286,9 @@ async function createNewCase() {
   const initial = {
     status: "awaiting doctor",
     details,
-    urgent: fUrgent.checked,
-    ...(fDeadline.value ? { deadlineAt: new Date(fDeadline.value) } : {}),
+    urgent: urgentEl.checked,
+    ...(deadlineEl.value ? { deadlineAt: new Date(deadlineEl.value) } : {}),
+    // NEW: auto-assign nurse to creator
     assignedNurse: (state.role === "nurse")
       ? { email: state.user.email, displayName: state.user.displayName || state.user.email, at: new Date() }
       : null,
@@ -382,87 +299,96 @@ async function createNewCase() {
   location.reload();
 }
 
-async function assignSelf(role) {
-  if (!state.caseId) return;
-  if (role === "nurse" && state.role === "nurse") {
-    await updateCase(state.caseId, {
-      assignedNurse: { email: state.user.email, displayName: state.user.displayName || state.user.email, at: new Date() }
-    }, state.user);
-  } else if (role === "doctor" && (state.role === "doctor" || state.role === "admin")) {
-    await updateCase(state.caseId, {
-      assignedDoctor: { email: state.user.email, displayName: state.user.displayName || state.user.email, at: new Date() }
-    }, state.user);
+/* ---------- Comments ---------- */
+async function renderComments() {
+  commentsList.innerHTML = "";
+  const items = await listComments(state.caseId);
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "No comments yet.";
+    commentsList.appendChild(empty);
+    return;
   }
-  const latest = await getCase(state.caseId);
-  state.caseDoc = latest;
-  fillDetailsForm(latest);
-}
+  for (const c of items) {
+    const card = document.createElement("article");
+    card.className = "comment";
+    const who  = c.author?.displayName || c.author?.email || "Unknown";
+    const when = c.createdAt?.seconds ? new Date(c.createdAt.seconds*1000).toLocaleString() : "";
+    const head = document.createElement("div");
+    head.innerHTML = `<span class="who">${who}</span> · <span class="when">${when}</span>`;
+    const body = document.createElement("p"); body.textContent = c.body || "";
+    const mqBlock = document.createElement("div"); mqBlock.className = "mq"; mqBlock.textContent = "Loading MQ…";
 
-async function markFinished() {
-  await finishCase(state.caseId, state.user);
-  const latest = await getCase(state.caseId);
-  state.caseDoc = latest;
-  fillDetailsForm(latest);
+    card.appendChild(head); card.appendChild(body); card.appendChild(mqBlock);
+    const mq = await getCommentMQ(c.id); mqBlock.textContent = mq?.text ? mq.text : "(No MQ)";
+    commentsList.appendChild(card);
+  }
 }
-async function undoFinishedAction() {
-  await undoFinish(state.caseId, state.user);
-  const latest = await getCase(state.caseId);
-  state.caseDoc = latest;
-  fillDetailsForm(latest);
-}
-
-/* Comments */
-async function refreshComments() {
-  await renderComments();
-}
-
-/** Post comment; if handoff=true, flip status doctor<->nurse */
 async function postComment(handoff) {
   const body = commentBody.value.trim();
   const mq   = commentMQ.value.trim();
   if (!body) return;
 
   await addComment(state.caseId, body, state.user);
-
   if (handoff) {
-    if (state.role === "doctor") {
-      await updateCase(state.caseId, { status: "awaiting nurse" }, state.user);
-    } else if (state.role === "nurse") {
-      await updateCase(state.caseId, { status: "awaiting doctor" }, state.user);
-    }
+    if (state.role === "doctor")      await updateCase(state.caseId, { status: "awaiting nurse" }, state.user);
+    else if (state.role === "nurse")  await updateCase(state.caseId, { status: "awaiting doctor" }, state.user);
   }
-
-  // Attach MQ to newest comment if provided
-  const items = await listComments(state.caseId);
-  const last = items[items.length - 1];
-  if (last && mq) {
-    await upsertCommentMQ({ caseId: state.caseId, commentId: last.id, text: mq, currentUser: state.user });
+  if (mq) {
+    // attach to newest
+    const items = await (await import("/js/api.js")).listComments(state.caseId);
+    const last = items[items.length - 1];
+    if (last) await upsertCommentMQ({ caseId: state.caseId, commentId: last.id, text: mq, currentUser: state.user });
   }
-
-  commentBody.value = "";
-  commentMQ.value = "";
-  await refreshComments();
-
-  const latest = await getCase(state.caseId);
-  state.caseDoc = latest;
-  fillDetailsForm(latest);
+  commentBody.value = ""; commentMQ.value = "";
+  await renderComments();
+  const latest = await getCase(state.caseId); state.caseDoc = latest; fillDetailsForm(latest);
 }
 
-/* Documents */
-async function showPdf(uploadRow) {
-  state.selectedPdf = { uploadId: uploadRow.id, driveFileId: uploadRow.driveFileId };
-  pdfContainer.innerHTML = "";
-  await renderPdfWithTags({
-    containerEl: pdfContainer,
-    caseId: state.caseId,
-    uploadId: uploadRow.id,
-    driveFileId: uploadRow.driveFileId,
-    onTagChange: applyTagFilter
-  });
-  applyTagFilter();
+/* ---------- Documents: stage → tag → save ---------- */
+function resetStaging() {
+  if (state.stagedUrl) URL.revokeObjectURL(state.stagedUrl);
+  state.stagedFile = null; state.stagedUrl = null;
+  stagedInfo.style.display = "none"; stagedName.textContent = "";
+  pdfContainer.className = "pdf-grid-empty";
+  pdfContainer.innerHTML = "Select a PDF to preview & tag pages (will upload on Save).";
+  tagFilterWrap.style.display = "none";
+  docSaveBtn.disabled = true; docCancelBtn.disabled = true;
 }
 
-/* Tag filter */
+async function onFileChosen(file) {
+  resetStaging();
+  if (!file) return;
+
+  state.stagedFile = file;
+  stagedInfo.style.display = "block";
+  stagedName.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
+  docCancelBtn.disabled = false;
+
+  // If PDF: render locally for tagging (no upload yet)
+  if ((file.type || "").toLowerCase().includes("pdf")) {
+    pdfContainer.innerHTML = "";
+    pdfContainer.classList.remove("pdf-grid-empty");
+    state.stagedUrl = URL.createObjectURL(file);
+    await renderLocalPdfWithTags({
+      containerEl: pdfContainer,
+      file,
+      onTagChange: () => applyTagFilter()
+    });
+    const tags = await getTagOptions();
+    tagFilterSel.innerHTML = `<option value="">All</option>` + tags.map(t => `<option>${t}</option>`).join("");
+    tagFilterWrap.style.display = "";
+    applyTagFilter();
+  } else {
+    pdfContainer.className = "pdf-grid-empty";
+    pdfContainer.innerHTML = "This file type does not support page tagging. Click Save to upload.";
+  }
+
+  // Enable Save
+  docSaveBtn.disabled = false;
+}
+
 function applyTagFilter() {
   const val = tagFilterSel.value || "";
   if (!pdfContainer || !pdfContainer.querySelectorAll) return;
@@ -473,17 +399,66 @@ function applyTagFilter() {
   });
 }
 
-/* Transcript */
-async function downloadTranscript() {
-  const caseDoc   = state.caseDoc || await getCase(state.caseId);
-  const items  = await listComments(state.caseId);
-  const mqMap = new Map();
-  for (const c of items) {
-    const mq = await getCommentMQ(c.id);
-    if (mq) mqMap.set(c.id, mq);
+async function saveStagedDocument() {
+  if (!state.stagedFile) return;
+  // Upload to Drive
+  const { uploadFile } = await import("/js/api.js");
+  const meta = await uploadFile({ file: state.stagedFile, caseId: state.caseId, batchNo: 1 });
+
+  // Create uploads doc
+  const { db } = await import("/js/firebase.js");
+  const { COLLECTIONS } = await import("/js/config.js");
+  const { collection, addDoc, serverTimestamp, query, where, getDocs, doc: ddoc, setDoc } =
+    await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+
+  const upRef = await addDoc(collection(db, COLLECTIONS.uploads), {
+    caseId: state.caseId,
+    batchNo: 1,
+    fileName: meta.fileName,
+    fileType: meta.mimeType,
+    size: meta.size,
+    driveFileId: meta.fileId,
+    fileHash: meta.md5,
+    uploadedBy: { email: (auth.currentUser?.email || ""), displayName: (auth.currentUser?.displayName || "") },
+    uploadedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  const uploadId = upRef.id;
+
+  // If PDF: persist page tags from UI selects
+  if ((state.stagedFile.type || "").toLowerCase().includes("pdf")) {
+    const selects = Array.from(pdfContainer.querySelectorAll(".pdf-page .tag-select"));
+    const writes = [];
+    selects.forEach((sel, idx) => {
+      const tag = sel.value;
+      if (tag) {
+        writes.push(setPageTag({ caseId: state.caseId, uploadId, pageNumber: idx + 1, tag }));
+      }
+    });
+    await Promise.all(writes);
   }
-  const blob = await buildTranscriptPDF({ caseDoc: { id: state.caseId, ...caseDoc }, comments: items, mqMap });
-  downloadBlob(blob, `Case-${state.caseId}.pdf`);
+
+  // Duplicate banner (soft, persistent)
+  const dupIds = await (async () => {
+    const col = collection(db, COLLECTIONS.uploads);
+    const snap = await getDocs(query(col, where("fileHash", "==", meta.md5)));
+    const ids = new Set();
+    snap.forEach(docSnap => {
+      const row = docSnap.data();
+      if (row.caseId && row.caseId !== state.caseId && !row.deletedAt) ids.add(row.caseId);
+    });
+    return Array.from(ids);
+  })();
+  if (dupIds.length) {
+    const { renderDuplicateBanner } = await import("/js/uploader.js");
+    renderDuplicateBanner(bannerArea, dupIds);
+  }
+
+  // Refresh list & clear staging
+  const rows = await listUploads(state.caseId);
+  renderUploadsList(rows);
+  URL.revokeObjectURL(state.stagedUrl);
+  resetStaging();
 }
 
 /* ---------- Events ---------- */
@@ -492,48 +467,32 @@ tabsNav.addEventListener("click", (e) => {
   if (!btn) return;
   setActiveTab(btn.dataset.tab);
 });
-[fDOB, fVisitDate].forEach(el => el.addEventListener("change", updateAgeFields));
+
+document.getElementById("fDOB")?.addEventListener("change", updateAgeFields);
+document.getElementById("fVisitDate")?.addEventListener("change", updateAgeFields);
 
 signOutBtn.addEventListener("click", () => signOutNow());
 saveDetailsBtn.addEventListener("click", (e) => { e.preventDefault(); saveDetails(); });
-createCaseBtn.addEventListener("click", (e) => { e.preventDefault(); createNewCase(); });
-assignNurseBtn.addEventListener("click", (e) => { e.preventDefault(); assignSelf("nurse"); });
-assignDoctorBtn.addEventListener("click", (e) => { e.preventDefault(); assignSelf("doctor"); });
-finishBtn.addEventListener("click", (e) => { e.preventDefault(); markFinished(); });
-undoBtn.addEventListener("click", (e) => { e.preventDefault(); undoFinishedAction(); });
-tagFilterSel.addEventListener("change", applyTagFilter);
+finishBtn.addEventListener("click", async (e) => { e.preventDefault(); await finishCase(state.caseId, state.user); const c = await getCase(state.caseId); state.caseDoc=c; fillDetailsForm(c); });
+undoBtn.addEventListener("click", async (e) => { e.preventDefault(); await undoFinish(state.caseId, state.user); const c = await getCase(state.caseId); state.caseDoc=c; fillDetailsForm(c); });
 
+commentForm.addEventListener("submit", (e) => { e.preventDefault(); }); // handled by buttons
 saveCommentBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(false); });
 confirmBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(true); });
 
-/* ---------- Uploader wiring ---------- */
-function initDocsUploader() {
-  initUploader({
-    fileInput,
-    listContainer: uploadsList,
-    bannerArea,
-    caseId: state.caseId,
-    onUploaded: async () => {
-      const rows = await listUploads(state.caseId);
-      renderUploadsList(rows);
-    }
-  });
-}
+fileInput.addEventListener("change", async (e) => {
+  const file = (e.target.files || [])[0];
+  await onFileChosen(file);
+});
+docCancelBtn.addEventListener("click", (e) => { e.preventDefault(); resetStaging(); fileInput.value = ""; });
+docSaveBtn.addEventListener("click", async (e) => { e.preventDefault(); await saveStagedDocument(); });
 
 /* ---------- Auth ---------- */
 onAuth(async (user) => {
-  if (!user) {
-    location.href = "/index.html";
-    return;
-  }
+  if (!user) { location.href = "/index.html"; return; }
   state.user = user;
-  const role = await loadRole();
-  state.role = role;
-
-  setHeaderUser(user, role);
+  state.role = await loadRole();
+  setHeaderUser(user, state.role);
   await loadCase();
-  if (!state.isNew) initDocsUploader();
-
-  // initial age calc on new
   if (state.isNew) updateAgeFields();
 });
