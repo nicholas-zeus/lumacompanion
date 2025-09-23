@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Escalation — Case</title>
+
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/case.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="brand">
+      <a href="/index.html" class="brand-mark" aria-label="Back to Dashboard">E</a>
+      <div class="brand-text">
+        <strong>Escalation</strong>
+        <span class="brand-sub">Case</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div id="roleBadge" class="role-badge" hidden></div>
+      <button id="finishBtn"   class="btn btn-primary" hidden>Mark Finished</button>
+      <button id="undoBtn"     class="btn" hidden>Undo Finished</button>
+      <button id="downloadPdf" class="btn" hidden>Download Transcript</button>
+      <button id="signOutBtn"  class="btn btn-ghost" hidden>Sign out</button>
+      <img id="avatar" class="avatar" alt="" hidden />
+    </div>
+  </header>
+
+  <!-- Banners (finished lock, duplicate-md5 etc.) -->
+  <div id="bannerArea" class="banner-area" aria-live="polite"></div>
+
+  <!-- Tabs -->
+  <nav class="tabs">
+    <button class="tab is-active" data-tab="details">Details</button>
+    <button class="tab" data-tab="documents">Documents</button>
+    <button class="tab" data-tab="comments">Comments</button>
+  </nav>
+
+  <!-- DETAILS TAB -->
+  <section id="tab-details" class="tabpanel is-active" aria-labelledby="details">
+    <div id="finishedLock" class="banner hidden">This case is <strong>Finished</strong>. Undo to make changes.</div>
+
+    <form id="detailsForm" class="form-grid">
+      <div class="field">
+        <label>Name</label>
+        <input id="fName" class="input" placeholder="—" />
+      </div>
+      <div class="field">
+        <label>Member ID</label>
+        <input id="fMemberID" class="input" placeholder="—" />
+      </div>
+      <div class="field">
+        <label>Hospital</label>
+        <input id="fHospital" class="input" placeholder="—" />
+      </div>
+      <div class="field">
+        <label>Diagnosis</label>
+        <input id="fDiagnosis" class="input" placeholder="—" />
+      </div>
+      <div class="field">
+        <label>Type of Consultation</label>
+        <input id="fConsultType" class="input" placeholder="—" />
+      </div>
+      <div class="field">
+        <label>Deadline (local)</label>
+        <input id="fDeadline" type="datetime-local" class="input" />
+        <small class="hint">Urgent auto-computed from deadline (≤24h)</small>
+      </div>
+
+      <div class="field span-2">
+        <label>Reason for Admission</label>
+        <textarea id="fReasonAdm" class="input" rows="2"></textarea>
+      </div>
+      <div class="field span-2">
+        <label>Reason for Consultation</label>
+        <textarea id="fReasonConsult" class="input" rows="2"></textarea>
+      </div>
+
+      <div class="split">
+        <div>
+          <div class="muted">Status</div>
+          <div id="statusText" class="status-readout">—</div>
+        </div>
+        <div class="right-actions">
+          <button id="assignNurseBtn" class="btn" hidden>Assign me (Nurse)</button>
+          <button id="assignDoctorBtn" class="btn" hidden>Assign me (Doctor)</button>
+          <button id="saveDetailsBtn" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </form>
+
+    <!-- New case only -->
+    <div id="newCaseActions" class="split hidden">
+      <div></div>
+      <button id="createCaseBtn" class="btn btn-primary">Create Case</button>
+    </div>
+  </section>
+
+  <!-- DOCUMENTS TAB -->
+  <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
+    <div class="docs-toolbar">
+      <div class="left">
+        <input id="fileInput" type="file" multiple />
+        <small class="hint">Any file ≤ 50 MB. Only PDFs support page tagging.</small>
+      </div>
+      <div class="right">
+        <label class="tag-filter">
+          <span>Filter pages:</span>
+          <select id="tagFilter">
+            <option value="">All</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="uploads">
+      <div class="uploads-list">
+        <h3>Files</h3>
+        <div id="uploadsList" class="list"></div>
+      </div>
+
+      <div class="viewer">
+        <h3>PDF Viewer</h3>
+        <div id="pdfContainer" class="pdf-grid-empty">Select a PDF to preview & tag pages.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMENTS TAB -->
+  <section id="tab-comments" class="tabpanel" aria-labelledby="comments">
+    <div class="comments">
+      <div id="commentsList" class="comments-list"></div>
+
+      <form id="commentForm" class="comment-form">
+        <textarea id="commentBody" class="input" rows="3" placeholder="Add a comment…"></textarea>
+        <textarea id="commentMQ" class="input" rows="3" placeholder="Medical Questionnaire (optional, will be in transcript)"></textarea>
+        <div class="split">
+          <div class="muted">Adding a comment will switch status based on your role.</div>
+          <button id="addCommentBtn" class="btn btn-primary">Post Comment</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- Scripts -->
+  <script type="module" src="/js/case.js"></script>
+</body>
+</html>
