@@ -5,8 +5,11 @@ import {
   listComments, addComment,
   getCommentMQ, upsertCommentMQ,
   listUploads, streamFileUrl,
-  getTagOptions
+  getTagOptions,
+  statusLabel              // ← moved here (statusLabel is exported by api.js)
 } from "/js/api.js";
+import { formatDeadline, computeAge, requireFields, toDate } from "/js/utils.js"; // ← removed statusLabel from here
+
 import { formatDeadline, statusLabel, computeAge, requireFields, toDate } from "/js/utils.js";
 import { initUploader } from "/js/uploader.js";
 import { renderPdfWithTags } from "/js/tagging.js";
