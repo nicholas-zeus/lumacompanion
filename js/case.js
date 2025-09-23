@@ -6,10 +6,10 @@ import {
   getCommentMQ, upsertCommentMQ,
   listUploads, streamFileUrl,
   getTagOptions, statusLabel,
-  setPageTag
+  setPageTag, uploadFile
 } from "/js/api.js";
-import { formatDeadline, computeAge, requireFields, toDate } from "/js/utils.js";
-import { renderLocalPdfWithTags } from "/js/tagging.js";
+import { computeAge, requireFields, toDate } from "/js/utils.js";
+import { renderPdfWithTags, renderLocalPdfWithTags } from "/js/tagging.js";
 
 initFirebase();
 
@@ -26,10 +26,11 @@ const tabs = {
   comments:  document.getElementById("tab-comments"),
 };
 
-/* Details (many fields omitted here for brevity — keep your full set) */
+/* Details controls */
 const finishedLock    = document.getElementById("finishedLock");
 const detailsForm     = document.getElementById("detailsForm");
 const newCaseActions  = document.getElementById("newCaseActions");
+const editDetailsBtn  = document.getElementById("editDetailsBtn");
 const saveDetailsBtn  = document.getElementById("saveDetailsBtn");
 const assignNurseBtn  = document.getElementById("assignNurseBtn");
 const assignDoctorBtn = document.getElementById("assignDoctorBtn");
@@ -38,7 +39,7 @@ const finishBtn       = document.getElementById("finishBtn");
 const undoBtn         = document.getElementById("undoBtn");
 const downloadPdfBtn  = document.getElementById("downloadPdf");
 
-/* Keep your full field bindings from the previous file */
+/* Detail fields */
 const f = (id) => document.getElementById(id);
 const fName=f("fName"), fMemberID=f("fMemberID"), fNationality=f("fNationality"),
       fDOB=f("fDOB"), fAgeYears=f("fAgeYears"), fAgeMonths=f("fAgeMonths"),
@@ -76,9 +77,10 @@ let state = {
   caseId: null,
   caseDoc: null,
   isNew: false,
+  isEditing: false,
 
-  stagedFile: null,        // File object (PDF or other) waiting to Save
-  stagedUrl: null,         // object URL for PDF preview
+  stagedFile: null,
+  stagedUrl: null,
 };
 
 /* ---------- Helpers ---------- */
@@ -99,23 +101,33 @@ function setHeaderUser(user, role) {
   avatar.src = user.photoURL || "";
   avatar.alt = user.displayName || user.email || "User";
 }
-function lockUIFinished(isFinished) {
-  finishedLock.classList.toggle("hidden", !isFinished);
-  detailsForm.querySelectorAll(".input").forEach(i => i.disabled = isFinished);
-  fileInput.disabled = isFinished;
-  finishBtn.hidden = isFinished || !(state.role === "nurse" || state.role === "admin");
-  undoBtn.hidden   = !isFinished || !(state.role === "nurse" || state.role === "admin");
-}
 function onlyAssignedNurseCanEdit() {
   if (!state.caseDoc) return false;
   const assigned = state.caseDoc.assignedNurse?.email;
   return state.role === "nurse" && assigned === state.user.email;
 }
-function setDetailsEditable() {
-  const canEdit = state.isNew ? (state.role === "nurse" || state.role === "admin")
-                              : (onlyAssignedNurseCanEdit() && state.caseDoc.status !== "finished");
-  detailsForm.querySelectorAll(".input").forEach(i => i.disabled = !canEdit);
-  saveDetailsBtn.disabled = !canEdit;
+function setDetailsDisabled(disabled) {
+  detailsForm.querySelectorAll(".input").forEach(i => i.disabled = disabled);
+}
+function lockUIFinished(isFinished) {
+  finishedLock.classList.toggle("hidden", !isFinished);
+  setDetailsDisabled(isFinished || (!state.isNew && !state.isEditing));
+  fileInput.disabled = isFinished;
+  finishBtn.hidden = isFinished || !(state.role === "nurse" || state.role === "admin");
+  undoBtn.hidden   = !isFinished || !(state.role === "nurse" || state.role === "admin");
+}
+
+/* dates -> input value helpers */
+function toInputDate(d) {
+  const dt = toDate(d);
+  if (!dt) return "";
+  // to YYYY-MM-DD
+  return new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,10);
+}
+function toInputDateTimeLocal(d) {
+  const dt = toDate(d);
+  if (!dt) return "";
+  return new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16);
 }
 
 /* Age auto-calc */
@@ -126,7 +138,7 @@ function updateAgeFields() {
   fAgeMonths.value = months;
 }
 
-/* Collect details object (unchanged) */
+/* Build details payload */
 function collectDetails() {
   return {
     Name: fName.value.trim(),
@@ -160,24 +172,47 @@ function collectDetails() {
 function fillDetailsForm(doc) {
   statusText.textContent = statusLabel(doc.status);
   const d = doc.details || {};
-  // … (populate all fields exactly as in your previous working file) …
 
-  // urgent/deadline
-  document.getElementById("fUrgent").checked = !!doc.urgent;
-  if (doc.deadlineAt) {
-    const dd = new Date(doc.deadlineAt.seconds ? doc.deadlineAt.seconds * 1000 : doc.deadlineAt);
-    const iso = new Date(dd.getTime() - dd.getTimezoneOffset()*60000).toISOString().slice(0,16);
-    document.getElementById("fDeadline").value = iso;
-  } else {
-    document.getElementById("fDeadline").value = "";
+  fName.value            = d.Name || "";
+  fMemberID.value        = d.MemberID || "";
+  fNationality.value     = d.Nationality || "";
+  fDOB.value             = toInputDate(d.DOB);
+  fAgeYears.value        = d.AgeYears ?? "";
+  fAgeMonths.value       = d.AgeMonths ?? "";
+  fPolicyEff.value       = toInputDate(d.PolicyEffectiveDate);
+  fExclusion.value       = d.Exclusion || "";
+  fUWType.value          = d.UnderwritingType || "";
+  fAdmissionType.value   = d.TypeOfAdmission || "";
+  fConsultType.value     = d.TypeOfConsultation || "";
+  fVisitDate.value       = toInputDate(d.VisitDate);
+  fHospital.value        = d.Hospital || "";
+  fDiagnosis.value       = d.Diagnosis || "";
+  fDischargeDate.value   = toInputDate(d.DischargeDate);
+  fChiefComplaint.value  = d.ChiefComplaint || "";
+  fPresentIllness.value  = d.PresentIllness || "";
+  fVitalSigns.value      = d.VitalSigns || "";
+  fPhysicalFindings.value= d.PhysicalFindings || "";
+  fSummary.value         = d.Summary || "";
+  fTreatment.value       = d.Treatment || "";
+  fReasonAdm.value       = d.ReasonForAdmission || "";
+  fReasonConsult.value   = d.ReasonForConsultation || "";
+  fOtherRemark.value     = d.OtherRemark || "";
+
+  fUrgent.checked = !!doc.urgent;
+  fDeadline.value = toInputDateTimeLocal(doc.deadlineAt);
+
+  // default: EXISTING cases → locked, show Edit; NEW cases → unlocked, show Create
+  if (!state.isNew) {
+    state.isEditing = false;
+    setDetailsDisabled(true);
+    editDetailsBtn.hidden = false;
+    saveDetailsBtn.hidden = true;
   }
 
-  // Self-assign buttons (NEW: never show nurse button on new-case; auto-assign on create)
-  assignNurseBtn.hidden  = !(state.role === "nurse") || state.isNew;
+  assignNurseBtn.hidden  = !(state.role === "nurse") || state.isNew; // hidden on new (auto-assign)
   assignDoctorBtn.hidden = !((state.role === "doctor") || (state.role === "admin"));
 
   lockUIFinished(doc.status === "finished");
-  setDetailsEditable();
   downloadPdfBtn.hidden = false;
 }
 
@@ -195,6 +230,25 @@ function renderUploadsList(rows) {
     meta.textContent = ` • ${r.mimeType || ""}`;
     row.appendChild(link);
     row.appendChild(meta);
+
+    if ((r.mimeType || "").toLowerCase().includes("pdf") && !r.deletedAt) {
+      row.style.cursor = "pointer";
+      row.addEventListener("click", async () => {
+        await renderPdfWithTags({
+          containerEl: pdfContainer,
+          caseId: state.caseId,
+          uploadId: r.id,
+          driveFileId: r.driveFileId,
+          onTagChange: applyTagFilter
+        });
+        tagFilterWrap.style.display = "";
+        const tags = await getTagOptions();
+        tagFilterSel.innerHTML = `<option value="">All</option>` + tags.map(t => `<option>${t}</option>`).join("");
+        applyTagFilter();
+        docSaveBtn.disabled = true; // no staged file; tags auto-save on change
+      });
+    }
+
     uploadsList.appendChild(row);
   });
 }
@@ -207,13 +261,11 @@ async function loadCase() {
 
   if (state.isNew) {
     statusText.textContent = statusLabel("awaiting doctor");
-    newCaseActions?.classList?.remove("hidden");
+    newCaseActions.classList.remove("hidden");
+    editDetailsBtn.hidden = true; // new case is already editable
+    saveDetailsBtn.hidden = true; // we use Create button instead
+    setDetailsDisabled(false);
     lockUIFinished(false);
-    setDetailsEditable();
-    // NEW: never show nurse self-assign on new case (auto-assign happens in createNewCase)
-    assignNurseBtn.hidden = true;
-    assignDoctorBtn.hidden = true;
-    downloadPdfBtn.hidden = true;
     return;
   }
 
@@ -229,19 +281,17 @@ async function loadCase() {
   const uploads = await listUploads(id);
   renderUploadsList(uploads);
 
+  // prepare tag filter list
   const tags = await getTagOptions();
   tagFilterSel.innerHTML = `<option value="">All</option>` + tags.map(t => `<option>${t}</option>`).join("");
 }
 
 /* ---------- Details save/create ---------- */
 async function saveDetails() {
-  if (state.isNew) { await createNewCase(); return; }
-  if (!(onlyAssignedNurseCanEdit())) return;
+  if (state.isNew) return; // new uses createNewCase()
 
-  // Urgent rule: if checked, deadline required
-  const urgentEl = document.getElementById("fUrgent");
-  const deadlineEl = document.getElementById("fDeadline");
-  if (urgentEl.checked && !deadlineEl.value) {
+  // urgent rule
+  if (fUrgent.checked && !fDeadline.value) {
     alert("Deadline is required when Urgent is checked.");
     return;
   }
@@ -254,13 +304,19 @@ async function saveDetails() {
   ]);
   if (!req.ok) { alert(req.msg); return; }
 
-  const partial = { details, urgent: urgentEl.checked || undefined };
-  if (deadlineEl.value) partial.deadlineAt = new Date(deadlineEl.value);
+  const partial = { details, urgent: fUrgent.checked || undefined };
+  if (fDeadline.value) partial.deadlineAt = new Date(fDeadline.value);
 
   await updateCase(state.caseId, partial, state.user);
   const latest = await getCase(state.caseId);
   state.caseDoc = latest;
   fillDetailsForm(latest);
+
+  // lock again
+  state.isEditing = false;
+  setDetailsDisabled(true);
+  editDetailsBtn.hidden = false;
+  saveDetailsBtn.hidden = true;
 }
 
 async function createNewCase() {
@@ -268,9 +324,7 @@ async function createNewCase() {
     alert("Only nurses/admins can create cases");
     return;
   }
-  const urgentEl = document.getElementById("fUrgent");
-  const deadlineEl = document.getElementById("fDeadline");
-  if (urgentEl.checked && !deadlineEl.value) {
+  if (fUrgent.checked && !fDeadline.value) {
     alert("Deadline is required when Urgent is checked.");
     return;
   }
@@ -286,9 +340,8 @@ async function createNewCase() {
   const initial = {
     status: "awaiting doctor",
     details,
-    urgent: urgentEl.checked,
-    ...(deadlineEl.value ? { deadlineAt: new Date(deadlineEl.value) } : {}),
-    // NEW: auto-assign nurse to creator
+    urgent: fUrgent.checked,
+    ...(fDeadline.value ? { deadlineAt: new Date(fDeadline.value) } : {}),
     assignedNurse: (state.role === "nurse")
       ? { email: state.user.email, displayName: state.user.displayName || state.user.email, at: new Date() }
       : null,
@@ -336,7 +389,7 @@ async function postComment(handoff) {
     else if (state.role === "nurse")  await updateCase(state.caseId, { status: "awaiting doctor" }, state.user);
   }
   if (mq) {
-    // attach to newest
+    // attach MQ to newest
     const items = await (await import("/js/api.js")).listComments(state.caseId);
     const last = items[items.length - 1];
     if (last) await upsertCommentMQ({ caseId: state.caseId, commentId: last.id, text: mq, currentUser: state.user });
@@ -366,7 +419,6 @@ async function onFileChosen(file) {
   stagedName.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
   docCancelBtn.disabled = false;
 
-  // If PDF: render locally for tagging (no upload yet)
   if ((file.type || "").toLowerCase().includes("pdf")) {
     pdfContainer.innerHTML = "";
     pdfContainer.classList.remove("pdf-grid-empty");
@@ -385,7 +437,6 @@ async function onFileChosen(file) {
     pdfContainer.innerHTML = "This file type does not support page tagging. Click Save to upload.";
   }
 
-  // Enable Save
   docSaveBtn.disabled = false;
 }
 
@@ -401,14 +452,14 @@ function applyTagFilter() {
 
 async function saveStagedDocument() {
   if (!state.stagedFile) return;
-  // Upload to Drive
-  const { uploadFile } = await import("/js/api.js");
+
+  // 1) Upload to Drive
   const meta = await uploadFile({ file: state.stagedFile, caseId: state.caseId, batchNo: 1 });
 
-  // Create uploads doc
+  // 2) Create Firestore uploads doc
   const { db } = await import("/js/firebase.js");
   const { COLLECTIONS } = await import("/js/config.js");
-  const { collection, addDoc, serverTimestamp, query, where, getDocs, doc: ddoc, setDoc } =
+  const { collection, addDoc, serverTimestamp, query, where, getDocs } =
     await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
 
   const upRef = await addDoc(collection(db, COLLECTIONS.uploads), {
@@ -425,39 +476,22 @@ async function saveStagedDocument() {
   });
   const uploadId = upRef.id;
 
-  // If PDF: persist page tags from UI selects
+  // 3) If PDF: persist page tags from UI selects
   if ((state.stagedFile.type || "").toLowerCase().includes("pdf")) {
     const selects = Array.from(pdfContainer.querySelectorAll(".pdf-page .tag-select"));
     const writes = [];
-    selects.forEach((sel, idx) => {
-      const tag = sel.value;
+    for (let i = 0; i < selects.length; i++) {
+      const tag = selects[i].value;
       if (tag) {
-        writes.push(setPageTag({ caseId: state.caseId, uploadId, pageNumber: idx + 1, tag }));
+        writes.push(setPageTag({ caseId: state.caseId, uploadId, pageNumber: i + 1, tag }));
       }
-    });
+    }
     await Promise.all(writes);
   }
 
-  // Duplicate banner (soft, persistent)
-  const dupIds = await (async () => {
-    const col = collection(db, COLLECTIONS.uploads);
-    const snap = await getDocs(query(col, where("fileHash", "==", meta.md5)));
-    const ids = new Set();
-    snap.forEach(docSnap => {
-      const row = docSnap.data();
-      if (row.caseId && row.caseId !== state.caseId && !row.deletedAt) ids.add(row.caseId);
-    });
-    return Array.from(ids);
-  })();
-  if (dupIds.length) {
-    const { renderDuplicateBanner } = await import("/js/uploader.js");
-    renderDuplicateBanner(bannerArea, dupIds);
-  }
-
-  // Refresh list & clear staging
+  // 4) Refresh list & clear staging
   const rows = await listUploads(state.caseId);
   renderUploadsList(rows);
-  URL.revokeObjectURL(state.stagedUrl);
   resetStaging();
 }
 
@@ -472,11 +506,35 @@ document.getElementById("fDOB")?.addEventListener("change", updateAgeFields);
 document.getElementById("fVisitDate")?.addEventListener("change", updateAgeFields);
 
 signOutBtn.addEventListener("click", () => signOutNow());
-saveDetailsBtn.addEventListener("click", (e) => { e.preventDefault(); saveDetails(); });
-finishBtn.addEventListener("click", async (e) => { e.preventDefault(); await finishCase(state.caseId, state.user); const c = await getCase(state.caseId); state.caseDoc=c; fillDetailsForm(c); });
-undoBtn.addEventListener("click", async (e) => { e.preventDefault(); await undoFinish(state.caseId, state.user); const c = await getCase(state.caseId); state.caseDoc=c; fillDetailsForm(c); });
 
-commentForm.addEventListener("submit", (e) => { e.preventDefault(); }); // handled by buttons
+editDetailsBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  if (state.isNew || (state.caseDoc?.status === "finished")) return;
+  if (!onlyAssignedNurseCanEdit()) { alert("Only the assigned nurse can edit."); return; }
+  state.isEditing = true;
+  setDetailsDisabled(false);
+  editDetailsBtn.hidden = true;
+  saveDetailsBtn.hidden = false;
+});
+
+saveDetailsBtn.addEventListener("click", (e) => { e.preventDefault(); saveDetails(); });
+
+document.getElementById("createCaseBtn")?.addEventListener("click", (e) => { e.preventDefault(); createNewCase(); });
+
+finishBtn.addEventListener("click", async (e) => {
+  e.preventDefault();
+  await finishCase(state.caseId, state.user);
+  const c = await getCase(state.caseId);
+  state.caseDoc=c; fillDetailsForm(c);
+});
+undoBtn.addEventListener("click", async (e) => {
+  e.preventDefault();
+  await undoFinish(state.caseId, state.user);
+  const c = await getCase(state.caseId);
+  state.caseDoc=c; fillDetailsForm(c);
+});
+
+commentForm.addEventListener("submit", (e) => { e.preventDefault(); });
 saveCommentBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(false); });
 confirmBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(true); });
 

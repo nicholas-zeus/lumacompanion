@@ -20,6 +20,7 @@
     </div>
 
     <div class="header-actions">
+      <a id="backBtn" href="/index.html" class="btn">← Back</a>
       <div id="roleBadge" class="role-badge" hidden></div>
       <button id="finishBtn"   class="btn btn-primary" hidden>Mark Finished</button>
       <button id="undoBtn"     class="btn" hidden>Undo Finished</button>
@@ -189,10 +190,10 @@
           <div id="statusText" class="status-readout">—</div>
         </div>
         <div class="right-actions">
-          <!-- stays hidden by default; JS keeps it hidden on new case and auto-assigns the nurse creator -->
+          <button id="editDetailsBtn" class="btn">Edit</button>
+          <button id="saveDetailsBtn" class="btn btn-primary" hidden>Save</button>
           <button id="assignNurseBtn" class="btn" hidden>Assign me (Nurse)</button>
           <button id="assignDoctorBtn" class="btn" hidden>Assign me (Doctor)</button>
-          <button id="saveDetailsBtn" class="btn btn-primary">Save</button>
         </div>
       </div>
     </form>
@@ -208,7 +209,6 @@
   <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
     <div class="docs-toolbar">
       <div class="left">
-        <!-- single-file staged flow -->
         <input id="fileInput" type="file" />
         <small class="hint">Any file ≤ 50 MB. PDFs will show page thumbnails for tagging before upload.</small>
         <div id="stagedInfo" class="muted" style="margin-top:6px; display:none;">
@@ -216,7 +216,6 @@
         </div>
       </div>
       <div class="right" style="display:flex; gap:8px; align-items:center;">
-        <!-- hidden until a PDF is staged -->
         <label class="tag-filter" id="tagFilterWrap" style="display:none;">
           <span>Filter pages:</span>
           <select id="tagFilter">
@@ -259,6 +258,10 @@
       </form>
     </div>
   </section>
+
+  <!-- Local/External pdf.js (you’re using CDN 3.4.120; keep these in index.html <head> if you prefer) -->
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";</script> -->
 
   <!-- Scripts -->
   <script type="module" src="/js/case.js"></script>

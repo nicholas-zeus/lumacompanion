@@ -84,3 +84,39 @@
   .span-2{ grid-column: 1; }
   .uploads{ grid-template-columns: 1fr; }
 }
+/* One-column PDF grid everywhere (laptop too) */
+.pdf-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+/* Page wrapper */
+.pdf-page {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Canvas fills width; height auto maintains aspect ratio */
+.pdf-page canvas {
+  width: 100% !important;
+  height: auto !important;
+  image-rendering: auto;
+}
+
+/* Footer under each page */
+.pdf-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pdf-pg { opacity: 0.7; }
+
+/* Disabled inputs style (if not already present) */
+.input:disabled {
+  background: #f6f7f9;
+  color: #666;
+  cursor: not-allowed;
+}
