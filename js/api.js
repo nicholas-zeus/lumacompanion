@@ -254,14 +254,56 @@ export async function softDeleteUpload(uploadId) {
 
 
 
-export async function uploadFile({ file, caseId, batchNo }) {
-  const url = `/.netlify/functions/upload?caseId=${encodeURIComponent(caseId)}&batchNo=${encodeURIComponent(batchNo || 1)}`;
+// api.js (drop-in)
+// Upload a single file to Cases/{caseId}/{batchNo}/{filename} via Netlify function.
+// Returns { fileId, fileName, size, mimeType, md5, uploadedAt } on success.
+
+export async function uploadFile({ caseId, batchNo, file }) {
+  if (!file || !(file instanceof File || file instanceof Blob)) {
+    throw new Error("uploadFile: 'file' must be a File/Blob");
+  }
+  if (!caseId) throw new Error("uploadFile: missing caseId");
+  if (!batchNo) throw new Error("uploadFile: missing batchNo");
+
+  // Build multipart form-data; DO NOT set Content-Type yourself.
   const fd = new FormData();
-  fd.append("file", file);           // no custom headers here
-  const res = await fetch(url, { method: "POST", body: fd });
-  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-  return await res.json();
+  fd.append("caseId", String(caseId));
+  fd.append("batchNo", String(batchNo));
+  // 3rd arg names the file; harmless for Blob, correct for File
+  fd.append("file", file, file.name || "upload.bin");
+
+  // Resolve function path (uses app config if present, else defaults)
+  const base =
+    (window.APP_CONFIG && window.APP_CONFIG.functionsBase) ||
+    (window.appConfig && window.appConfig.functionsBase) ||
+    "/.netlify/functions";
+
+  const url = `${base}/upload`;
+
+  // Important: don't add headers like 'Content-Type'; the browser will set the boundary.
+  let res;
+  try {
+    res = await fetch(url, { method: "POST", body: fd });
+  } catch (e) {
+    throw new Error(`Network error calling ${url}: ${e.message || e}`);
+  }
+
+  // Try to read plain-text body for better diagnostics on non-2xx
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
+    // Surface common server messages directly (your function returns these)
+    // e.g., "Content-Type must be multipart/form-data", "Missing caseId", "Payload too large …"
+    throw new Error(`Upload failed: ${res.status} ${text || res.statusText}`);
+  }
+
+  // If OK, parse JSON payload
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("Upload succeeded but response was not valid JSON.");
+  }
 }
+
 
 
 
