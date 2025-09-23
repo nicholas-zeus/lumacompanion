@@ -241,7 +241,7 @@ export async function softDeleteUpload(uploadId) {
   const ref = doc(db, COLLECTIONS.uploads, uploadId);
   await updateDoc(ref, { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
-export async function uploadFile({ file, caseId, batchNo = 1 }) {
+/*export async function uploadFile({ file, caseId, batchNo = 1 }) {
   const form = new FormData();
   form.append("file", file);
   const res = await authorizedFetch(`/upload?caseId=${encodeURIComponent(caseId)}&batchNo=${encodeURIComponent(batchNo)}`, {
@@ -250,7 +250,25 @@ export async function uploadFile({ file, caseId, batchNo = 1 }) {
   });
   if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
   return res.json();
+}*/
+
+
+
+export async function uploadFile({ file, caseId, batchNo }) {
+  const url = `/.netlify/functions/upload?caseId=${encodeURIComponent(caseId)}&batchNo=${encodeURIComponent(batchNo || 1)}`;
+  const fd = new FormData();
+  fd.append("file", file);           // no custom headers here
+  const res = await fetch(url, { method: "POST", body: fd });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return await res.json();
 }
+
+
+
+
+
+
+
 export function streamFileUrl(fileId) {
   return `${functionsBase}/file/${encodeURIComponent(fileId)}`;
 }
