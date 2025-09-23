@@ -1,20 +1,20 @@
 # Netlify config for static pages + Functions
 
 [build]
-  # Your HTML files (index.html, poctest.html) live at the project root
+  # Your HTML lives at the project root
   publish = "."
   command = ""
 
 [build.environment]
-  # Ensure Node 18 at build/runtime (your package.json targets >=18) 
+  # Ensure Node 18 at build/runtime
   NODE_VERSION = "18"
 
 [functions]
-  # Where your functions live (env-check.js, drive-check.js)
+  # Where your functions live
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # googleapis is used by drive-check; leaving it external avoids heavy bundling
-  external_node_modules = ["googleapis"]
+  # Leave heavy/native deps unbundled so Netlify provides them at runtime
+  external_node_modules = ["googleapis", "firebase-admin"]
 
 [dev]
   # Makes `netlify dev` pick up your functions and static root
