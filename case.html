@@ -29,7 +29,7 @@
     </div>
   </header>
 
-  <!-- Banners (finished lock, duplicate-md5 etc.) -->
+  <!-- Banners -->
   <div id="bannerArea" class="banner-area" aria-live="polite"></div>
 
   <!-- Tabs -->
@@ -44,39 +44,143 @@
     <div id="finishedLock" class="banner hidden">This case is <strong>Finished</strong>. Undo to make changes.</div>
 
     <form id="detailsForm" class="form-grid">
+      <!-- Row 1 -->
       <div class="field">
-        <label>Name</label>
-        <input id="fName" class="input" placeholder="—" />
+        <label>Name <span class="req">*</span></label>
+        <input id="fName" class="input" required />
       </div>
       <div class="field">
-        <label>Member ID</label>
-        <input id="fMemberID" class="input" placeholder="—" />
+        <label>Member ID <span class="req">*</span></label>
+        <input id="fMemberID" class="input" required />
       </div>
       <div class="field">
-        <label>Hospital</label>
-        <input id="fHospital" class="input" placeholder="—" />
+        <label>Nationality <span class="req">*</span></label>
+        <input id="fNationality" class="input" required />
+      </div>
+
+      <!-- Row 2 -->
+      <div class="field">
+        <label>DOB <span class="req">*</span></label>
+        <input id="fDOB" type="date" class="input" required />
       </div>
       <div class="field">
-        <label>Diagnosis</label>
-        <input id="fDiagnosis" class="input" placeholder="—" />
+        <label>Age (years)</label>
+        <input id="fAgeYears" class="input" readonly />
       </div>
       <div class="field">
-        <label>Type of Consultation</label>
-        <input id="fConsultType" class="input" placeholder="—" />
+        <label>Age (months)</label>
+        <input id="fAgeMonths" class="input" readonly />
+      </div>
+
+      <!-- Row 3 -->
+      <div class="field">
+        <label>Policy Effective Date <span class="req">*</span></label>
+        <input id="fPolicyEff" type="date" class="input" required />
+      </div>
+      <div class="field">
+        <label>Underwriting Type <span class="req">*</span></label>
+        <select id="fUWType" class="input" required>
+          <option value="">— select —</option>
+          <option value="MHD">MHD</option>
+          <option value="FMU">FMU</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Type of Admission <span class="req">*</span></label>
+        <select id="fAdmissionType" class="input" required>
+          <option value="">— select —</option>
+          <option>Scheduled</option>
+          <option>Admit</option>
+          <option>Discharge</option>
+        </select>
+      </div>
+
+      <!-- Row 4 -->
+      <div class="field">
+        <label>Type of Consultation <span class="req">*</span></label>
+        <input id="fConsultType" class="input" placeholder="e.g., simple disease, high cost, ex-gratia" required />
+      </div>
+      <div class="field">
+        <label>Visit Date <span class="req">*</span></label>
+        <input id="fVisitDate" type="date" class="input" required />
+      </div>
+      <div class="field">
+        <label>Hospital <span class="req">*</span></label>
+        <input id="fHospital" class="input" required />
+      </div>
+
+      <!-- Row 5 -->
+      <div class="field">
+        <label>Diagnosis <span class="req">*</span></label>
+        <input id="fDiagnosis" class="input" required />
+      </div>
+      <div class="field">
+        <label>Discharge Date</label>
+        <input id="fDischargeDate" type="date" class="input" />
+      </div>
+      <div class="field">
+        <label>Chief Complaint <span class="req">*</span></label>
+        <input id="fChiefComplaint" class="input" required />
+      </div>
+
+      <!-- Row 6 -->
+      <div class="field span-2">
+        <label>Present Illness <span class="req">*</span></label>
+        <textarea id="fPresentIllness" class="input" rows="2" required></textarea>
+      </div>
+      <div class="field span-2">
+        <label>Exclusion <span class="req">*</span></label>
+        <textarea id="fExclusion" class="input" rows="2" required></textarea>
+      </div>
+
+      <!-- Row 7 -->
+      <div class="field">
+        <label class="checkbox">
+          <input id="fUrgent" type="checkbox" /> Urgent
+        </label>
+        <small class="hint">If checked, a Deadline is required. Note: items beyond 24h are not considered urgent.</small>
       </div>
       <div class="field">
         <label>Deadline (local)</label>
         <input id="fDeadline" type="datetime-local" class="input" />
-        <small class="hint">Urgent auto-computed from deadline (≤24h)</small>
+      </div>
+      <div class="field"></div>
+
+      <!-- Row 8 (optionals) -->
+      <div class="field span-2">
+        <label>Vital Signs</label>
+        <textarea id="fVitalSigns" class="input" rows="2"></textarea>
+      </div>
+      <div class="field span-2">
+        <label>Physical Findings</label>
+        <textarea id="fPhysicalFindings" class="input" rows="2"></textarea>
       </div>
 
+      <!-- Row 9 -->
       <div class="field span-2">
-        <label>Reason for Admission</label>
-        <textarea id="fReasonAdm" class="input" rows="2"></textarea>
+        <label>Summary</label>
+        <textarea id="fSummary" class="input" rows="3" placeholder="You can paste tables; formatting will be preserved in transcript."></textarea>
       </div>
       <div class="field span-2">
-        <label>Reason for Consultation</label>
-        <textarea id="fReasonConsult" class="input" rows="2"></textarea>
+        <label>Treatment</label>
+        <textarea id="fTreatment" class="input" rows="2"></textarea>
+      </div>
+
+      <!-- Row 10 -->
+      <div class="field span-2">
+        <label>Reason for Admission <span class="req">*</span></label>
+        <textarea id="fReasonAdm" class="input" rows="2" required></textarea>
+      </div>
+      <div class="field span-2">
+        <label>Reason for Consultation <span class="req">*</span></label>
+        <textarea id="fReasonConsult" class="input" rows="2" required
+          placeholder="Reason for escalating to medical team for consultation"></textarea>
+      </div>
+
+      <!-- Row 11 -->
+      <div class="field span-2">
+        <label>Other Remark</label>
+        <textarea id="fOtherRemark" class="input" rows="2"></textarea>
       </div>
 
       <div class="split">
@@ -135,11 +239,14 @@
       <div id="commentsList" class="comments-list"></div>
 
       <form id="commentForm" class="comment-form">
-        <textarea id="commentBody" class="input" rows="3" placeholder="Add a comment…"></textarea>
+        <textarea id="commentBody" class="input" rows="3" placeholder="Add a comment…" required></textarea>
         <textarea id="commentMQ" class="input" rows="3" placeholder="Medical Questionnaire (optional, will be in transcript)"></textarea>
         <div class="split">
-          <div class="muted">Adding a comment will switch status based on your role.</div>
-          <button id="addCommentBtn" class="btn btn-primary">Post Comment</button>
+          <div class="muted">Use <strong>Confirm</strong> to handoff; <strong>Save</strong> to keep status unchanged.</div>
+          <div>
+            <button id="saveCommentBtn"  class="btn">Save</button>
+            <button id="confirmBtn"      class="btn btn-primary">Confirm</button>
+          </div>
         </div>
       </form>
     </div>

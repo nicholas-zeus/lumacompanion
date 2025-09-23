@@ -37,7 +37,7 @@ async function authorizedFetch(path, opts = {}) {
 }
 
 /* ------------------------------- Roles ---------------------------------- */
-// NEW: read role directly from Firestore allowlist (self-read)
+// self-read allowlist
 export async function loadRole() {
   const user = auth.currentUser;
   if (!user) return null;
@@ -111,7 +111,6 @@ export async function queryCases({ role, userEmail, filter, q }) {
   const snap = await getDocs(qRef);
   const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  // Client text filter (Name, MemberID, Hospital, Diagnosis)
   const qq = (q || "").trim();
   const filtered = rows.filter(r => {
     if (!qq) return true;
@@ -134,7 +133,9 @@ export async function getCase(caseId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-export function computeUrgent(deadlineAt) {
+/** urgent is true if manualUrgent is true OR deadline ≤ 24h from now */
+export function computeUrgent(deadlineAt, manualUrgent = false) {
+  if (manualUrgent) return true;
   if (!deadlineAt) return false;
   const d = toDate(deadlineAt);
   if (!d) return false;
@@ -145,7 +146,7 @@ export async function createCase(initial, currentUser) {
   const col = collection(db, COLLECTIONS.cases);
   const payload = {
     ...initial,
-    urgent: computeUrgent(initial.deadlineAt),
+    urgent: computeUrgent(initial.deadlineAt, !!initial.urgent),
     createdAt: serverTimestamp(),
     createdBy: {
       email: currentUser.email,
@@ -165,7 +166,11 @@ export async function createCase(initial, currentUser) {
 export async function updateCase(caseId, partial, currentUser) {
   const ref = doc(db, COLLECTIONS.cases, caseId);
   const fields = { ...partial };
-  if ("deadlineAt" in fields) fields.urgent = computeUrgent(fields.deadlineAt);
+  if ("deadlineAt" in fields || "urgent" in fields) {
+    const d = "deadlineAt" in fields ? fields.deadlineAt : undefined;
+    const u = "urgent" in fields ? fields.urgent : undefined;
+    fields.urgent = computeUrgent(d ?? undefined, !!u);
+  }
   fields.updatedAt = serverTimestamp();
   fields.updatedBy = {
     email: currentUser.email,
