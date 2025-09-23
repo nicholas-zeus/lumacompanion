@@ -93,10 +93,13 @@
 .doc-sub{ font-size:12px; color:var(--muted); }
 .doc-actions a{ font-size:12px; }
 
-/* RIGHT: viewer card with page-level scroll */
+/* RIGHT: viewer card with natural height (fix) */
 .viewer-card{
   background:#fff; border:1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); padding:10px;
+  /* remove fixed scroll; let card expand */
+  overflow: visible;
+  max-height: none;
 }
 
 /* Section header inside viewer (filename + actions) */
