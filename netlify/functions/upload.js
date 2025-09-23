@@ -7,6 +7,12 @@ const Busboy = require("busboy");
 const crypto = require("crypto");
 const { Readable } = require("stream");
 
+// ====== EDIT THESE (NOT SECRETS) ======
+const CLIENT_ID = "144226656515-9td0urugivgr355c5h3daur76rsu8eev.apps.googleusercontent.com";
+const REDIRECT_URI = "https://lumacompanion.netlify.app/oauth2callback";
+// =====================================
+
+// ====== LIMITS & CORS ======
 /**
  * IMPORTANT: Netlify Functions (AWS API Gateway) cap request bodies to ~10 MB.
  * Your product target is 50 MB. This function returns 413 if the file is too big.
@@ -16,26 +22,87 @@ const MAX_LAMBDA_BYTES = 9.5 * 1024 * 1024; // ~9.5MB safety margin under API GW
 const MAX_PRODUCT_BYTES = 50 * 1024 * 1024; // your logical product cap
 
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-headers": "authorization, content-type",
 };
 
-function pickHeader(headers, name) {
-  return headers[name] || headers[name.toLowerCase()] || headers[name.toUpperCase()];
-}
-
+// ====== OAUTH DRIVE CLIENT ======
 function getDrive() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_JSON");
-  const sa = JSON.parse(raw);
-  const jwt = new google.auth.JWT(sa.client_email, null, sa.private_key, [
-    "https://www.googleapis.com/auth/drive",
-  ]);
-  const drive = google.drive({ version: "v3", auth: jwt });
-  return { jwt, drive };
+  const { GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN } = process.env;
+  if (!GOOGLE_CLIENT_SECRET) throw new Error("Missing env GOOGLE_CLIENT_SECRET");
+  if (!GOOGLE_REFRESH_TOKEN) throw new Error("Missing env GOOGLE_REFRESH_TOKEN (generate via /oauth2callback)");
+  const oauth2 = new google.auth.OAuth2(CLIENT_ID, GOOGLE_CLIENT_SECRET, REDIRECT_URI);
+  oauth2.setCredentials({ refresh_token: GOOGLE_REFRESH_TOKEN });
+  const drive = google.drive({ version: "v3", auth: oauth2 });
+  return drive;
 }
 
+// ====== HELPERS ======
+function parseMultipart(event) {
+  const contentType = event.headers["content-type"] || event.headers["Content-Type"];
+  if (!contentType || !contentType.startsWith("multipart/form-data")) {
+    throw new Error("Content-Type must be multipart/form-data");
+  }
+
+  const bb = Busboy({ headers: { "content-type": contentType } });
+
+  const fields = {};
+  let fileInfo = null;
+  let totalBytes = 0;
+  const hash = crypto.createHash("md5");
+
+  return new Promise((resolve, reject) => {
+    bb.on("field", (name, val) => {
+      fields[name] = val;
+    });
+
+    bb.on("file", (name, file, info) => {
+      // info: { filename, encoding, mimeType }
+      const chunks = [];
+      file.on("data", (d) => {
+        totalBytes += d.length;
+        if (totalBytes > MAX_PRODUCT_BYTES) {
+          file.resume();
+          reject(Object.assign(new Error("File exceeds product limit of 50 MB"), { code: 413 }));
+          return;
+        }
+        hash.update(d);
+        chunks.push(d);
+      });
+      file.on("limit", () => {
+        reject(Object.assign(new Error("Payload exceeded body size limit"), { code: 413 }));
+      });
+      file.on("end", () => {
+        const buffer = Buffer.concat(chunks);
+        fileInfo = {
+          fieldName: name,
+          fileName: info.filename || "upload.bin",
+          mimeType: info.mimeType || "application/octet-stream",
+          size: buffer.length,
+          md5: hash.digest("hex"),
+          buffer,
+        };
+      });
+    });
+
+    bb.on("error", reject);
+    bb.on("finish", () => {
+      if (!fileInfo) return reject(new Error("No file found in form-data"));
+      resolve({ fields, file: fileInfo, totalBytes });
+    });
+
+    // Body can be base64-encoded (Netlify default)
+    const body = event.isBase64Encoded ? Buffer.from(event.body || "", "base64") : Buffer.from(event.body || "");
+    if (body.length > MAX_LAMBDA_BYTES) {
+      reject(Object.assign(new Error("Payload too large for Netlify Function"), { code: 413 }));
+      return;
+    }
+    bb.end(body);
+  });
+}
+
+// Find (or create) a folder named `name` inside `parentId`. Returns folderId.
 async function ensureFolder(drive, name, parentId) {
   const q = [
     "mimeType='application/vnd.google-apps.folder'",
@@ -48,8 +115,10 @@ async function ensureFolder(drive, name, parentId) {
     q,
     fields: "files(id,name)",
     pageSize: 1,
+    // Using My Drive, not Shared Drives:
     supportsAllDrives: false,
   });
+
   if (res.data.files && res.data.files[0]) return res.data.files[0].id;
 
   const create = await drive.files.create({
@@ -61,112 +130,59 @@ async function ensureFolder(drive, name, parentId) {
     fields: "id",
     supportsAllDrives: false,
   });
+
   return create.data.id;
 }
 
-async function ensurePath(drive, rootId, caseId, batchNo) {
-  const casesId = await ensureFolder(drive, "Cases", rootId);
-  const caseIdFolder = await ensureFolder(drive, String(caseId), casesId);
-  const batchId = await ensureFolder(drive, String(batchNo), caseIdFolder);
-  return batchId;
-}
-
-/** Parse multipart/form-data from Netlify (base64 body) with busboy */
-function parseMultipart(event) {
-  return new Promise((resolve, reject) => {
-    const contentType = pickHeader(event.headers || {}, "content-type");
-    if (!contentType || !contentType.includes("multipart/form-data")) {
-      return reject(new Error("Invalid content-type (expected multipart/form-data)"));
-    }
-
-    const bb = Busboy({ headers: { "content-type": contentType } });
-
-    const state = { fields: {}, file: null }; // { buffer, fileName, mimeType, size, md5 }
-    let total = 0;
-    const chunks = [];
-    const hash = crypto.createHash("md5");
-
-    bb.on("file", (_name, file, info) => {
-      const { filename, mimeType } = info || {};
-      file.on("data", (d) => {
-        total += d.length;
-
-        // Guard API GW body size
-        if (total > MAX_LAMBDA_BYTES) {
-          bb.emit("error", Object.assign(new Error("Payload too large for Netlify Function"), { code: 413 }));
-          file.resume();
-          return;
-        }
-        // Also guard product cap (50 MB)
-        if (total > MAX_PRODUCT_BYTES) {
-          bb.emit("error", Object.assign(new Error("File exceeds 50 MB limit"), { code: 413 }));
-          file.resume();
-          return;
-        }
-
-        chunks.push(d);
-        hash.update(d);
-      });
-      file.on("end", () => {
-        state.file = {
-          buffer: Buffer.concat(chunks),
-          fileName: filename || "unnamed",
-          mimeType: mimeType || "application/octet-stream",
-          size: total,
-          md5: hash.digest("hex"),
-        };
-      });
-    });
-
-    bb.on("field", (name, val) => { state.fields[name] = val; });
-    bb.on("error", reject);
-    bb.on("finish", () => resolve(state));
-
-    // Body may be base64-encoded
-    const body = event.isBase64Encoded
-      ? Buffer.from(event.body || "", "base64")
-      : Buffer.from(event.body || "", "utf8");
-    bb.end(body);
-  });
-}
-
-exports.handler = async (event) => {
-  // CORS preflight
-  if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 204, headers: CORS };
+async function ensurePath(drive, names, rootId) {
+  let parent = rootId;
+  for (const n of names) {
+    parent = await ensureFolder(drive, n, parent);
   }
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, headers: CORS, body: "Method Not Allowed" };
+  return parent; // deepest folder id
+}
+
+function json(statusCode, body) {
+  return {
+    statusCode,
+    headers: { ...CORS, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  };
+}
+
+// ====== HANDLER ======
+exports.handler = async (event) => {
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 204, headers: CORS, body: "" };
   }
 
   try {
-    // Read query params (support both Netlify shapes)
-    const url = event.rawUrl ? new URL(event.rawUrl) : null;
-    const qs = event.queryStringParameters || {};
-    const caseId = (url && url.searchParams.get("caseId")) || qs.caseId;
-    const batchNo = (url && url.searchParams.get("batchNo")) || qs.batchNo || "1";
-    if (!caseId) {
-      return { statusCode: 400, headers: CORS, body: "Missing caseId" };
+    const drive = getDrive();
+
+    // Parse multipart/form-data (expects fields: caseId, batchNo; file field named "file")
+    const { fields, file, totalBytes } = await parseMultipart(event);
+
+    const caseId = (fields.caseId || "").trim();
+    const batchNo = (fields.batchNo || "").trim();
+
+    if (!caseId) return json(400, { error: "Missing caseId" });
+    if (!batchNo) return json(400, { error: "Missing batchNo" });
+
+    if (totalBytes > MAX_LAMBDA_BYTES) {
+      return {
+        statusCode: 413,
+        headers: CORS,
+        body: "Payload too large for Netlify Function. Use a smaller file or switch to resumable uploads.",
+      };
     }
 
-    const rootId = process.env.GOOGLE_ROOT_FOLDER_ID;
-    if (!rootId) {
-      return { statusCode: 500, headers: CORS, body: "Missing GOOGLE_ROOT_FOLDER_ID" };
-    }
+    // Root folder in *your My Drive* (not Shared Drive)
+    const ROOT = process.env.GOOGLE_ROOT_FOLDER_ID || "root";
 
-    const { jwt, drive } = getDrive();
-    await jwt.authorize();
+    // Ensure path: Cases/{caseId}/{batchNo}
+    const parentId = await ensurePath(drive, ["Cases", caseId, batchNo], ROOT);
 
-    // Parse multipart form
-    const { file } = await parseMultipart(event);
-    if (!file) {
-      return { statusCode: 400, headers: CORS, body: "No file part found" };
-    }
-
-    // Create folder path
-    const parentId = await ensurePath(drive, rootId, caseId, batchNo);
-
-    // Upload to Drive
+    // Upload the file (multipart upload)
     const resp = await drive.files.create({
       requestBody: {
         name: file.fileName,
@@ -181,31 +197,28 @@ exports.handler = async (event) => {
       supportsAllDrives: false,
     });
 
-    const meta = resp.data || {};
-    const payload = {
-      fileId: meta.id,
-      fileName: meta.name || file.fileName,
-      size: Number(meta.size || file.size || 0),
-      mimeType: meta.mimeType || file.mimeType || "application/octet-stream",
-      md5: meta.md5Checksum || file.md5 || null,
-      uploadedAt: new Date().toISOString(),
-    };
+    const d = resp.data;
+    // If Drive didn't return md5Checksum for Google Docs formats, fall back to our own hash
+    const md5 = d.md5Checksum || file.md5;
 
-    return {
-      statusCode: 200,
-      headers: { ...CORS, "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    };
+    return json(200, {
+      fileId: d.id,
+      fileName: d.name,
+      size: Number(d.size || file.size),
+      mimeType: d.mimeType,
+      md5,
+      uploadedAt: d.createdTime,
+    });
   } catch (err) {
-    // Give an informative status for size errors
     const status = err && (err.code === 413 || /too large/i.test(err.message)) ? 413 : 500;
     console.error("upload error:", err);
     return {
       statusCode: status,
       headers: CORS,
-      body: status === 413
-        ? "Payload too large for Netlify Function. Use a smaller file or switch to resumable uploads."
-        : `Upload error: ${err.message || err}`,
+      body:
+        status === 413
+          ? "Payload too large for Netlify Function. Use a smaller file or switch to resumable uploads."
+          : `Upload error: ${err.message || err}`,
     };
   }
 };
