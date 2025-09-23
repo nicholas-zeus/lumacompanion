@@ -28,10 +28,11 @@ async function renderPdfCommon({ containerEl, source, caseId, uploadId, onTagCha
 
   // Load pdf.js (v4)
   if (!globalThis.pdfjsLib) {
-    await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js");
+    await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js");
+    //https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js
   }
   const pdfjsLib = globalThis.pdfjsLib;
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
 
   containerEl.innerHTML = "";
   containerEl.classList.add("pdf-grid");
