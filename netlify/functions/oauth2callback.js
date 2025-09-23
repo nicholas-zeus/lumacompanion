@@ -2,7 +2,7 @@
 const { google } = require("googleapis");
 
 // ✅ EDIT THESE TWO (they are NOT secret)
-const CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID";
+const CLIENT_ID = "144226656515-9td0urugivgr355c5h3daur76rsu8eev.apps.googleusercontent.com";
 const REDIRECT_URI = "https://lumacompanion.netlify.app/.netlify/functions/oauth2callback";
 
 // 🔒 Do NOT hardcode this — we read it from Netlify env (secret)
