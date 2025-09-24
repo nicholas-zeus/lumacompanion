@@ -1,24 +1,19 @@
 // /js/case.js
-<<<<<<< HEAD
-=======
 // Case page logic: Details, Manage Documents (new), View Documents, Comments
 
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 import { initFirebase, onAuth, signOutNow, auth, db } from "/js/firebase.js";
 import {
   loadRole, getCase, createCase, updateCase,
   finishCase, undoFinish,
   listComments, addComment,
-  getCommentMQ, upsertCommentMQ,
   listUploads, streamFileUrl,
   getTagOptions, statusLabel,
-  setPageTag, uploadFile
+  setPageTag, uploadFile, softDeleteUpload
 } from "/js/api.js";
 import { computeAge, requireFields, toDate } from "/js/utils.js";
-import { renderLocalPdfWithTags } from "/js/tagging.js"; // used on Upload tab only
 
 import {
-  collection, query, where, orderBy, limit, getDocs
+  collection, query, where, orderBy, limit, getDocs, addDoc, serverTimestamp, doc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ---------------- Boot ---------------- */
@@ -33,7 +28,7 @@ const bannerArea    = document.getElementById("bannerArea");
 const tabsNav = document.querySelector(".tabs");
 const tabs = {
   details:   document.getElementById("tab-details"),
-  documents: document.getElementById("tab-documents"),
+  manage:    document.getElementById("tab-manage"),
   docview:   document.getElementById("tab-docview"),
   comments:  document.getElementById("tab-comments"),
 };
@@ -63,26 +58,6 @@ const fName=f("fName"), fMemberID=f("fMemberID"), fNationality=f("fNationality")
       fSummary=f("fSummary"), fTreatment=f("fTreatment"), fReasonAdm=f("fReasonAdm"),
       fReasonConsult=f("fReasonConsult"), fOtherRemark=f("fOtherRemark");
 
-<<<<<<< HEAD
-/* Upload tab */
-const fileInput      = document.getElementById("fileInput");
-const uploadsList    = document.getElementById("uploadsList");
-const pdfContainer   = document.getElementById("pdfContainer");
-const tagFilterSel   = document.getElementById("tagFilter");
-const tagFilterWrap  = document.getElementById("tagFilterWrap");
-const docSaveBtn     = document.getElementById("docSaveBtn");
-const docCancelBtn   = document.getElementById("docCancelBtn");
-const stagedInfo     = document.getElementById("stagedInfo");
-const stagedName     = document.getElementById("stagedName");
-
-/* View tab */
-const docList        = document.getElementById("docList");
-const docCount       = document.getElementById("docCount");
-const pdfStack       = document.getElementById("pdfStack");  // now a canvas-based stack
-const tagHitsWrap    = document.getElementById("tagHits");
-const tagFilterSelect= document.getElementById("tagFilterSelect");
-const tagFilterClear = document.getElementById("tagFilterClear");
-=======
 /* -------- Manage Documents (new tab) -------- */
 const mdSidebar       = document.getElementById("mdSidebar");
 const mdDropzone      = document.getElementById("mdDropzone");
@@ -103,9 +78,8 @@ const docList         = document.getElementById("docList");
 const pdfStack        = document.getElementById("pdfStack");
 const tagHitsWrap     = document.getElementById("tagHits");
 const tagFilterSelect = document.getElementById("tagFilterSelect");
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 
-/* Comments */
+/* -------- Comments -------- */
 const commentsList   = document.getElementById("commentsList");
 const commentForm    = document.getElementById("commentForm");
 const commentBody    = document.getElementById("commentBody");
@@ -122,21 +96,6 @@ const state = {
   role: null,
   user: null,
 
-<<<<<<< HEAD
-  // Upload staging
-  stagedFile: null,
-  stagedIsPdf: false,
-
-  // View Documents
-  docviewLoaded: false,
-  uploadsIndex: [],        // [{ id, fileName, mimeType, driveFileId, uploadedBy, uploadedAt, batchNo }]
-  uploadsById: new Map(),
-  allTags: new Set(),      // set of tag values for dropdown
-  tagHits: [],             // [{ uploadId, pageNumber, tag }]
-
-  // Render bookkeeping
-  pageIndex: new Map(),    // map key `${uploadId}:${pageNo}` -> element
-=======
   /* View Documents state (keep existing behavior) */
   docviewLoaded: false,
   uploadsIndex: [],
@@ -156,15 +115,15 @@ const state = {
     renderedKey: null,            // current render keyPrefix (uploadId or tempId)
     dprClamp: 1.25,               // reduced crispness target (organization task)
   }
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 };
 
-/* ---------- Utils ---------- */
+/* ---------- Util ---------- */
 function getHashId() { const h = (location.hash || "").slice(1); return h || "new"; }
 function setActiveTab(name) {
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("is-active", b.dataset.tab === name));
   Object.entries(tabs).forEach(([k, el]) => el.classList.toggle("is-active", k === name));
   if (name === "docview") ensureDocviewLoaded().catch(console.error);
+  if (name === "manage") ensureManageLoaded().catch(console.error);
 }
 function setHeaderUser(user, role) {
   if (!user) return;
@@ -183,15 +142,13 @@ function toInputDateTimeLocal(d) {
   return new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16);
 }
 function updateAgeFields() {
-  const years = computeAge(fDOB.value, fVisitDate.value, "years");
-  const months = computeAge(fDOB.value, fVisitDate.value, "months");
-  fAgeYears.value = (years ?? "");
-  fAgeMonths.value = (months ?? "");
+  const { years, months } = computeAge(fDOB.value, fVisitDate.value || new Date());
+  fAgeYears.value = years ?? "";
+  fAgeMonths.value = months ?? "";
 }
 function lockUIFinished(isFinished) {
   finishedLock.classList.toggle("hidden", !isFinished);
   detailsForm.querySelectorAll(".input").forEach(i => i.disabled = isFinished || (!state.isNew && !state.isEditing));
-  if (fileInput) fileInput.disabled = isFinished;
   finishBtn.hidden = isFinished || !(state.role === "nurse" || state.role === "admin");
   undoBtn.hidden   = !isFinished || !(state.role === "nurse" || state.role === "admin");
 }
@@ -204,7 +161,7 @@ async function loadCase() {
 
   if (state.isNew) {
     newCaseActions.classList.remove("hidden");
-    setActiveTab("documents");
+    setActiveTab("details");
     return;
   }
 
@@ -218,8 +175,8 @@ async function loadCase() {
   // Fill details UI
   const d = doc.details || {};
   fName.value = d.Name || ""; fMemberID.value = d.MemberID || ""; fNationality.value = d.Nationality || "";
-  fDOB.value = toInputDate(d.DOB); fAgeYears.value = computeAge(d.DOB, d.VisitDate, "years") ?? "";
-  fAgeMonths.value = computeAge(d.DOB, d.VisitDate, "months") ?? "";
+  fDOB.value = toInputDate(d.DOB); const ageNow = computeAge(d.DOB, d.VisitDate || new Date());
+  fAgeYears.value = ageNow.years ?? ""; fAgeMonths.value = ageNow.months ?? "";
   fPolicyEff.value = toInputDate(d.PolicyEffectiveDate);
   fUWType.value = d.UnderwritingType || ""; fAdmissionType.value = d.TypeOfAdmission || "";
   fConsultType.value = d.TypeOfConsultation || ""; fVisitDate.value = toInputDate(d.VisitDate);
@@ -234,114 +191,11 @@ async function loadCase() {
   fUrgent.checked = !!doc.urgent;
   fDeadline.value = toInputDateTimeLocal(doc.deadlineAt);
 
-  // lock / actions
   lockUIFinished(doc.status === "finished");
   downloadPdfBtn.hidden = false;
 
-<<<<<<< HEAD
-  // initial uploads list
-  await refreshUploadsList();
-}
-
-/* ---------- Uploads tab (existing flow; unchanged except staging helpers) ---------- */
-function resetStaging() {
-  state.stagedFile = null; state.stagedIsPdf = false;
-  pdfContainer.className = "pdf-grid-empty";
-  pdfContainer.innerHTML = "Select a PDF to preview & tag pages (will upload on Save).";
-  docSaveBtn.disabled = true; docCancelBtn.disabled = true;
-  stagedInfo.style.display = "none"; stagedName.textContent = "";
-}
-async function onFileChosen(file) {
-  resetStaging();
-  if (!file) return;
-
-  state.stagedFile = file;
-  stagedInfo.style.display = "";
-  stagedName.textContent = file.name;
-
-  // Preview via canvas (Upload tab continues to use tagging.js renderer)
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-    state.stagedIsPdf = true;
-    pdfContainer.className = "pdf-grid";
-    pdfContainer.innerHTML = "";
-    await renderLocalPdfWithTags(pdfContainer, file, {
-      caseId: state.caseId,
-      onTagChange: () => applyTagFilterUpload()
-    });
-    const tags = await getTagOptions();
-    tagFilterSel.innerHTML = `<option value="">All</option>` + tags.map(t => `<option>${t}</option>`).join("");
-    tagFilterWrap.style.display = "";
-    applyTagFilterUpload();
-  } else {
-    pdfContainer.className = "pdf-grid-empty";
-    pdfContainer.innerHTML = "This file type does not support page tagging. Click Save to upload.";
-  }
-
-  docSaveBtn.disabled = false; docCancelBtn.disabled = false;
-}
-function applyTagFilterUpload() {
-  const val = tagFilterSel.value || "";
-  pdfContainer.querySelectorAll(".pdf-page").forEach(pg => {
-    const sel = pg.querySelector(".tag-select");
-    const t = sel?.value || "";
-    pg.style.display = (!val || val === t) ? "" : "none";
-  });
-}
-async function saveStagedDocument() {
-  if (!state.stagedFile) return;
-
-  // 1) Upload to Drive
-  const meta = await uploadFile({ file: state.stagedFile, caseId: state.caseId, batchNo: 1 });
-
-  // 2) Save page tags (if pdf) — Upload tab only
-  if (state.stagedIsPdf) {
-    const pages = pdfContainer.querySelectorAll(".pdf-page");
-    let pageNo = 0;
-    for (const pg of pages) {
-      pageNo++;
-      const sel = pg.querySelector(".tag-select");
-      const tag = sel?.value || "";
-      if (tag) {
-        await setPageTag({
-          caseId: state.caseId,
-          uploadId: meta.uploadId || meta.fileId || "",
-          pageNumber: pageNo,
-          tag
-        });
-      }
-    }
-  }
-
-  // 3) Reset & refresh
-  resetStaging();
-  if (fileInput) fileInput.value = "";
-  await refreshUploadsList();
-  if (state.docviewLoaded) await loadDocviewData(); // keep View tab in sync
-}
-function renderUploadsList(rows) {
-  uploadsList.innerHTML = "";
-  rows.forEach(r => {
-    const row = document.createElement("div");
-    row.className = "upload-row";
-    const link = document.createElement("a");
-    link.href = streamFileUrl(r.driveFileId);
-    link.target = "_blank";
-    link.textContent = r.fileName;
-    const meta = document.createElement("span");
-    meta.className = "meta";
-    meta.textContent = ` • ${r.mimeType || ""}`;
-    row.appendChild(link); row.appendChild(meta);
-    uploadsList.appendChild(row);
-  });
-}
-async function refreshUploadsList() {
-  if (!state.caseId || state.isNew) return;
-  const rows = await listUploads(state.caseId);
-  renderUploadsList(rows);
-=======
   // Preload existing uploads for tabs
   await refreshUploadsForAll();
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 }
 
 /* ---------- Details save/create ---------- */
@@ -423,21 +277,20 @@ async function renderComments() {
   for (const c of items) {
     const el = document.createElement("div");
     el.className = "comment";
+    const when = c.createdAt ? toDate(c.createdAt)?.toLocaleString() : "";
     el.innerHTML = `
-      <div><span class="who">${c.createdBy?.displayName || c.createdBy?.email || "—"}</span>
-      <span class="when"> • ${new Date((c.createdAt?.seconds||0)*1000).toLocaleString()}</span></div>
+      <div><span class="who">${c.author?.displayName || c.author?.email || "—"}</span>
+      <span class="when"> • ${when || ""}</span></div>
       <div class="body">${(c.body || "").replace(/\n/g, "<br>")}</div>
-      ${c.mq ? `<div class="mq"><div class="muted">Medical Questionnaire</div>${c.mq.replace(/\n/g,"<br>")}</div>` : ""}
     `;
     commentsList.appendChild(el);
   }
 }
 async function postComment(confirmHandoff) {
   const body = commentBody.value.trim();
-  const mq = commentMQ.value.trim();
+  const mq = (document.getElementById("commentMQ")?.value || "").trim();
   if (!body && !mq) return;
-  const id = await addComment(state.caseId, body, state.user);
-  if (mq) await upsertCommentMQ(state.caseId, id, mq, state.user);
+  await addComment(state.caseId, body, state.user);
   commentBody.value = "";
   await renderComments();
   if (confirmHandoff) {
@@ -448,22 +301,6 @@ async function postComment(confirmHandoff) {
   }
 }
 
-<<<<<<< HEAD
-/* ---------- View Documents (canvas-first + images) ---------- */
-async function ensureDocviewLoaded() {
-  if (!state.caseId || state.isNew) return;
-  if (!state.docviewLoaded) {
-    await loadPdfJsIfNeeded();
-    await loadDocviewData();
-    wireDocviewControls();
-    buildStickySidebar();
-    await renderCanvasStack(); // render all files (pdfs as canvases, images as <img>)
-    state.docviewLoaded = true;
-  } else {
-    await loadDocviewData();     // keep tags and list fresh
-    await renderCanvasStack();   // re-render to reflect changes
-  }
-=======
 /* =========================================================
    View Documents tab (existing implementation, canvas-first)
    ========================================================= */
@@ -473,61 +310,16 @@ async function ensureDocviewLoaded() {
   await loadDocviewData();
   wireDocviewControls();
   await renderCanvasStack();
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 }
-
 function wireDocviewControls() {
   tagFilterSelect?.addEventListener("change", () => applyDocTagFilter(tagFilterSelect.value));
-<<<<<<< HEAD
-  tagFilterClear?.addEventListener("click", () => {
-    if (tagFilterSelect) tagFilterSelect.value = "";
-    applyDocTagFilter("");
-    scrollToTop();
-  });
-=======
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 }
-
-function buildStickySidebar() {
-  // Keep sticky list for desktop (no change needed to .list-card)
-  // Add a floating 'Go to top' on mobile
-  const ensureBtn = () => {
-    const isMobile = window.matchMedia('(max-width: 860px)').matches;
-    let btn = document.getElementById('goTopBtn');
-    if (isMobile) {
-      if (!btn) {
-        btn = document.createElement('button');
-        btn.id = 'goTopBtn';
-        btn.className = 'go-top-btn';
-        btn.setAttribute('aria-label', 'Go to top');
-        btn.textContent = '↑';
-        btn.addEventListener('click', scrollToTop);
-        document.body.appendChild(btn);
-      }
-    } else {
-      btn?.remove();
-    }
-  };
-  ensureBtn();
-  window.addEventListener('resize', ensureBtn, { passive: true });
-}
-
-
-function scrollToTop() { window.scrollTo({ top: 0, behavior: "smooth" }); }
-
 async function loadDocviewData() {
-  // 1) uploads
   const rows = await listUploads(state.caseId);
   state.uploadsIndex = rows;
   state.uploadsById.clear();
   rows.forEach(r => state.uploadsById.set(r.id, r));
-<<<<<<< HEAD
-  if (docCount) docCount.textContent = `${rows.length} file${rows.length===1?"":"s"}`;
-
-  // 2) tags (pageTags)
-=======
   // Tags (pageTags)
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   state.allTags.clear(); state.tagHits = [];
   const col = collection(db, "pageTags");
   const qRef = query(col, where("caseId", "==", state.caseId), limit(5000));
@@ -539,32 +331,18 @@ async function loadDocviewData() {
       state.tagHits.push({ uploadId: row.uploadId, pageNumber: row.pageNumber, tag: row.tag });
     }
   });
-<<<<<<< HEAD
-
-  // dropdown
-=======
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   if (tagFilterSelect) {
     const current = tagFilterSelect.value || "";
     tagFilterSelect.innerHTML = `<option value="">All tags</option>` +
       Array.from(state.allTags).sort().map(t => `<option value="${t}">${t}</option>`).join("");
     if (current && state.allTags.has(current)) tagFilterSelect.value = current;
   }
-<<<<<<< HEAD
-
-  // left list
-=======
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   renderFileList();
 }
-
 function renderFileList() {
   if (!docList) return;
-  // preserve sticky header
-  docList.querySelectorAll(".doc-list-item, .doc-divider").forEach(n => n.remove());
-
-  const items = state.uploadsIndex;
-  for (const u of items) {
+  docList.innerHTML = "";
+  for (const u of state.uploadsIndex) {
     const who = u.uploadedBy?.displayName || u.uploadedBy?.email || "Unknown";
     const when = (u.uploadedAt?.seconds) ? new Date(u.uploadedAt.seconds * 1000).toLocaleString() : "";
     const div = document.createElement("div");
@@ -574,12 +352,7 @@ function renderFileList() {
       <div class="doc-sub">${who} • ${when}</div>
       <div class="doc-sub">Batch: ${u.batchNo || "-"}</div>
       <div class="doc-actions">
-<<<<<<< HEAD
-        <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
-        ${(isPdf(u) || isImage(u)) ? ` · <a href="#" data-open="${u.id}">Open</a>` : ""}
-=======
         <a href="#" data-open="${u.id}">Open</a>
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
       </div>
     `;
     div.querySelectorAll("[data-open]").forEach(a => {
@@ -591,7 +364,6 @@ function renderFileList() {
     docList.appendChild(div);
   }
 }
-
 function isPdf(u) {
   const n = (u.fileName || "").toLowerCase();
   const t = (u.mimeType || u.fileType || "").toLowerCase();
@@ -602,126 +374,70 @@ function isImage(u) {
   const t = (u.mimeType || u.fileType || "").toLowerCase();
   return /(\.jpg|\.jpeg|\.png)$/.test(n) || t.startsWith("image/");
 }
-
 async function renderCanvasStack() {
   if (!pdfStack || !tagHitsWrap) return;
   pdfStack.hidden = false; tagHitsWrap.hidden = true;
   pdfStack.innerHTML = "";
   state.pageIndex.clear();
 
-  // Render each file (PDF as canvases, images as <img> blocks)
   for (const u of state.uploadsIndex) {
     if (isPdf(u)) {
       await renderPdfFileAsCanvases(u);
     } else if (isImage(u)) {
       renderImageFile(u);
     } else {
-      // Non-previewable fallback: just show a link
       const card = document.createElement("div");
       card.className = "pdf-block";
-      card.innerHTML = `
-        <div class="viewer-section">
-          <h3>${u.fileName}</h3>
-          <div>
-            <a href="${streamFileUrl(u.driveFileId)}" target="_blank" rel="noopener">Open</a>
-            &nbsp;·&nbsp;
-            <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
-          </div>
-        </div>
-        <div class="muted">Preview not available for this file type.</div>
-      `;
+      card.innerHTML = `<div class="muted">${u.fileName} — preview not available</div>`;
       pdfStack.appendChild(card);
     }
   }
-
   if (!pdfStack.children.length) {
     pdfStack.innerHTML = `<div class="muted">No files uploaded yet.</div>`;
   }
 }
-
 async function renderPdfFileAsCanvases(u) {
   const section = document.createElement("div");
   section.className = "pdf-block";
-  section.innerHTML = `
-    <div class="viewer-section">
-      <h3>${u.fileName}</h3>
-      <div>
-        <a href="${streamFileUrl(u.driveFileId)}" target="_blank" rel="noopener">Open in new tab</a>
-        &nbsp;·&nbsp;
-        <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
-      </div>
-    </div>
-    <div class="pdf-pages"></div>
-  `;
-  const pagesWrap = section.querySelector(".pdf-pages");
+  const pagesWrap = document.createElement("div");
+  section.appendChild(pagesWrap);
   pdfStack.appendChild(section);
 
-  // Load & render with pdf.js
-  const url = streamFileUrl(u.driveFileId); // Netlify function URL
+  const url = streamFileUrl(u.driveFileId);
   let pdf;
   try {
     pdf = await window.pdfjsLib.getDocument(url).promise;
-  } catch (e) {
+  } catch {
     pagesWrap.innerHTML = `<div class="muted">Failed to load PDF.</div>`;
     return;
   }
-
-  // Render pages sequentially (keeps memory in check)
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
-    const viewport0 = page.getViewport({ scale: 1 });
-    const maxWidth = Math.min(pagesWrap.clientWidth || 1000, 1000); // guard
-    const scale = maxWidth / viewport0.width;
-    const viewport = page.getViewport({ scale: scale });
+    const containerWidthCss = Math.min(pagesWrap.clientWidth || 900, 900);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const cssScale = containerWidthCss / baseViewport.width;
+    const DPR = Math.max(1, window.devicePixelRatio || 1);
+    const viewport = page.getViewport({ scale: cssScale * Math.min(DPR, 1.25) });
 
     const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
-    canvas.style.display = "block";
-    canvas.setAttribute("data-upload-id", u.id);
-    canvas.setAttribute("data-page", String(p));
-    canvas.className = "page-canvas";
-
     const ctx = canvas.getContext("2d");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    canvas.style.width = `${Math.ceil(viewport.width / Math.min(DPR, 1.25))}px`;
+    canvas.style.height = `${Math.ceil(viewport.height / Math.min(DPR, 1.25))}px`;
     await page.render({ canvasContext: ctx, viewport }).promise;
 
-    // Wrapper card per page (gives page-level scrolling/focus)
     const pageCard = document.createElement("div");
     pageCard.className = "page-card";
-    pageCard.style = "margin-bottom:12px;";
     pageCard.appendChild(canvas);
     pagesWrap.appendChild(pageCard);
 
-    // index for scroll-to from left list / tag filter
     state.pageIndex.set(`${u.id}:${p}`, pageCard);
   }
 }
-
 function renderImageFile(u) {
   const section = document.createElement("div");
   section.className = "pdf-block";
-<<<<<<< HEAD
-  section.innerHTML = `
-    <div class="viewer-section">
-      <h3>${u.fileName}</h3>
-      <div>
-        <a href="${streamFileUrl(u.driveFileId)}" target="_blank" rel="noopener">Open in new tab</a>
-        &nbsp;·&nbsp;
-        <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
-      </div>
-    </div>
-  `;
-  const img = document.createElement("img");
-  img.src = streamFileUrl(u.driveFileId);
-  img.alt = u.fileName;
-  img.style = "width:100%;height:auto;border:1px solid var(--line);border-radius:8px;";
-  section.appendChild(img);
-  pdfStack.appendChild(section);
-
-  // index as page 1 so filter can optionally map if needed
-=======
   const img = document.createElement("img");
   img.src = streamFileUrl(u.driveFileId);
   img.alt = u.fileName;
@@ -730,53 +446,17 @@ function renderImageFile(u) {
   img.style = "max-width:100%;width:auto;height:auto;border:1px solid var(--line);border-radius:8px;";
   section.appendChild(img);
   pdfStack.appendChild(section);
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   state.pageIndex.set(`${u.id}:1`, section);
 }
-
 function focusFirstPageOf(uploadId) {
-  const key1 = `${uploadId}:1`;
-  const el = state.pageIndex.get(key1);
+  const el = state.pageIndex.get(`${uploadId}:1`);
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
-<<<<<<< HEAD
-
-/* Tag filter across all pages (PDF canvases + images) */
-=======
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 function applyDocTagFilter(tag) {
-  if (!pdfStack || !tagHitsWrap) return;
   if (!tag) {
-    // show everything
-    Array.from(pdfStack.querySelectorAll(".page-card, img, .pdf-block")).forEach(el => el.style.display = "");
     tagHitsWrap.hidden = true; pdfStack.hidden = false;
     return;
   }
-<<<<<<< HEAD
-
-  // Build set of matching keys like "uploadId:pageNumber"
-  const allow = new Set(state.tagHits.filter(h => h.tag === tag).map(h => `${h.uploadId}:${h.pageNumber}`));
-
-  // Hide all, then show matches
-  let shown = 0;
-  for (const [key, el] of state.pageIndex.entries()) {
-    if (allow.has(key)) {
-      el.style.display = "";
-      shown++;
-    } else {
-      el.style.display = "none";
-    }
-  }
-
-  // If no pages matched, show message
-  if (shown === 0) {
-    pdfStack.hidden = true;
-    tagHitsWrap.hidden = false;
-    tagHitsWrap.innerHTML = `<div class="muted">No pages tagged “${tag}”.</div>`;
-  } else {
-    tagHitsWrap.hidden = true;
-    pdfStack.hidden = false;
-=======
   // existing docview filter is out of scope for manage tab
 }
 
@@ -1010,17 +690,17 @@ async function mdRenderFile({ kind, keyPrefix, file, name, type, url, meta }) {
     const lowMime = (meta?.mimeType || meta?.fileType || "").toLowerCase();
     isPdf = lowName.endsWith(".pdf") || lowMime === "application/pdf";
     isImg = /(\.jpg|\.jpeg|\.png)$/.test(lowName) || (lowMime.startsWith("image/"));
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   }
 
-  // Scroll to the first visible page
-  for (const [key, el] of state.pageIndex.entries()) {
-    if (el.style.display !== "none") { el.scrollIntoView({ behavior: "smooth", block: "start" }); break; }
+  if (isPdf) {
+    await mdRenderPdfPages({ kind, keyPrefix, file, url, container: wrap });
+  } else if (isImg) {
+    await mdRenderImage({ kind, keyPrefix, file, url, container: wrap, pageNo: 1 });
+  } else {
+    wrap.innerHTML = `<div class="muted">Preview not available for this file type.</div>`;
   }
 }
 
-<<<<<<< HEAD
-=======
 /* PDF render (reduced width + DPR clamp) */
 async function mdRenderPdfPages({ kind, keyPrefix, file, url, container }) {
   let src;
@@ -1259,12 +939,10 @@ function mdShowOwnershipOverlay() {
   });
 }
 
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 /* ---------- pdf.js loader (CDN) ---------- */
 async function loadPdfJsIfNeeded() {
   if (window.pdfjsLib?.getDocument) return;
   await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js");
-  // worker
   window.pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
 }
@@ -1276,7 +954,7 @@ function loadScript(src) {
   });
 }
 
-/* ---------- Wire events ---------- */
+/* ---------- Wire global events ---------- */
 document.getElementById("fDOB")?.addEventListener("change", updateAgeFields);
 document.getElementById("fVisitDate")?.addEventListener("change", updateAgeFields);
 signOutBtn.addEventListener("click", () => signOutNow());
@@ -1313,14 +991,6 @@ tabsNav.addEventListener("click", (e) => {
 saveCommentBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(false); });
 confirmBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(true); });
 
-<<<<<<< HEAD
-fileInput?.addEventListener("change", async (e) => {
-  const file = (e.target.files || [])[0];
-  await onFileChosen(file);
-});
-docCancelBtn?.addEventListener("click", (e) => { e.preventDefault(); resetStaging(); if (fileInput) fileInput.value = ""; });
-docSaveBtn?.addEventListener("click", async (e) => { e.preventDefault(); await saveStagedDocument(); });
-=======
 /* ---------- Shared helpers ---------- */
 async function refreshUploadsForAll() {
   const rows = await listUploads(state.caseId);
@@ -1331,7 +1001,6 @@ async function refreshUploadsForAll() {
     mdRenderExistingList();
   }
 }
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 
 /* ---------- Auth ---------- */
 onAuth(async (user) => {
