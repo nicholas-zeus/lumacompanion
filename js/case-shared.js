@@ -58,6 +58,19 @@ export function toInputDateTimeLocal(d) {
 }
 
 signOutBtn.addEventListener("click", () => signOutNow());
+// Tab switching
+const tabsNav = document.querySelector(".tabs");
+tabsNav.addEventListener("click", (e) => {
+  const btn = e.target.closest(".tab");
+  if (!btn) return;
+  setActiveTab(btn.dataset.tab);
+
+  // Special: load View tab on demand
+  if (btn.dataset.tab === "docview") {
+    import("/js/case-view.js").then(m => m.ensureDocviewLoaded()).catch(console.error);
+  }
+});
+
 
 // Init Firebase + auth
 initFirebase();
