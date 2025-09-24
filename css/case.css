@@ -37,7 +37,7 @@
 /* Finished lock banner */
 .banner{ margin-bottom:12px; }
 
-/* =============== Upload Documents Tab =============== */
+/* =============== (Legacy) Upload Documents Tab =============== */
 .docs-toolbar{
   display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;
 }
@@ -64,25 +64,17 @@
 .tag-select{ border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
 
 /* =============== View Documents Tab =============== */
-/* Two-column shell: left = sticky list, right = canvas/image stack */
 .docview-shell{
   display:grid; grid-template-columns: 280px 1fr; gap:12px;
 }
 @media (max-width: 900px){
   .docview-shell{ grid-template-columns: 1fr; }
 }
-
-/* LEFT: floating/sticky file list */
 .list-card{
   background:#fff; border:1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); padding:10px;
-
-  /* Sticky so it "floats" while scrolling pages */
-  position: sticky;
-  top: 12px;
-  align-self: start;
-  max-height: calc(100vh - 24px);
-  overflow: auto;
+  position: sticky; top: 12px; align-self: start;
+  max-height: calc(100vh - 24px); overflow: auto;
 }
 .doc-list-item{
   padding:8px; border:1px solid var(--line); border-radius:10px; background:#fff;
@@ -92,26 +84,13 @@
 .doc-file{ font-weight:700; word-break:break-word; }
 .doc-sub{ font-size:12px; color:var(--muted); }
 .doc-actions a{ font-size:12px; }
-
-/* RIGHT: viewer card with natural height (fix) */
 .viewer-card{
   background:#fff; border:1px solid var(--line); border-radius: var(--radius);
-  box-shadow: var(--shadow); padding:10px;
-  /* remove fixed scroll; let card expand */
-  overflow: visible;
-  max-height: none;
+  box-shadow: var(--shadow); padding:10px; overflow: visible; max-height: none;
 }
-
-/* Section header inside viewer (filename + actions) */
-.viewer-section{
-  display:flex; justify-content:space-between; align-items:center; margin:4px 0 10px;
-}
+.viewer-section{ display:flex; justify-content:space-between; align-items:center; margin:4px 0 10px; }
 .viewer-section h3{ margin:0; }
-
-/* Each file block container */
 .pdf-block{ margin-bottom:16px; }
-
-/* Canvas-first page card (PDF) or image card (JPG/PNG) */
 .page-card{
   background:#fff; border:1px solid var(--line); border-radius:12px;
   padding:8px; box-shadow: var(--shadow); margin-bottom:12px;
@@ -121,11 +100,7 @@
   width:100%; height:auto; display:block;
   border:1px solid var(--line); border-radius:8px;
 }
-
-/* Inline PDF frame (legacy; kept if needed) */
 .pdf-frame{ width:100%; height:680px; border:1px solid var(--line); border-radius:8px; }
-
-/* Tag-hits grid when filtering to a specific tag */
 .tag-hits{ display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
 .tag-hit{ border:1px solid var(--line); border-radius:10px; background:#fff; padding:8px; }
 .tag-hit .hit-meta{
@@ -152,36 +127,162 @@
 }
 .comment-form textarea{ width:100%; }
 
-/* =============== Mobile tweaks =============== */
+/* =============== Mobile tweaks (legacy tabs) =============== */
 @media (max-width: 860px){
   .form-grid{ grid-template-columns: 1fr; }
   .span-2{ grid-column: 1; }
   .uploads{ grid-template-columns: 1fr; }
-  .list-card{
-    position: static; /* disable sticky on narrow screens */
-    max-height: none;
-  }
+  .list-card{ position: static; max-height: none; }
 }
-/* Floating go-to-top button (mobile only) */
-.go-top-btn{
-  position: fixed;
-  right: 16px;
-  bottom: 72px; /* sits above FAB if present */
-  z-index: 60;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--brand);
-  color: var(--brand-ink);
-  display: grid;             /* hidden by default */
-  place-items: center;
-  box-shadow: var(--shadow);
-  font-size: 20px;
-  cursor: pointer;
-  border: 0;
-}
-@media (max-width: 860px){
-  .go-top-btn{ display: grid; }   /* show only on mobile */
-}
-/* /css/case.css  (append near the end) */
 
+/* ======================================================================
+   MANAGE DOCUMENTS TAB (STRICTLY SCOPED TO #tab-manage)
+   ====================================================================== */
+
+/* Shell: main content + right sidebar on desktop */
+#tab-manage .md-shell{
+  display:grid; gap:12px; grid-template-columns: 1fr 320px;
+}
+@media (max-width: 900px){
+  #tab-manage .md-shell{ grid-template-columns: 1fr; }
+}
+
+/* Card blocks */
+#tab-manage .md-card{
+  background:#fff; border:1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding:10px;
+}
+
+/* Sidebar (desktop visible, mobile becomes off-canvas) */
+#tab-manage #mdSidebar{
+  position: sticky; top: 12px; align-self: start;
+  max-height: calc(100vh - 24px); overflow:auto;
+}
+@media (max-width: 900px){
+  #tab-manage #mdSidebar{
+    position: fixed; right:16px; bottom:78px; left:16px; top:auto;
+    max-height: 70vh; z-index: 80; display:none;
+  }
+  #tab-manage #mdSidebar.is-open{ display:block; }
+}
+
+/* Sidebar sections */
+#tab-manage .md-section{ display:grid; gap:8px; }
+#tab-manage .md-sep{ height:1px; background:var(--line); margin:8px 0; }
+
+/* Dropzone */
+#tab-manage #mdDropzone{
+  border:2px dashed var(--line); border-radius:12px; padding:16px;
+  display:grid; gap:8px; place-items:center; text-align:center; cursor:pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+#tab-manage #mdDropzone:hover{ background:#f9fafb; }
+#tab-manage #mdDropzone.is-hover{ border-color: var(--accent); background: #eff6ff; }
+#tab-manage #mdFileInput{ display:none; }
+
+/* Lists (staged & existing) */
+#tab-manage .md-list{ display:grid; gap:6px; }
+#tab-manage .md-item{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  border:1px solid var(--line); border-radius:10px; padding:8px; background:#fff;
+}
+#tab-manage .md-name{
+  border:0; background:transparent; text-align:left; cursor:pointer; color:var(--brand); font-weight:700;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;
+}
+#tab-manage .md-name:hover{ text-decoration: underline; }
+#tab-manage .md-del{
+  border:1px solid var(--line); background:#fff; border-radius:8px; padding:4px 8px; cursor:pointer;
+}
+
+/* Render grid: thumbnails (3 per row desktop, 1 per row mobile) */
+#tab-manage #mdRenderArea{ min-height:200px; }
+#tab-manage .md-grid{
+  display:grid; gap:10px;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+}
+@media (max-width: 900px){
+  #tab-manage .md-grid{ grid-template-columns: 1fr; }
+}
+#tab-manage .md-thumb{
+  border:1px solid var(--line); border-radius:12px; background:#fff; padding:8px; box-shadow: var(--shadow);
+}
+#tab-manage .md-thumb-foot{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px;
+}
+#tab-manage .md-pg{ font-size:12px; color:var(--muted); }
+#tab-manage .md-tag{
+  border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:#fff; font-size:13px;
+}
+
+/* Save buttons (desktop sidebar button + mobile FAB) */
+#tab-manage #mdSaveBtn{ width:100%; }
+#tab-manage #mdSaveBtn[hidden]{ display:none !important; }
+
+#tab-manage #mdToggleFab,
+#tab-manage #mdSaveFab{
+  position: fixed; right:16px; z-index: 90;
+  width: 54px; height: 54px; border-radius: 16px;
+  display:none; place-items:center; box-shadow: var(--shadow); border:0;
+  background: linear-gradient(135deg, var(--brand), var(--accent)); color: var(--brand-ink);
+  font-size: 22px; cursor: pointer;
+}
+#tab-manage #mdToggleFab{ bottom: 16px; }
+#tab-manage #mdSaveFab{ bottom: 76px; }
+#tab-manage #mdSaveFab[hidden]{ display:none !important; }
+
+/* Mobile: show floating cluster */
+@media (max-width: 900px){
+  #tab-manage #mdToggleFab{ display: grid; }
+  #tab-manage #mdSaveFab{ display: grid; }
+}
+
+/* Full-screen overlay (progress, assignment, confirmations) */
+#tab-manage #mdOverlay{
+  position: fixed; inset:0; display:none; z-index:100;
+  background: rgba(17,24,39,0.45); /* gray-900/45% */
+  backdrop-filter: blur(2px);
+}
+#tab-manage #mdOverlay.is-open{ display:block; }
+#tab-manage .md-ovl-box{
+  position:absolute; left:50%; top:50%; transform: translate(-50%, -50%);
+  width: min(520px, 92vw);
+  background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow: var(--shadow);
+  padding:16px; display:grid; gap:12px; text-align:center;
+}
+#tab-manage .md-ovl-actions{ display:flex; gap:8px; justify-content:center; }
+#tab-manage .md-spinner{
+  width:28px; height:28px; border-radius:50%;
+  border:3px solid #e5e7eb; border-top-color: var(--brand);
+  animation: mdspin 1s linear infinite; margin: 0 auto;
+}
+@keyframes mdspin{ to { transform: rotate(360deg); } }
+#tab-manage .md-ovl-msg{ font-weight:700; }
+
+/* Toast */
+#tab-manage #mdToast{
+  position: fixed; left:50%; transform: translateX(-50%);
+  bottom: 20px; z-index: 120;
+  background:#111827; color:#f9fafb; border-radius:999px; padding:8px 12px;
+  opacity:0; pointer-events:none; transition: opacity .18s ease;
+}
+#tab-manage #mdToast.is-on{ opacity:1; }
+
+/* Recovered session note */
+#tab-manage #mdRecovered{
+  background:#ecfeff; border:1px solid #a5f3fc; color:#0e7490;
+  padding:8px 10px; border-radius:10px; display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;
+}
+#tab-manage #mdRecovered[hidden]{ display:none !important; }
+
+/* Utilities (scoped to tab) */
+#tab-manage .btn{
+  border:1px solid var(--line); background:#fff; color:var(--ink);
+  padding:8px 12px; border-radius:10px; cursor:pointer;
+}
+#tab-manage .btn-primary{
+  background: var(--brand); color: var(--brand-ink); border-color: transparent;
+}
+
+/* Ensure no bleed into other tabs */
+#tab-manage *[hidden]{ display:none !important; }
