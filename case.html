@@ -66,7 +66,7 @@
   <nav class="tabs">
     <div class="page-wrap" style="display:flex;gap:8px;">
       <button class="tab is-active" data-tab="details">Details</button>
-      <button class="tab" data-tab="documents">Upload Documents</button>
+      <button class="tab" data-tab="documents">Manage Documents</button>
       <button class="tab" data-tab="docview">View Documents</button>
       <button class="tab" data-tab="comments">Comments</button>
     </div>
@@ -239,71 +239,68 @@
     </div>
   </section>
 
-  <!-- DOCUMENTS (UPLOAD) TAB -->
+  <!-- MANAGE DOCUMENTS TAB -->
   <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
-  <div class="page-wrap">
-    <div class="docview-shell">
-      <!-- Left sticky bar -->
-      <aside class="list-card" id="manageSidebar">
-        <!-- Upload Section -->
-        <div class="sidebar-section">
-          <h3>Upload</h3>
-          <div id="uploadDrop" class="upload-drop">
-            <p>Click or drag files here</p>
-            <input id="fileInput" type="file" multiple hidden />
+    <div class="page-wrap">
+      <div class="docview-shell">
+        <!-- Left sticky bar -->
+        <aside class="list-card" id="manageSidebar">
+          <!-- Upload Section -->
+          <div class="sidebar-section">
+            <h3>Upload</h3>
+            <div id="uploadDrop" class="upload-drop">
+              <p>Click or drag files here</p>
+              <input id="fileInput" type="file" multiple hidden />
+            </div>
+            <div id="stagedList" class="file-list"></div>
           </div>
-          <div id="stagedList" class="file-list"></div>
-        </div>
 
-        <!-- List Section -->
-        <div class="sidebar-section">
-          <h3>Existing</h3>
-          <div id="uploadedList" class="file-list"></div>
-        </div>
+          <!-- List Section -->
+          <div class="sidebar-section">
+            <h3>Existing</h3>
+            <div id="uploadedList" class="file-list"></div>
+          </div>
 
-        <!-- Save Section (desktop only) -->
-        <div class="sidebar-section" id="saveSection" hidden>
-          <button id="saveBtn" class="btn btn-primary">💾 Save</button>
-        </div>
-      </aside>
+          <!-- Save Section (desktop only) -->
+          <div class="sidebar-section" id="saveSection" hidden>
+            <button id="saveBtn" class="btn btn-primary">💾 Save</button>
+          </div>
+        </aside>
 
-      <!-- Right viewer -->
-      <section class="viewer-card">
-        <div id="previewArea" class="preview-grid"></div>
-      </section>
+        <!-- Right viewer -->
+        <section class="viewer-card">
+          <div id="previewArea" class="preview-grid"></div>
+        </section>
+      </div>
     </div>
-  </div>
 
-  <!-- Overlay during save -->
-  <div id="savingOverlay" class="saving-overlay hidden">
-    <div class="saving-content">
-      <div class="spinner"></div>
-      <p>Saving…</p>
+    <!-- Overlay during save -->
+    <div id="savingOverlay" class="saving-overlay hidden">
+      <div class="saving-content">
+        <div class="spinner"></div>
+        <p>Saving…</p>
+      </div>
     </div>
-  </div>
 
-  <!-- Floating buttons (mobile only) -->
-  <button id="toggleSidebarBtn" class="fab fab-toggle">^</button>
-  <button id="mobileSaveBtn" class="fab fab-save" hidden>💾</button>
-</section>
+    <!-- Floating buttons (mobile only) -->
+    <button id="toggleSidebarBtn" class="fab fab-toggle">^</button>
+    <button id="mobileSaveBtn" class="fab fab-save" hidden>💾</button>
+  </section>
 
   <!-- DOCUMENTS (VIEW) TAB -->
   <section id="tab-docview" class="tabpanel" aria-labelledby="docview">
     <div class="page-wrap">
       <div class="docs-toolbar">
-
         <div class="tag-filter" style="display:flex;align-items:center;gap:8px;">
           <label for="tagFilterSelect">Page tag</label>
           <select id="tagFilterSelect">
             <option value="">All tags</option>
           </select>
-          
         </div>
       </div>
 
       <div class="docview-shell">
         <aside class="list-card" id="docList"></aside>
-
         <section class="viewer-card">
           <div id="pdfStack"></div>
           <div id="tagHits" class="tag-hits" hidden></div>
@@ -335,10 +332,19 @@
 
   <!-- Scripts -->
   <script type="module" src="/js/case-shared.js"></script>
-<script type="module" src="/js/case-details.js"></script>
-<script type="module" src="/js/case-manage.js"></script>
-<script type="module" src="/js/case-view.js"></script>
-<script type="module" src="/js/case-comments.js"></script>
+  <script type="module" src="/js/case-details.js"></script>
+  <script type="module" src="/js/case-manage.js"></script>
+  <script type="module" src="/js/case-view.js"></script>
+  <script type="module" src="/js/case-comments.js"></script>
 
+  <!-- Minimal inline overrides for Manage Documents (mobile/desktop) -->
+  <style>
+    /* Make Manage sidebar non-sticky by default (we toggle it on mobile via drawer) */
+    #manageSidebar { position: static !important; max-height: none !important; transform: none; }
+
+    /* Floating buttons visible only on mobile */
+    @media (max-width: 860px) { .fab-toggle, .fab-save { display: inline-grid; } }
+    @media (min-width: 861px) { .fab-toggle, .fab-save { display: none !important; } }
+  </style>
 </body>
 </html>

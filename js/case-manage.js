@@ -16,28 +16,40 @@ const mobileSaveBtn    = document.getElementById("mobileSaveBtn");
 const sidebar          = document.getElementById("manageSidebar");
 
 // --- State ---
-let stagedFiles = [];       // [{ file }]
+let stagedFiles = [];       // [{ file, key }]
 let uploadedFiles = [];     // [{ id, fileName, driveFileId, mimeType }]
-let pageTags = new Map();   // key: `${fileId}:${pageNo}` → tag
+let pageTags = new Map();   // key: `${fileKey}:${pageNo}` → tag
 let dirty = false;
+let stagedCounter = 0;      // stable keys for staged items (avoid index drift)
 
 // --- Utils ---
-function markDirty(flag = true) {
-  dirty = flag;
-  saveSection.hidden = !dirty || isMobile();
-  mobileSaveBtn.hidden = !dirty || !isMobile();
-}
 function isMobile() {
   return window.matchMedia("(max-width: 860px)").matches;
 }
+function markDirty(flag = true) {
+  dirty = !!flag;
+  if (isMobile()) {
+    // Sidebar save never shows on mobile; use floating floppy instead
+    saveSection.hidden = true;
+    mobileSaveBtn.hidden = !dirty;
+  } else {
+    // Desktop shows Save section only when dirty
+    saveSection.hidden = !dirty;
+    mobileSaveBtn.hidden = true;
+  }
+}
 function confirmDelete(name) {
   return confirm(`Delete ${name}? This cannot be undone.`);
+}
+function clearPreview() {
+  previewArea.innerHTML = "";
+  state.pageIndex?.clear?.();
 }
 
 // --- Upload Section ---
 function handleFiles(files) {
   for (const file of files) {
-    stagedFiles.push({ file });
+    stagedFiles.push({ file, key: `staged-${stagedCounter++}` });
   }
   renderStagedList();
   markDirty(true);
@@ -58,20 +70,29 @@ uploadDrop.addEventListener("drop", (e) => {
   handleFiles(Array.from(e.dataTransfer.files));
 });
 
-// --- Lists ---
+// --- Lists (staged + uploaded) ---
 function renderStagedList() {
   stagedList.innerHTML = "";
   stagedFiles.forEach((sf, idx) => {
     const div = document.createElement("div");
     div.className = "file-row";
-    div.innerHTML = `<span class="file-name">${sf.file.name}</span>
-                     <button class="trash">🗑</button>`;
-    div.querySelector(".file-name").addEventListener("click", () => renderPreview(sf.file, `staged-${idx}`));
+    div.innerHTML = `
+      <span class="file-name">${sf.file.name}</span>
+      <button class="trash" title="Remove">🗑</button>`;
+    div.querySelector(".file-name").addEventListener("click", () => {
+      renderPreview(sf.file, sf.key);
+    });
     div.querySelector(".trash").addEventListener("click", () => {
       if (confirmDelete(sf.file.name)) {
+        // remove any staged pageTags tied to this key
+        for (const k of [...pageTags.keys()]) {
+          if (k.startsWith(`${sf.key}:`)) pageTags.delete(k);
+        }
         stagedFiles.splice(idx, 1);
         renderStagedList();
-        markDirty(true);
+        // dirty remains true if other changes exist; otherwise recalc:
+        markDirty(stagedFiles.length > 0 || pageTags.size > 0);
+        if (!stagedFiles.length) clearPreview();
       }
     });
     stagedList.appendChild(div);
@@ -82,14 +103,22 @@ function renderUploadedList() {
   uploadedFiles.forEach((uf) => {
     const div = document.createElement("div");
     div.className = "file-row";
-    div.innerHTML = `<span class="file-name">${uf.fileName}</span>
-                     <button class="trash">🗑</button>`;
-    div.querySelector(".file-name").addEventListener("click", () => renderPreview(uf, uf.id));
+    div.innerHTML = `
+      <span class="file-name">${uf.fileName}</span>
+      <button class="trash" title="Delete from Drive">🗑</button>`;
+    div.querySelector(".file-name").addEventListener("click", () => {
+      renderPreview(uf, uf.id);
+    });
     div.querySelector(".trash").addEventListener("click", async () => {
       if (confirmDelete(uf.fileName)) {
         await hardDeleteFile(uf.id);
+        // clear any tag edits we were tracking for that file
+        for (const k of [...pageTags.keys()]) {
+          if (k.startsWith(`${uf.id}:`)) pageTags.delete(k);
+        }
         await refreshUploadedList();
         markDirty(true);
+        clearPreview();
       }
     });
     uploadedList.appendChild(div);
@@ -98,8 +127,7 @@ function renderUploadedList() {
 
 // --- Preview ---
 async function renderPreview(fileOrMeta, fileKey) {
-  previewArea.innerHTML = "";
-  state.pageIndex.clear();
+  clearPreview();
 
   if (fileOrMeta instanceof File) {
     if (fileOrMeta.type.includes("pdf")) {
@@ -112,9 +140,10 @@ async function renderPreview(fileOrMeta, fileKey) {
   } else {
     // uploaded meta
     const url = streamFileUrl(fileOrMeta.driveFileId);
-    if ((fileOrMeta.mimeType || "").includes("pdf")) {
+    const mime = (fileOrMeta.mimeType || "").toLowerCase();
+    if (mime.includes("pdf")) {
       await renderPdf(url, fileKey);
-    } else if ((fileOrMeta.mimeType || "").startsWith("image/")) {
+    } else if (mime.startsWith("image/")) {
       renderImage(url, fileKey);
     } else {
       previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
@@ -128,7 +157,7 @@ async function renderPdf(source, fileKey) {
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 0.5 });
+    const viewport = page.getViewport({ scale: 0.5 }); // smaller than view tab
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     canvas.width = viewport.width;
@@ -154,7 +183,7 @@ async function renderPdf(source, fileKey) {
 
     wrapper.appendChild(sel);
     previewArea.appendChild(wrapper);
-    state.pageIndex.set(`${fileKey}:${p}`, wrapper);
+    state.pageIndex?.set?.(`${fileKey}:${p}`, wrapper);
   }
 }
 function renderImage(url, fileKey) {
@@ -179,40 +208,45 @@ function renderImage(url, fileKey) {
   wrapper.appendChild(sel);
 
   previewArea.appendChild(wrapper);
-  state.pageIndex.set(`${fileKey}:1`, wrapper);
+  state.pageIndex?.set?.(`${fileKey}:1`, wrapper);
 }
 
-// --- Save ---
+// --- Save flow ---
 async function saveAll() {
   savingOverlay.classList.remove("hidden");
 
-  // 1) Upload staged files
+  // 1) Upload staged files + save their tags
   for (const sf of stagedFiles) {
     const meta = await uploadFile({ file: sf.file, caseId: state.caseId, batchNo: 1 });
-    // Save tags for this file
-    const fileKey = meta.fileId;
-    for (const [k, v] of pageTags.entries()) {
-      if (k.startsWith(`staged-`)) continue;
-      if (k.startsWith(`${fileKey}:`)) {
+    const newId = meta.fileId || meta.uploadId || meta.id;
+
+    // move staged key tags → real uploadId tags
+    for (const [k, v] of [...pageTags.entries()]) {
+      if (k.startsWith(`${sf.key}:`)) {
         const pageNo = parseInt(k.split(":")[1], 10);
-        await setPageTag({ caseId: state.caseId, uploadId: fileKey, pageNumber: pageNo, tag: v });
+        // write tag using the new id
+        await setPageTag({ caseId: state.caseId, uploadId: newId, pageNumber: pageNo, tag: v });
+        // re-key the map to the new stable id (optional)
+        pageTags.delete(k);
+        pageTags.set(`${newId}:${pageNo}`, v);
       }
     }
   }
 
-  // 2) Save tags for uploaded files
+  // 2) Save/overwrite tags for all uploaded files we have edits for
   for (const [k, v] of pageTags.entries()) {
-    const [fid, pageNo] = k.split(":");
-    if (fid.startsWith("staged-")) continue;
-    await setPageTag({ caseId: state.caseId, uploadId: fid, pageNumber: parseInt(pageNo, 10), tag: v });
+    const [fid, pageNoStr] = k.split(":");
+    if (fid.startsWith("staged-")) continue; // any remaining staged keys are skipped
+    const pageNo = parseInt(pageNoStr, 10);
+    await setPageTag({ caseId: state.caseId, uploadId: fid, pageNumber: pageNo, tag: v });
   }
 
-  // 3) Reset
+  // 3) Reset UI + refresh
   stagedFiles = [];
   pageTags.clear();
   await refreshUploadedList();
   renderStagedList();
-  previewArea.innerHTML = "";
+  clearPreview();
   markDirty(false);
   savingOverlay.classList.add("hidden");
 }
@@ -222,11 +256,12 @@ mobileSaveBtn.addEventListener("click", saveAll);
 
 // --- Uploaded list refresh ---
 async function refreshUploadedList() {
+  if (!state.caseId || state.isNew) return;
   uploadedFiles = await listUploads(state.caseId);
   renderUploadedList();
 }
 
-// --- Hard delete ---
+// --- Hard delete (Drive) ---
 async function hardDeleteFile(fileId) {
   const res = await fetch(`/.netlify/functions/file/${encodeURIComponent(fileId)}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Delete failed");
@@ -238,8 +273,13 @@ toggleSidebarBtn.addEventListener("click", () => {
   document.body.classList.toggle("dimmed", sidebar.classList.contains("open"));
 });
 
+// re-evaluate which save control should be visible on resize
 window.addEventListener("resize", () => markDirty(dirty));
 
 // --- Init ---
-refreshUploadedList();
-renderStagedList();
+// Wait until the case is loaded (state.caseId known)
+document.addEventListener("caseLoaded", () => {
+  refreshUploadedList();
+  renderStagedList();
+  markDirty(false); // ensure both desktop & mobile save controls hidden initially
+});
