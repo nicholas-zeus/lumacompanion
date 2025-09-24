@@ -2,6 +2,7 @@
 import { state, getHashId, bannerArea, toInputDate, toInputDateTimeLocal } from "/js/case-shared.js";
 import { getCase, createCase, updateCase, finishCase, undoFinish, statusLabel } from "/js/api.js";
 import { computeAge, requireFields } from "/js/utils.js";
+import { toDate } from "/js/utils.js";
 
 const finishedLock   = document.getElementById("finishedLock");
 const detailsForm    = document.getElementById("detailsForm");
@@ -34,23 +35,26 @@ export async function loadCase() {
 
   if (state.isNew) {
     newCaseActions.classList.remove("hidden");
+    document.dispatchEvent(new Event("caseLoaded")); // <-- add this
     return;
   }
 
   const doc = await getCase(id);
   if (!doc) {
     bannerArea.innerHTML = `<div class="banner">Case not found: <span class="mono">#${id}</span></div>`;
+    document.dispatchEvent(new Event("caseLoaded")); // still notify
     return;
   }
   state.caseDoc = doc;
 
-  // Fill details
   const d = doc.details || {};
   fName.value = d.Name || ""; fMemberID.value = d.MemberID || "";
   fNationality.value = d.Nationality || "";
   fDOB.value = toInputDate(d.DOB);
-  fAgeYears.value = computeAge(d.DOB, d.VisitDate, "years") ?? "";
-  fAgeMonths.value = computeAge(d.DOB, d.VisitDate, "months") ?? "";
+
+  fAgeYears.value  = computeAge(toDate(d.DOB), toDate(d.VisitDate), "years") ?? "";
+  fAgeMonths.value = computeAge(toDate(d.DOB), toDate(d.VisitDate), "months") ?? "";
+
   fPolicyEff.value = toInputDate(d.PolicyEffectiveDate);
   fUWType.value = d.UnderwritingType || "";
   fAdmissionType.value = d.TypeOfAdmission || "";
@@ -75,7 +79,10 @@ export async function loadCase() {
 
   lockUIFinished(doc.status === "finished");
   downloadPdfBtn.hidden = false;
+
+  document.dispatchEvent(new Event("caseLoaded")); // <-- keep this
 }
+
 
 function lockUIFinished(isFinished) {
   finishedLock.classList.toggle("hidden", !isFinished);

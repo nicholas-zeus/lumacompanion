@@ -20,7 +20,7 @@ let stagedFiles = [];       // [{ file, key }]
 let uploadedFiles = [];     // [{ id, fileName, driveFileId, mimeType }]
 let pageTags = new Map();   // key: `${fileKey}:${pageNo}` → tag
 let dirty = false;
-let stagedCounter = 0;      // stable keys for staged items (avoid index drift)
+let stagedCounter = 0;      // stable keys for staged items
 
 // --- Utils ---
 function isMobile() {
@@ -29,12 +29,10 @@ function isMobile() {
 function markDirty(flag = true) {
   dirty = !!flag;
   if (isMobile()) {
-    // Sidebar save never shows on mobile; use floating floppy instead
-    saveSection.hidden = true;
-    mobileSaveBtn.hidden = !dirty;
+    saveSection.hidden = true;          // never show sidebar Save on mobile
+    mobileSaveBtn.hidden = !dirty;      // show floppy only when dirty
   } else {
-    // Desktop shows Save section only when dirty
-    saveSection.hidden = !dirty;
+    saveSection.hidden = !dirty;        // show desktop Save only when dirty
     mobileSaveBtn.hidden = true;
   }
 }
@@ -44,6 +42,21 @@ function confirmDelete(name) {
 function clearPreview() {
   previewArea.innerHTML = "";
   state.pageIndex?.clear?.();
+}
+
+// --- PDF.js loader (same strategy as View tab) ---
+async function loadPdfJsIfNeeded() {
+  if (window.pdfjsLib?.getDocument) return;
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js");
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
+}
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src; s.onload = resolve; s.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(s);
+  });
 }
 
 // --- Upload Section ---
@@ -84,13 +97,12 @@ function renderStagedList() {
     });
     div.querySelector(".trash").addEventListener("click", () => {
       if (confirmDelete(sf.file.name)) {
-        // remove any staged pageTags tied to this key
+        // purge staged tags for this file
         for (const k of [...pageTags.keys()]) {
           if (k.startsWith(`${sf.key}:`)) pageTags.delete(k);
         }
         stagedFiles.splice(idx, 1);
         renderStagedList();
-        // dirty remains true if other changes exist; otherwise recalc:
         markDirty(stagedFiles.length > 0 || pageTags.size > 0);
         if (!stagedFiles.length) clearPreview();
       }
@@ -112,7 +124,6 @@ function renderUploadedList() {
     div.querySelector(".trash").addEventListener("click", async () => {
       if (confirmDelete(uf.fileName)) {
         await hardDeleteFile(uf.id);
-        // clear any tag edits we were tracking for that file
         for (const k of [...pageTags.keys()]) {
           if (k.startsWith(`${uf.id}:`)) pageTags.delete(k);
         }
@@ -151,9 +162,8 @@ async function renderPreview(fileOrMeta, fileKey) {
   }
 }
 async function renderPdf(source, fileKey) {
-  const { pdfjsLib } = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
-  const pdf = await pdfjsLib.getDocument(source).promise;
+  await loadPdfJsIfNeeded();
+  const pdf = await window.pdfjsLib.getDocument(source).promise;
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -220,28 +230,26 @@ async function saveAll() {
     const meta = await uploadFile({ file: sf.file, caseId: state.caseId, batchNo: 1 });
     const newId = meta.fileId || meta.uploadId || meta.id;
 
-    // move staged key tags → real uploadId tags
+    // move staged key tags → real uploadId tags and write
     for (const [k, v] of [...pageTags.entries()]) {
       if (k.startsWith(`${sf.key}:`)) {
         const pageNo = parseInt(k.split(":")[1], 10);
-        // write tag using the new id
         await setPageTag({ caseId: state.caseId, uploadId: newId, pageNumber: pageNo, tag: v });
-        // re-key the map to the new stable id (optional)
         pageTags.delete(k);
         pageTags.set(`${newId}:${pageNo}`, v);
       }
     }
   }
 
-  // 2) Save/overwrite tags for all uploaded files we have edits for
+  // 2) Overwrite tags for all uploaded files we have edits for
   for (const [k, v] of pageTags.entries()) {
     const [fid, pageNoStr] = k.split(":");
-    if (fid.startsWith("staged-")) continue; // any remaining staged keys are skipped
+    if (fid.startsWith("staged-")) continue;
     const pageNo = parseInt(pageNoStr, 10);
     await setPageTag({ caseId: state.caseId, uploadId: fid, pageNumber: pageNo, tag: v });
   }
 
-  // 3) Reset UI + refresh
+  // 3) Reset + refresh
   stagedFiles = [];
   pageTags.clear();
   await refreshUploadedList();
@@ -273,13 +281,12 @@ toggleSidebarBtn.addEventListener("click", () => {
   document.body.classList.toggle("dimmed", sidebar.classList.contains("open"));
 });
 
-// re-evaluate which save control should be visible on resize
+// Re-evaluate which save control is visible on resize
 window.addEventListener("resize", () => markDirty(dirty));
 
-// --- Init ---
-// Wait until the case is loaded (state.caseId known)
+// --- Init: wait until caseId is known ---
 document.addEventListener("caseLoaded", () => {
   refreshUploadedList();
   renderStagedList();
-  markDirty(false); // ensure both desktop & mobile save controls hidden initially
+  markDirty(false); // ensure both save controls start hidden
 });
