@@ -27,6 +27,58 @@ let uploadedFiles = [];     // [{ id, fileName, driveFileId, mimeType }]
 let pageTags = new Map();   // key: `${fileKey}:${pageNo}` → tag
 let dirty = false;
 let stagedCounter = 0;      // stable keys for staged items
+// --- Preview loading overlay (Manage tab only) ---
+let previewOverlay;
+function ensurePreviewOverlay() {
+  if (previewOverlay) return;
+  previewOverlay = document.createElement("div");
+  previewOverlay.id = "previewOverlay";
+  previewOverlay.style.position = "fixed";
+  previewOverlay.style.inset = "0";
+  previewOverlay.style.background = "rgba(255,255,255,0.8)";
+  previewOverlay.style.display = "none";
+  previewOverlay.style.alignItems = "center";
+  previewOverlay.style.justifyContent = "center";
+  previewOverlay.style.zIndex = "1000";
+
+  const card = document.createElement("div");
+  card.style.background = "#fff";
+  card.style.border = "1px solid var(--line)";
+  card.style.borderRadius = "12px";
+  card.style.padding = "16px 18px";
+  card.style.boxShadow = "var(--shadow)";
+  card.style.display = "grid";
+  card.style.gap = "10px";
+  card.style.justifyItems = "center";
+
+  const spinner = document.createElement("div");
+  spinner.style.width = "32px";
+  spinner.style.height = "32px";
+  spinner.style.border = "4px solid #ccc";
+  spinner.style.borderTopColor = "var(--brand)";
+  spinner.style.borderRadius = "50%";
+  spinner.style.animation = "spin 1s linear infinite";
+
+  const text = document.createElement("div");
+  text.textContent = "Loading preview…";
+
+  // minimal keyframes (scoped)
+  const style = document.createElement("style");
+  style.textContent = "@keyframes spin { to { transform: rotate(360deg); } }";
+  document.head.appendChild(style);
+
+  card.appendChild(spinner);
+  card.appendChild(text);
+  previewOverlay.appendChild(card);
+  document.body.appendChild(previewOverlay);
+}
+function showPreviewOverlay() {
+  ensurePreviewOverlay();
+  previewOverlay.style.display = "flex";
+}
+function hidePreviewOverlay() {
+  if (previewOverlay) previewOverlay.style.display = "none";
+}
 
 // --- Utils ---
 function isMobile() {
@@ -197,30 +249,36 @@ function renderUploadedList() {
 
 // --- Preview ---
 // --- Preview ---
+// --- Preview ---
 async function renderPreview(fileOrMeta, fileKey) {
-  clearPreview();
+  showPreviewOverlay();
+  try {
+    clearPreview();
 
-  if (fileOrMeta instanceof File) {
-    const type = (fileOrMeta.type || "").toLowerCase();
-    if (type.includes("pdf")) {
-      await renderPdf(fileOrMeta, fileKey, null);
-    } else if (type.startsWith("image/")) {
-      renderImage(URL.createObjectURL(fileOrMeta), fileKey, null);
+    if (fileOrMeta instanceof File) {
+      const type = (fileOrMeta.type || "").toLowerCase();
+      if (type.includes("pdf")) {
+        await renderPdf(fileOrMeta, fileKey, null);
+      } else if (type.startsWith("image/")) {
+        renderImage(URL.createObjectURL(fileOrMeta), fileKey, null);
+      } else {
+        previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
+      }
     } else {
-      previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
+      // uploaded meta
+      const altKey = fileOrMeta.driveFileId || null; // fallback if pageTags use driveFileId
+      if (isPdfMeta(fileOrMeta)) {
+        const url = streamFileUrl(fileOrMeta.driveFileId);
+        await renderPdf(url, fileKey, altKey);
+      } else if (isImageMeta(fileOrMeta)) {
+        const url = streamFileUrl(fileOrMeta.driveFileId);
+        renderImage(url, fileKey, altKey);
+      } else {
+        previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
+      }
     }
-  } else {
-    // uploaded meta
-    const altKey = fileOrMeta.driveFileId || null; // fallback in case pageTags use driveFileId
-    if (isPdfMeta(fileOrMeta)) {
-      const url = streamFileUrl(fileOrMeta.driveFileId);
-      await renderPdf(url, fileKey, altKey);
-    } else if (isImageMeta(fileOrMeta)) {
-      const url = streamFileUrl(fileOrMeta.driveFileId);
-      renderImage(url, fileKey, altKey);
-    } else {
-      previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
-    }
+  } finally {
+    hidePreviewOverlay();
   }
 }
 
