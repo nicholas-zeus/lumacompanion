@@ -1,5 +1,5 @@
 // /js/case.js
-// Case page logic: Details, Manage Documents (new, isolated), View Documents (restored), Comments
+// Case page logic: Details, Manage Documents (new), View Documents, Comments
 
 import { initFirebase, onAuth, signOutNow, auth, db } from "/js/firebase.js";
 import {
@@ -58,7 +58,7 @@ const fName=f("fName"), fMemberID=f("fMemberID"), fNationality=f("fNationality")
       fSummary=f("fSummary"), fTreatment=f("fTreatment"), fReasonAdm=f("fReasonAdm"),
       fReasonConsult=f("fReasonConsult"), fOtherRemark=f("fOtherRemark");
 
-/* -------- Manage Documents (new tab; isolated) -------- */
+/* -------- Manage Documents (new tab) -------- */
 const mdSidebar       = document.getElementById("mdSidebar");
 const mdDropzone      = document.getElementById("mdDropzone");
 const mdFileInput     = document.getElementById("mdFileInput");
@@ -73,12 +73,11 @@ const mdSaveFab       = document.getElementById("mdSaveFab");
 const mdSaveOverlay   = document.getElementById("mdSaveOverlay");
 const mdSaveProgress  = document.getElementById("mdSaveProgress");
 
-/* -------- View Documents (RESTORED) -------- */
+/* -------- View Documents (existing tab) -------- */
 const docList         = document.getElementById("docList");
 const pdfStack        = document.getElementById("pdfStack");
 const tagHitsWrap     = document.getElementById("tagHits");
 const tagFilterSelect = document.getElementById("tagFilterSelect");
-const docviewActions  = document.getElementById("docviewActions");
 
 /* -------- Comments -------- */
 const commentsList   = document.getElementById("commentsList");
@@ -97,25 +96,24 @@ const state = {
   role: null,
   user: null,
 
-  /* View Documents (restored) */
+  /* View Documents state (keep existing behavior) */
   docviewLoaded: false,
   uploadsIndex: [],
   uploadsById: new Map(),
   allTags: new Set(),
-  tagHits: [],                // [{uploadId,pageNumber,tag}]
-  pageIndex: new Map(),       // `${uploadId}:${page}` -> element
-  currentFilter: "",
+  tagHits: [],
+  pageIndex: new Map(), // docview: key `${uploadId}:${page}` -> element
 
-  /* Manage Documents (isolated) */
+  /* Manage Documents state */
   md: {
     initialized: false,
-    existing: [],
-    staged: [],
-    pendingDeletes: new Set(),
-    tagState: new Map(),
-    dirtySet: new Set(),
-    renderedKey: null,
-    dprClamp: 1.25,
+    existing: [],                 // [{id, fileName, mimeType, driveFileId, size, uploadedAt, batchNo}]
+    staged: [],                   // [{ tempId, file, name, type, size, pageCount? }]
+    pendingDeletes: new Set(),    // uploadId to delete on save
+    tagState: new Map(),          // key `${keyPrefix}:${pageNo}` -> tag string
+    dirtySet: new Set(),          // keys changed for existing; all staged files imply dirty
+    renderedKey: null,            // current render keyPrefix (uploadId or tempId)
+    dprClamp: 1.25,               // reduced crispness target (organization task)
   }
 };
 
@@ -196,7 +194,7 @@ async function loadCase() {
   lockUIFinished(doc.status === "finished");
   downloadPdfBtn.hidden = false;
 
-  // Preload uploads for both tabs
+  // Preload existing uploads for tabs
   await refreshUploadsForAll();
 }
 
@@ -304,30 +302,24 @@ async function postComment(confirmHandoff) {
 }
 
 /* =========================================================
-   VIEW DOCUMENTS TAB (RESTORED)
+   View Documents tab (existing implementation, canvas-first)
    ========================================================= */
 async function ensureDocviewLoaded() {
   if (!state.caseId || state.isNew) return;
-  if (state.docviewLoaded) return;
   await loadPdfJsIfNeeded();
   await loadDocviewData();
   wireDocviewControls();
   await renderCanvasStack();
-  state.docviewLoaded = true;
 }
 function wireDocviewControls() {
-  tagFilterSelect?.addEventListener("change", () => {
-    state.currentFilter = tagFilterSelect.value || "";
-    applyDocTagFilter(state.currentFilter);
-  });
+  tagFilterSelect?.addEventListener("change", () => applyDocTagFilter(tagFilterSelect.value));
 }
 async function loadDocviewData() {
   const rows = await listUploads(state.caseId);
   state.uploadsIndex = rows;
   state.uploadsById.clear();
   rows.forEach(r => state.uploadsById.set(r.id, r));
-
-  // Load page tags
+  // Tags (pageTags)
   state.allTags.clear(); state.tagHits = [];
   const col = collection(db, "pageTags");
   const qRef = query(col, where("caseId", "==", state.caseId), limit(5000));
@@ -339,15 +331,12 @@ async function loadDocviewData() {
       state.tagHits.push({ uploadId: row.uploadId, pageNumber: row.pageNumber, tag: row.tag });
     }
   });
-
-  // Populate filter dropdown
   if (tagFilterSelect) {
-    const cur = state.currentFilter || "";
+    const current = tagFilterSelect.value || "";
     tagFilterSelect.innerHTML = `<option value="">All tags</option>` +
       Array.from(state.allTags).sort().map(t => `<option value="${t}">${t}</option>`).join("");
-    if (cur && state.allTags.has(cur)) tagFilterSelect.value = cur;
+    if (current && state.allTags.has(current)) tagFilterSelect.value = current;
   }
-
   renderFileList();
 }
 function renderFileList() {
@@ -358,16 +347,12 @@ function renderFileList() {
     const when = (u.uploadedAt?.seconds) ? new Date(u.uploadedAt.seconds * 1000).toLocaleString() : "";
     const div = document.createElement("div");
     div.className = "doc-list-item";
-    const fileUrl = streamFileUrl(u.driveFileId);
-
     div.innerHTML = `
       <div class="doc-file">${u.fileName}</div>
       <div class="doc-sub">${who} • ${when}</div>
       <div class="doc-sub">Batch: ${u.batchNo || "-"}</div>
       <div class="doc-actions">
         <a href="#" data-open="${u.id}">Open</a>
-        &nbsp;·&nbsp;
-        <a href="${fileUrl}" target="_blank" rel="noopener">Download</a>
       </div>
     `;
     div.querySelectorAll("[data-open]").forEach(a => {
@@ -453,77 +438,30 @@ async function renderPdfFileAsCanvases(u) {
 function renderImageFile(u) {
   const section = document.createElement("div");
   section.className = "pdf-block";
-
   const img = document.createElement("img");
   img.src = streamFileUrl(u.driveFileId);
   img.alt = u.fileName;
   img.loading = "lazy";
   img.decoding = "async";
-
-  const pageCard = document.createElement("div");
-  pageCard.className = "page-card";
-  pageCard.appendChild(img);
-
-  section.appendChild(pageCard);
+  img.style = "max-width:100%;width:auto;height:auto;border:1px solid var(--line);border-radius:8px;";
+  section.appendChild(img);
   pdfStack.appendChild(section);
-
   state.pageIndex.set(`${u.id}:1`, section);
 }
 function focusFirstPageOf(uploadId) {
   const el = state.pageIndex.get(`${uploadId}:1`);
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
-
-/* Tag filter: show hits grid with small preview tiles, click scrolls to page */
 function applyDocTagFilter(tag) {
   if (!tag) {
     tagHitsWrap.hidden = true; pdfStack.hidden = false;
-    docviewActions.textContent = "";
     return;
   }
-  // Build list of hits for selected tag
-  const hits = state.tagHits.filter(h => h.tag === tag);
-  tagHitsWrap.innerHTML = "";
-  if (!hits.length) {
-    tagHitsWrap.innerHTML = `<div class="muted">No pages tagged “${tag}”.</div>`;
-  } else {
-    for (const h of hits) {
-      const file = state.uploadsById.get(h.uploadId);
-      const div = document.createElement("div");
-      div.className = "tag-hit";
-      const label = document.createElement("div");
-      label.textContent = file?.fileName || h.uploadId;
-      const meta = document.createElement("div");
-      meta.className = "hit-meta";
-      meta.innerHTML = `<span>Page ${h.pageNumber}</span><a href="#" data-jump="${h.uploadId}:${h.pageNumber}">Open</a>`;
-      div.appendChild(label);
-      div.appendChild(meta);
-      tagHitsWrap.appendChild(div);
-    }
-  }
-  // Wire jumps
-  tagHitsWrap.querySelectorAll("[data-jump]").forEach(a => {
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      const [uploadId, pageStr] = a.getAttribute("data-jump").split(":");
-      // ensure full stack is visible then scroll
-      pdfStack.hidden = false; tagHitsWrap.hidden = true;
-      const el = state.pageIndex.get(`${uploadId}:${pageStr}`);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      // reset filter UI back to 'All'
-      if (tagFilterSelect) tagFilterSelect.value = "";
-      state.currentFilter = "";
-      docviewActions.textContent = "";
-    });
-  });
-
-  // Switch view to tag hits
-  docviewActions.textContent = `Showing ${hits.length} page(s) tagged “${tag}”`;
-  pdfStack.hidden = true; tagHitsWrap.hidden = false;
+  // existing docview filter is out of scope for manage tab
 }
 
 /* =========================================================
-   MANAGE DOCUMENTS TAB (new; isolated)
+   Manage Documents tab (new)
    ========================================================= */
 async function ensureManageLoaded() {
   if (!state.caseId || state.isNew) return;
@@ -554,7 +492,10 @@ async function mdPrecacheExisting() {
   // restore staging (session)
   try {
     const saved = JSON.parse(sessionStorage.getItem(`md:${state.caseId}`) || "{}");
-    if (Array.isArray(saved.staged)) state.md.staged = []; // cannot restore File objects
+    if (Array.isArray(saved.staged)) {
+      // can't restore File objects; just forget if present
+      state.md.staged = [];
+    }
     if (saved.tagState) {
       for (const [k,v] of Object.entries(saved.tagState)) state.md.tagState.set(k, v);
     }
@@ -620,7 +561,7 @@ function mdWireUI() {
     }
   });
 
-  // Floating panel toggle (mobile drawer)
+  // Floating panel toggle (slide-in on mobile; on desktop just focus sidebar)
   mdPanelToggle?.addEventListener("click", () => {
     const expanded = mdPanelToggle.getAttribute("aria-expanded") === "true";
     mdPanelToggle.setAttribute("aria-expanded", String(!expanded));
@@ -653,6 +594,7 @@ function mdStageFiles(files) {
 function mdRemoveStaged(tempId) {
   if (!confirm("Remove this staged file?")) return;
   state.md.staged = state.md.staged.filter(s => s.tempId !== tempId);
+  // purge tagState entries for this tempId
   for (const k of Array.from(state.md.tagState.keys())) {
     if (k.startsWith(`${tempId}:`)) state.md.tagState.delete(k);
   }
@@ -665,10 +607,11 @@ function mdRemoveStaged(tempId) {
   mdPersistSession();
 }
 
-/* Mark existing for delete (soft) */
+/* Mark existing for delete (soft, on save) */
 function mdConfirmDeleteExisting(uploadId) {
   if (!confirm("Delete this document from the case?")) return;
   state.md.pendingDeletes.add(uploadId);
+  // visually mark in list
   const row = mdExistingList.querySelector(`[data-row-id="${uploadId}"]`);
   if (row) row.classList.add("muted");
   mdUpdateSaveButtons();
@@ -701,7 +644,6 @@ function mdRenderExistingList() {
     row.className = "doc-list-item";
     row.setAttribute("data-row-id", u.id);
     if (delMarked) row.classList.add("muted");
-    const fileUrl = streamFileUrl(u.driveFileId);
     row.innerHTML = `
       <div class="doc-file" title="${u.fileName}">${u.fileName}</div>
       <div class="doc-sub">${(u.mimeType||u.fileType||"").split("/")[1]||"file"} • ${(u.size? (u.size/1024/1024).toFixed(1)+" MB":"")}</div>
@@ -717,23 +659,27 @@ function mdRenderExistingList() {
 
 /* Render a single file (replace previous) */
 async function mdRenderFile({ kind, keyPrefix, file, name, type, url, meta }) {
+  // Avoid re-render if already on screen: just scroll/focus
   if (state.md.renderedKey === keyPrefix) {
     const anchor = mdRender.querySelector(`[data-anchor="${keyPrefix}"]`);
     if (anchor) anchor.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
-  mdRender.innerHTML = "";
+  mdRender.innerHTML = ""; // replace previous
   state.md.renderedKey = keyPrefix;
 
+  // header
   const header = document.createElement("div");
   header.className = "viewer-section";
   header.setAttribute("data-anchor", keyPrefix);
   header.innerHTML = `<h3 style="margin:0;">${name}</h3>`;
   mdRender.appendChild(header);
 
+  // container
   const wrap = document.createElement("div");
   mdRender.appendChild(wrap);
 
+  // choose source
   let isPdf = false, isImg = false;
   if (kind === "staged") {
     const low = (type || "").toLowerCase();
@@ -758,7 +704,11 @@ async function mdRenderFile({ kind, keyPrefix, file, name, type, url, meta }) {
 /* PDF render (reduced width + DPR clamp) */
 async function mdRenderPdfPages({ kind, keyPrefix, file, url, container }) {
   let src;
-  if (kind === "staged") src = URL.createObjectURL(file); else src = url;
+  if (kind === "staged") {
+    src = URL.createObjectURL(file);
+  } else {
+    src = url;
+  }
   let pdf;
   try {
     pdf = await window.pdfjsLib.getDocument(src).promise;
@@ -789,7 +739,7 @@ async function mdRenderPdfPages({ kind, keyPrefix, file, url, container }) {
     card.className = "page-card";
     card.appendChild(canvas);
 
-    // page tag dropdown
+    // footer with page tag dropdown
     const footer = document.createElement("div");
     footer.className = "pdf-footer";
     const label = document.createElement("span"); label.className = "pdf-pg"; label.textContent = `Page ${p}`;
@@ -799,6 +749,7 @@ async function mdRenderPdfPages({ kind, keyPrefix, file, url, container }) {
     sel.value = state.md.tagState.get(k) || "";
     sel.addEventListener("change", () => {
       state.md.tagState.set(k, sel.value || "");
+      // mark dirty if existing or staged
       state.md.dirtySet.add(k);
       mdUpdateSaveButtons();
       mdPersistSession();
@@ -820,6 +771,7 @@ async function mdRenderImage({ kind, keyPrefix, file, url, container, pageNo }) 
   card.className = "page-card";
   card.appendChild(img);
 
+  // footer with tag dropdown
   const tagOptions = await getTagOptions();
   const footer = document.createElement("div");
   footer.className = "pdf-footer";
@@ -836,10 +788,11 @@ async function mdRenderImage({ kind, keyPrefix, file, url, container, pageNo }) 
   });
   footer.appendChild(label); footer.appendChild(sel);
   card.appendChild(footer);
+
   container.appendChild(card);
 }
 
-/* Update Save buttons visibility */
+/* Update Save buttons visibility (sidebar + FAB) */
 function mdUpdateSaveButtons() {
   const hasChanges = state.md.staged.length > 0 || state.md.dirtySet.size > 0 || state.md.pendingDeletes.size > 0;
   if (mdSaveBtn) mdSaveBtn.hidden = !hasChanges;
@@ -848,10 +801,12 @@ function mdUpdateSaveButtons() {
 
 /* Save flow with lock/assignment check and overlay */
 async function mdSaveAll() {
+  // pre-flight: nurse ownership
   const assignedEmail = state.caseDoc?.assignedNurse?.email || "";
   const isNurse = state.role === "nurse";
   const isOwner = isNurse && assignedEmail && assignedEmail === state.user.email;
   if (!isOwner) {
+    // Offer assign to self
     await mdShowOwnershipOverlay();
     const refreshed = await getCase(state.caseId);
     state.caseDoc = refreshed;
@@ -859,6 +814,7 @@ async function mdSaveAll() {
     if (!ok) return; // user cancelled
   }
 
+  // Show overlay
   mdSaveOverlay.hidden = false;
   mdSaveProgress.innerHTML = "";
 
@@ -869,11 +825,12 @@ async function mdSaveAll() {
   };
 
   try {
-    // 1) Upload staged files -> write uploads docs
+    // 1) Upload staged files -> write uploads docs -> map tempId->uploadId
     const tempToReal = new Map();
     for (const s of state.md.staged) {
       log(`Uploading ${s.name}…`);
       const meta = await uploadFile({ caseId: state.caseId, batchNo: 1, file: s.file });
+      // create Firestore uploads doc (client-side, same as uploader.js flow)
       const upRef = await addDoc(collection(db, "uploads"), {
         caseId: state.caseId,
         batchNo: 1,
@@ -890,15 +847,20 @@ async function mdSaveAll() {
       log(`Uploaded ${s.name}`);
     }
 
-    // 2) Write pageTags
+    // 2) Write pageTags:
+    // - for staged: use temp->real mapping
+    // - for existing edits: only keys in dirtySet that start with a real uploadId
+    // Collect writes
     const writes = [];
     // staged keys
     for (const s of state.md.staged) {
       const map = tempToReal.get(s.tempId);
       if (!map) continue;
+      // iterate tagState entries for this tempId
       for (const [k, v] of state.md.tagState.entries()) {
         if (!k.startsWith(`${s.tempId}:`)) continue;
         const pageNo = parseInt(k.split(":")[1], 10) || 1;
+        // upsert page tag to real id
         writes.push(setDoc(doc(db, "pageTags", `${map.uploadId}_${pageNo}`), {
           caseId: state.caseId, uploadId: map.uploadId, pageNumber: pageNo, tag: v || "", updatedAt: serverTimestamp()
         }, { merge: true }));
@@ -907,6 +869,7 @@ async function mdSaveAll() {
     // existing dirty keys
     for (const k of state.md.dirtySet) {
       const [prefix, pageStr] = k.split(":");
+      // skip temp keys
       if (prefix.startsWith("temp_")) continue;
       const pageNo = parseInt(pageStr, 10) || 1;
       const tag = state.md.tagState.get(k) || "";
@@ -925,6 +888,7 @@ async function mdSaveAll() {
 
     // Done
     log("Finalizing…");
+    // Clear state
     state.md.staged = [];
     state.md.dirtySet.clear();
     state.md.pendingDeletes.clear();
@@ -932,6 +896,7 @@ async function mdSaveAll() {
     mdRender.innerHTML = "";
     sessionStorage.removeItem(`md:${state.caseId}`);
 
+    // Refresh existing list
     await mdPrecacheExisting();
     mdRenderExistingList();
     mdRenderStagedList();
@@ -1031,9 +996,6 @@ async function refreshUploadsForAll() {
   const rows = await listUploads(state.caseId);
   // view tab uses state.uploadsIndex; manage tab uses state.md.existing
   state.uploadsIndex = rows;
-  if (state.docviewLoaded) {
-    await loadDocviewData(); // refresh list and tags for view tab
-  }
   if (state.md.initialized) {
     state.md.existing = rows;
     mdRenderExistingList();
