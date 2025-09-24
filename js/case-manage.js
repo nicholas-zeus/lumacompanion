@@ -13,7 +13,50 @@ const saveBtn          = document.getElementById("saveBtn");
 const savingOverlay    = document.getElementById("savingOverlay");
 const toggleSidebarBtn = document.getElementById("toggleSidebarBtn");
 const mobileSaveBtn    = document.getElementById("mobileSaveBtn");
-const sidebar          = document.getElementById("manageSidebar");
+// Use whichever id your HTML currently has
+const sidebar = document.getElementById("manageDrawer") || document.getElementById("manageSidebar");
+// Inline-style the Manage sidebar for mobile/desktop (no CSS dependency)
+function applySidebarInlineStyles(forceClose = false) {
+  if (!sidebar) return;
+
+  const mobile = isMobile();
+  if (mobile) {
+    // Start closed unless explicitly opened
+    const opened = !forceClose && sidebar.dataset.open === "1";
+
+    sidebar.style.position = "fixed";
+    sidebar.style.left = "0";
+    sidebar.style.right = "0";
+    sidebar.style.bottom = "0";
+    sidebar.style.background = "#fff";
+    sidebar.style.borderTop = "1px solid var(--line)";
+    sidebar.style.maxHeight = "60%";
+    sidebar.style.overflow = "auto";
+    sidebar.style.transition = "transform .25s ease, visibility 0s linear .25s";
+    sidebar.style.zIndex = "999";
+
+    sidebar.style.transform = opened ? "translateY(0)" : "translateY(100%)";
+    sidebar.style.visibility = opened ? "visible" : "hidden";
+    sidebar.style.pointerEvents = opened ? "auto" : "none";
+
+    // Dim background when opened
+    document.body.classList.toggle("dimmed", opened);
+  } else {
+    // Desktop: classic sticky visible sidebar
+    sidebar.removeAttribute("data-open");
+    sidebar.style.position = "sticky";
+    sidebar.style.top = "12px";
+    sidebar.style.alignSelf = "start";
+    sidebar.style.maxHeight = "calc(100vh - 24px)";
+    sidebar.style.overflow = "auto";
+    sidebar.style.transform = "none";
+    sidebar.style.visibility = "visible";
+    sidebar.style.pointerEvents = "auto";
+    sidebar.style.zIndex = ""; // reset
+    document.body.classList.remove("dimmed");
+  }
+}
+
 
 // Modal confirm
 const confirmOverlay   = document.getElementById("confirmOverlay");
@@ -408,26 +451,38 @@ async function hardDeleteFile(fileId) {
 }
 
 // --- Sidebar toggle (mobile) ---
+// --- Sidebar toggle (mobile) ---
 toggleSidebarBtn.addEventListener("click", () => {
-  sidebar.classList.toggle("open");
-  document.body.classList.toggle("dimmed", sidebar.classList.contains("open"));
+  if (!sidebar) return;
+  // Toggle data-open flag and re-apply inline styles
+  const opened = sidebar.dataset.open === "1";
+  if (opened) delete sidebar.dataset.open;
+  else sidebar.dataset.open = "1";
+  applySidebarInlineStyles(false);
 });
 
-// Re-evaluate which save control is visible on resize
-window.addEventListener("resize", () => markDirty(dirty));
 
+// Re-evaluate which save control is visible on resize
+// Re-evaluate layout on resize; close drawer when switching to mobile
+window.addEventListener("resize", () => {
+  applySidebarInlineStyles(true);   // force close on breakpoint change
+  markDirty(dirty);                 // keep save controls in correct state
+});
+
+
+// --- Init: wait until caseId is known ---
 // --- Init: wait until caseId is known ---
 // --- Init: wait until caseId is known ---
 document.addEventListener("caseLoaded", async () => {
-  // Sidebar should start closed on mobile
-  if (isMobile()) {
-    sidebar.classList.remove("open");
-    document.body.classList.remove("dimmed");
-  }
+  // Ensure correct starting state (closed on mobile, visible on desktop)
+  applySidebarInlineStyles(true);
 
-  await loadExistingTags();   // <-- preload page tags for preselect
+  // If you already added tag preloading, keep it; otherwise ignore this comment.
+  // await loadExistingTags();
+
   await refreshUploadedList();
   renderStagedList();
-  markDirty(false);           // both save controls start hidden
+  markDirty(false); // both save controls start hidden
 });
+
 
