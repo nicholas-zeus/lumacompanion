@@ -8,221 +8,272 @@
   <link rel="stylesheet" href="/css/app.css" />
   <link rel="stylesheet" href="/css/case.css" />
 
+  <!-- Page-level wrapper for consistent max width across all tabs -->
   <style>
-    /* Layout helpers */
     .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
-
-    /* Tabs */
-    .tabs { display: flex; gap: 8px; border-bottom: 1px solid #e5e7eb; margin-bottom: 12px; }
-    .tab-btn { appearance: none; background: none; border: none; padding: 10px 14px; cursor: pointer; border-radius: 8px 8px 0 0; }
-    .tab-btn.active { background: #f3f4f6; font-weight: 600; }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-
-    /* Overview: simple grid */
-    .ovr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .ovr-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
-    .ovr-kv { display: grid; grid-template-columns: 140px 1fr; gap: 8px; font-size: 14px; }
-    .ovr-kv div:nth-child(odd) { color: #6b7280; }
-
-    /* Comments */
-    .comment-wrap { display: grid; gap: 10px; }
-    .comment-item { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; }
-    .comment-meta { font-size: 12px; color: #6b7280; display: flex; justify-content: space-between; margin-bottom: 6px; }
-    .comment-form { display: grid; gap: 8px; grid-template-columns: 1fr auto; }
-    .comment-form textarea { width: 100%; min-height: 70px; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db; }
-    .btn { padding: 8px 12px; border-radius: 8px; border: 1px solid #d1d5db; background: #111827; color: #fff; cursor: pointer; }
-    .btn-link { background: none; border: none; color: #2563eb; cursor: pointer; padding: 0; }
-    .btn.danger { background: #b91c1c; }
-
-    /* Documents (View) */
-    .docview-shell { display: grid; grid-template-columns: 280px 1fr; gap: 12px; }
-    .doc-list { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 150px); overflow: auto; }
-    .doc-list-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .doc-list-header input { flex: 1; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; }
-    .doc-list .count { font-size: 12px; color: #6b7280; }
-    .doc-list-item { width: 100%; text-align: left; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; margin-bottom: 8px; cursor: pointer; }
-    .doc-list-item.active { outline: 2px solid #2563eb; }
-    .doc-name { font-weight: 600; }
-    .doc-meta, .doc-tags { font-size: 12px; color: #6b7280; }
-
-    .viewer-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; }
-    .viewer-actions { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
-    #doc-viewer { height: calc(100vh - 220px); overflow: auto; }
-    .page-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; margin-bottom: 12px; background: #fafafa; }
-    .image-block img { display: block; border-radius: 10px; }
-    .pdf-fallback { width: 100%; height: 80vh; border: 0; }
-
-    /* Manage Documents */
-    .manage-wrap { display: grid; gap: 12px; }
-    .uploader { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
-    .uploader .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .uploader input[type="text"] { padding: 8px; border: 1px solid #d1d5db; border-radius: 8px; }
-    .manage-list { display: grid; gap: 8px; }
-    .manage-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; }
-    .file-meta { font-size: 12px; color: #6b7280; }
-    #savingOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 50; }
-    #savingOverlay .box { background: #111827; color: #fff; padding: 16px 20px; border-radius: 12px; }
-
-    .empty, .loading { color: #6b7280; font-size: 14px; }
   </style>
 </head>
 <body>
   <!-- Header -->
   <header class="app-header">
-    <div class="page-wrap" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
+    <div class="page-wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div class="brand">
-        <a href="/index.html" class="brand-mark" style="text-decoration:none;font-weight:700;">Escalation</a>
+        <a href="/index.html" class="brand-mark" aria-label="Back to Dashboard">E</a>
+        <div class="brand-text">
+          <strong>Escalation</strong>
+          <span class="brand-sub" id="caseTitle">Case</span>
+        </div>
       </div>
-      <div class="case-title" id="caseTitle">Case</div>
+
+      <div class="header-actions">
+        <a id="backBtn" href="/index.html" class="btn">← Back</a>
+        <div id="roleBadge" class="role-badge" hidden></div>
+        <button id="finishBtn"   class="btn btn-primary" hidden>Mark Finished</button>
+        <button id="undoBtn"     class="btn" hidden>Undo Finished</button>
+        <button id="downloadPdf" class="btn" hidden>Download Transcript</button>
+        <button id="signOutBtn"  class="btn btn-ghost" hidden>Sign out</button>
+        <img id="avatar" class="avatar" alt="" hidden />
+      </div>
     </div>
   </header>
 
-  <main class="page-wrap">
-    <!-- Tabs -->
-    <nav class="tabs" role="tablist" aria-label="Case tabs">
-      <button id="tab-overview" class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-overview">Overview</button>
-      <button id="tab-comments" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-comments">Comments</button>
-      <button id="tab-documents" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-documents">View Documents</button>
-      <button id="tab-manage" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-manage">Manage Documents</button>
-    </nav>
+  <!-- Banners -->
+  <div class="banner-area">
+    <div class="page-wrap">
+      <div id="bannerArea" aria-live="polite"></div>
+    </div>
+  </div>
 
-    <!-- Panels -->
-    <!-- Overview -->
-    <section id="panel-overview" class="tab-panel active" role="tabpanel" aria-labelledby="tab-overview">
-      <div class="ovr-grid">
-        <div class="ovr-card">
-          <h3>Patient</h3>
-          <div class="ovr-kv">
-            <div>Name</div><div id="ovr-patientName"></div>
-            <div>Patient ID</div><div id="ovr-patientId"></div>
-            <div>Gender</div><div id="ovr-gender"></div>
-            <div>DOB</div><div id="ovr-dob"></div>
-            <div>Age</div><div id="ovr-age"></div>
-          </div>
+  <!-- Tabs -->
+  <nav class="tabs">
+    <div class="page-wrap" style="display:flex;gap:8px;">
+      <button id="tab-overview" class="tab is-active" data-tab="details">Overview</button>
+      <button id="tab-manage" class="tab" data-tab="documents">Manage Documents</button>
+      <button id="tab-documents" class="tab" data-tab="docview">View Documents</button>
+      <button id="tab-comments" class="tab" data-tab="comments">Comments</button>
+    </div>
+  </nav>
+
+  <!-- OVERVIEW TAB -->
+  <section id="tab-details" class="tabpanel is-active" aria-labelledby="details">
+    <div class="page-wrap">
+      <div id="finishedLock" class="banner hidden">This case is <strong>Finished</strong>. Undo to make changes.</div>
+
+      <form id="detailsForm" class="form-grid">
+        <!-- Row 1 -->
+        <div class="field">
+          <label>Name <span class="req">*</span></label>
+          <input id="fName" class="input" required />
+          <div id="ovr-patientName"></div>
         </div>
-        <div class="ovr-card">
-          <h3>Visit</h3>
-          <div class="ovr-kv">
-            <div>Visit Date</div><div id="ovr-visitDate"></div>
-            <div>Hospital</div><div id="ovr-hospital"></div>
-          </div>
+        <div class="field">
+          <label>Member ID <span class="req">*</span></label>
+          <input id="fMemberID" class="input" required />
+          <div id="ovr-patientId"></div>
         </div>
-        <div class="ovr-card" style="grid-column:1 / -1;">
-          <h3>Diagnosis</h3>
+        <div class="field">
+          <label>Nationality <span class="req">*</span></label>
+          <input id="fNationality" class="input" required />
+        </div>
+
+        <!-- Row 2 -->
+        <div class="field">
+          <label>DOB <span class="req">*</span></label>
+          <input id="fDOB" type="date" class="input" required />
+          <div id="ovr-dob"></div>
+        </div>
+        <div class="field">
+          <label>Age (years)</label>
+          <input id="fAgeYears" class="input" readonly />
+          <div id="ovr-age"></div>
+        </div>
+        <div class="field">
+          <label>Age (months)</label>
+          <input id="fAgeMonths" class="input" readonly />
+        </div>
+
+        <!-- Row 3 -->
+        <div class="field">
+          <label>Policy Effective Date <span class="req">*</span></label>
+          <input id="fPolicyEff" type="date" class="input" required />
+        </div>
+        <div class="field">
+          <label>Underwriting Type <span class="req">*</span></label>
+          <select id="fUWType" class="input" required>
+            <option value="">— select —</option>
+            <option value="MHD">MHD</option>
+            <option value="FMU">FMU</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Type of Admission <span class="req">*</span></label>
+          <select id="fAdmissionType" class="input" required>
+            <option value="">— select —</option>
+            <option>Scheduled</option>
+            <option>Admit</option>
+            <option>Discharge</option>
+          </select>
+        </div>
+
+        <!-- Row 4 -->
+        <div class="field">
+          <label>Type of Consultation <span class="req">*</span></label>
+          <input id="fConsultType" class="input" placeholder="e.g., simple disease, high cost, ex-gratia" required />
+        </div>
+        <div class="field">
+          <label>Visit Date <span class="req">*</span></label>
+          <input id="fVisitDate" type="date" class="input" required />
+          <div id="ovr-visitDate"></div>
+        </div>
+        <div class="field">
+          <label>Hospital <span class="req">*</span></label>
+          <input id="fHospital" class="input" required />
+          <div id="ovr-hospital"></div>
+        </div>
+
+        <!-- Row 5 -->
+        <div class="field">
+          <label>Diagnosis <span class="req">*</span></label>
+          <input id="fDiagnosis" class="input" required />
           <div id="ovr-diagnosis"></div>
         </div>
-        <div class="ovr-card" style="grid-column:1 / -1;">
-          <h3>Summary</h3>
+        <div class="field">
+          <label>Discharge Date</label>
+          <input id="fDischargeDate" type="date" class="input" />
+        </div>
+        <div class="field">
+          <label>Chief Complaint <span class="req">*</span></label>
+          <input id="fChiefComplaint" class="input" required />
+        </div>
+
+        <!-- Row 6 -->
+        <div class="field span-2">
+          <label>Present Illness <span class="req">*</span></label>
+          <textarea id="fPresentIllness" class="input" rows="2" required></textarea>
+        </div>
+        <div class="field span-2">
+          <label>Exclusion <span class="req">*</span></label>
+          <textarea id="fExclusion" class="input" rows="2" required></textarea>
+        </div>
+
+        <!-- Row 7 -->
+        <div class="field">
+          <label class="checkbox">
+            <input id="fUrgent" type="checkbox" /> Urgent
+          </label>
+          <small class="hint">If checked, a Deadline is required. Note: items beyond 24h are not considered urgent.</small>
+        </div>
+        <div class="field">
+          <label>Deadline (local)</label>
+          <input id="fDeadline" type="datetime-local" class="input" />
+        </div>
+        <div class="field"></div>
+
+        <!-- Row 8 (optionals) -->
+        <div class="field span-2">
+          <label>Vital Signs</label>
+          <textarea id="fVitalSigns" class="input" rows="2"></textarea>
+        </div>
+        <div class="field span-2">
+          <label>Physical Findings</label>
+          <textarea id="fPhysicalFindings" class="input" rows="2"></textarea>
+        </div>
+
+        <!-- Row 9 -->
+        <div class="field span-2">
+          <label>Summary</label>
+          <textarea id="fSummary" class="input" rows="3"></textarea>
           <div id="ovr-summary"></div>
         </div>
-      </div>
-    </section>
+        <div class="field span-2">
+          <label>Treatment</label>
+          <textarea id="fTreatment" class="input" rows="2"></textarea>
+        </div>
 
-    <!-- Comments -->
-    <section id="panel-comments" class="tab-panel" role="tabpanel" aria-labelledby="tab-comments">
-      <div class="comment-wrap">
-        <div id="comments-list"></div>
-        <form id="comment-form" class="comment-form">
-          <textarea id="comment-input" placeholder="Write a comment…"></textarea>
-          <button class="btn" type="submit">Post</button>
-        </form>
-      </div>
-    </section>
+        <!-- Row 10 -->
+        <div class="field span-2">
+          <label>Reason for Admission <span class="req">*</span></label>
+          <textarea id="fReasonAdm" class="input" rows="2" required></textarea>
+        </div>
+        <div class="field span-2">
+          <label>Reason for Consultation <span class="req">*</span></label>
+          <textarea id="fReasonConsult" class="input" rows="2" required></textarea>
+        </div>
 
-    <!-- View Documents -->
-    <section id="panel-documents" class="tab-panel" role="tabpanel" aria-labelledby="tab-documents">
+        <!-- Row 11 -->
+        <div class="field span-2">
+          <label>Other Remark</label>
+          <textarea id="fOtherRemark" class="input" rows="2"></textarea>
+        </div>
+
+        <div class="split">
+          <div>
+            <div class="muted">Status</div>
+            <div id="statusText" class="status-readout">—</div>
+          </div>
+          <div class="right-actions">
+            <button id="editDetailsBtn" class="btn">Edit</button>
+            <button id="saveDetailsBtn" class="btn btn-primary" hidden>Save</button>
+            <button id="assignNurseBtn" class="btn" hidden>Assign me (Nurse)</button>
+            <button id="assignDoctorBtn" class="btn" hidden>Assign me (Doctor)</button>
+          </div>
+        </div>
+      </form>
+
+      <!-- New case only -->
+      <div id="newCaseActions" class="split hidden">
+        <div></div>
+        <button id="createCaseBtn" class="btn btn-primary">Create Case</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- MANAGE DOCUMENTS TAB -->
+  <section id="panel-manage" class="tabpanel" aria-labelledby="tab-manage">
+    <div class="page-wrap">
+      <div class="uploader">
+        <input id="fileInput" type="file" multiple />
+        <input id="uploadTags" type="text" placeholder="Tags (comma separated)" />
+        <input id="batchNo" type="text" placeholder="Batch No." />
+        <button id="uploadBtn" class="btn" type="button">Upload</button>
+      </div>
+      <div id="manage-list" class="manage-list"></div>
+    </div>
+  </section>
+
+  <!-- VIEW DOCUMENTS TAB -->
+  <section id="panel-documents" class="tabpanel" aria-labelledby="tab-documents">
+    <div class="page-wrap">
       <div class="docview-shell">
         <aside class="doc-list">
-          <div class="doc-list-header">
-            <input id="tagFilter" type="text" placeholder="Filter by tag or filename…" />
-            <button id="tagFilterClear" class="btn-link" type="button">Clear</button>
-          </div>
-          <div class="count">Files: <span id="docCount">0</span></div>
+          <input id="tagFilter" type="text" placeholder="Filter…" />
+          <button id="tagFilterClear" type="button" class="btn">Clear</button>
+          <div>Files: <span id="docCount">0</span></div>
           <div id="docs-list"></div>
         </aside>
-
         <div class="viewer-card">
           <div class="viewer-actions">
-            <a id="doc-open" class="btn" target="_blank" rel="noopener">Open in new window</a>
-            <a id="doc-download" class="btn" target="_blank" rel="noopener">Download</a>
+            <a id="doc-open" class="btn" target="_blank">Open</a>
+            <a id="doc-download" class="btn" target="_blank">Download</a>
           </div>
           <div id="doc-viewer"></div>
         </div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- Manage Documents -->
-    <section id="panel-manage" class="tab-panel" role="tabpanel" aria-labelledby="tab-manage">
-      <div class="manage-wrap">
-        <div class="uploader">
-          <div class="row">
-            <div>
-              <label>Choose files</label>
-              <input id="fileInput" type="file" multiple />
-            </div>
-            <div>
-              <label>Batch No. (optional)</label>
-              <input id="batchNo" type="text" placeholder="e.g., 2025-09-24-A" />
-            </div>
-          </div>
-          <div class="row">
-            <div>
-              <label>Tags (comma-separated)</label>
-              <input id="uploadTags" type="text" placeholder="e.g., OPD, Invoice, Lab" />
-            </div>
-            <div style="display:flex;align-items:end;justify-content:flex-end;">
-              <button id="uploadBtn" class="btn" type="button">Upload</button>
-            </div>
-          </div>
-        </div>
+  <!-- COMMENTS TAB -->
+  <section id="panel-comments" class="tabpanel" aria-labelledby="tab-comments">
+    <div class="page-wrap">
+      <div id="comments-list"></div>
+      <form id="comment-form">
+        <textarea id="comment-input" placeholder="Write a comment…"></textarea>
+        <button class="btn" type="submit">Post</button>
+      </form>
+    </div>
+  </section>
 
-        <div id="manage-list" class="manage-list"></div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Saving overlay (optional) -->
-  <div id="savingOverlay">
-    <div class="box">Saving changes…</div>
-  </div>
-
-  <!-- Boot globals (set these from your auth/session) -->
-  <script>
-    // TODO: replace with real values from your app
-    window.caseId = window.caseId || new URLSearchParams(location.search).get("caseId");
-    window.currentUser = window.currentUser || { id: "user_anon", name: "Anonymous" };
-    // Set title if available
-    if (window.caseId) document.getElementById("caseTitle").textContent = "Case: " + window.caseId;
-  </script>
-
-  <!-- Tab switching (kept tiny & generic) -->
-  <script>
-    const tabs = [
-      { btn: "tab-overview", panel: "panel-overview" },
-      { btn: "tab-comments", panel: "panel-comments" },
-      { btn: "tab-documents", panel: "panel-documents" },
-      { btn: "tab-manage", panel: "panel-manage" },
-    ];
-    function activateTab(id) {
-      tabs.forEach(t => {
-        const b = document.getElementById(t.btn);
-        const p = document.getElementById(t.panel);
-        const active = t.btn === id;
-        b?.classList.toggle("active", active);
-        p?.classList.toggle("active", active);
-        b?.setAttribute("aria-selected", active ? "true" : "false");
-      });
-    }
-    document.addEventListener("DOMContentLoaded", () => {
-      tabs.forEach(t => {
-        document.getElementById(t.btn)?.addEventListener("click", () => activateTab(t.btn));
-      });
-    });
-  </script>
-
-  <!-- Your modules (each handles its own tab’s events) -->
-  <!-- firebase.js must export `db` -->
+  <!-- Scripts -->
   <script type="module" src="/js/case-overview.js"></script>
   <script type="module" src="/js/case-comments.js"></script>
   <script type="module" src="/js/case-documents.js"></script>
