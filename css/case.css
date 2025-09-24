@@ -37,7 +37,7 @@
 /* Finished lock banner */
 .banner{ margin-bottom:12px; }
 
-/* =============== Upload Documents Tab =============== */
+/* =============== Upload Documents (legacy uploader styles reused) =============== */
 .docs-toolbar{
   display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;
 }
@@ -63,8 +63,7 @@
 .pdf-pg { opacity:0.7; }
 .tag-select{ border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
 
-/* =============== View Documents Tab =============== */
-/* Two-column shell: left = sticky list, right = canvas/image stack */
+/* =============== View Documents Tab (RESTORED) =============== */
 .docview-shell{
   display:grid; grid-template-columns: 280px 1fr; gap:12px;
 }
@@ -72,12 +71,11 @@
   .docview-shell{ grid-template-columns: 1fr; }
 }
 
-/* LEFT: floating/sticky file list */
+/* LEFT: sticky file list */
 .list-card{
   background:#fff; border:1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); padding:10px;
 
-  /* Sticky so it "floats" while scrolling pages */
   position: sticky;
   top: 12px;
   align-self: start;
@@ -93,11 +91,10 @@
 .doc-sub{ font-size:12px; color:var(--muted); }
 .doc-actions a{ font-size:12px; }
 
-/* RIGHT: viewer card with natural height (fix) */
+/* RIGHT: viewer card */
 .viewer-card{
   background:#fff; border:1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); padding:10px;
-  /* remove fixed scroll; let card expand */
   overflow: visible;
   max-height: none;
 }
@@ -118,8 +115,10 @@
 }
 .page-card canvas{ width:100%; height:auto; display:block; }
 .page-card img{
-  width:100%; height:auto; display:block;
+  max-width:100%; width:auto; height:auto; display:block;
   border:1px solid var(--line); border-radius:8px;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: optimizeQuality;
 }
 
 /* Inline PDF frame (legacy; kept if needed) */
@@ -152,40 +151,7 @@
 }
 .comment-form textarea{ width:100%; }
 
-/* =============== Mobile tweaks =============== */
-@media (max-width: 860px){
-  .form-grid{ grid-template-columns: 1fr; }
-  .span-2{ grid-column: 1; }
-  .uploads{ grid-template-columns: 1fr; }
-  .list-card{
-    position: static; /* disable sticky on narrow screens */
-    max-height: none;
-  }
-}
-/* Floating go-to-top button (mobile only) */
-.go-top-btn{
-  position: fixed;
-  right: 16px;
-  bottom: 72px; /* sits above FAB if present */
-  z-index: 60;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--brand);
-  color: var(--brand-ink);
-  display: grid;             /* hidden by default */
-  place-items: center;
-  box-shadow: var(--shadow);
-  font-size: 20px;
-  cursor: pointer;
-  border: 0;
-}
-@media (max-width: 860px){
-  .go-top-btn{ display: grid; }   /* show only on mobile */
-}
-/* /css/case.css  (append near the end) */
-
-/* ===== Manage Documents (new) ===== */
+/* =============== Manage Documents (new; isolated) =============== */
 
 /* Section headings + divider */
 .md-section h4{ margin:6px 0; }
@@ -205,11 +171,11 @@
   border-color: #93c5fd;
 }
 
-/* Staged/existing list items share existing tokens */
+/* Staged/existing list tweaks */
 #mdStagedList .upload-row{ justify-content: space-between; }
 #mdExistingList .doc-list-item .doc-actions a{ font-size: 12px; }
 
-/* Floating controls (panel toggle + Save) — visible on all viewports */
+/* Floating controls */
 .md-fab-panel,
 .md-fab-save{
   position: fixed;
@@ -234,28 +200,24 @@
   font-size: 20px;
 }
 
-/* Slide-in sidebar on small screens */
+/* Slide-in sidebar on small screens (Manage tab only) */
 @media (max-width: 860px){
-  /* Start hidden off-canvas to the right */
   #mdSidebar{
     position: fixed;
-    top: 56px;               /* below app header */
-    right: -320px;           /* hidden by default */
+    top: 56px;
+    right: -320px;
     width: 280px;
     max-height: calc(100vh - 72px);
     overflow: auto;
     transition: right .2s ease;
   }
-  /* When panel is open (toggled via body class) */
-  body.md-panel-open #mdSidebar{
-    right: 16px;             /* slide in with small inset */
-  }
+  body.md-panel-open #mdSidebar{ right: 16px; }
 }
 
-/* Full-screen overlay for Save operation */
+/* Save overlay */
 .md-overlay{
   position: fixed; inset: 0;
-  background: rgba(15, 23, 42, 0.45); /* slate-900/45 */
+  background: rgba(15, 23, 42, 0.45);
   z-index: 80;
   display: grid; place-items: center;
 }
@@ -280,20 +242,16 @@
 }
 .md-overlay-hint{ color: var(--muted); }
 
-/* Ensure the main viewer grows naturally (no trapped scroll) */
-.viewer-card{
-  overflow: visible !important;
-  max-height: none !important;
-}
+/* Ensure 'hidden' truly hides (prevents overlay/buttons flashing) */
+[hidden]{ display:none !important; }
 
-/* Image quality: avoid blurry upscaling in page cards */
-.page-card img{
-  max-width: 100%;
-  width: auto;
-  height: auto;
-  display: block;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: optimizeQuality;
+/* Mobile tweaks shared */
+@media (max-width: 860px){
+  .form-grid{ grid-template-columns: 1fr; }
+  .span-2{ grid-column: 1; }
+  .uploads{ grid-template-columns: 1fr; }
+  .list-card{
+    position: static; /* disable sticky on narrow screens */
+    max-height: none;
+  }
 }
