@@ -11,6 +11,7 @@
   <!-- Page-level wrapper for consistent max width across all tabs -->
   <style>
     .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+<<<<<<< HEAD
     /* viewer cards used by the new Document View tab */
     .docview-shell { display: grid; grid-template-columns: 280px 1fr; gap: 12px; }
     @media (max-width: 900px){ .docview-shell { grid-template-columns: 1fr; } }
@@ -29,6 +30,13 @@
     .tag-hits { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
     .tag-hit { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 8px; }
     .tag-hit .hit-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted); }
+=======
+
+    /* Inline helpers used only for this file’s scaffolding (kept minimal) */
+    .md-section h4{ margin:8px 0; }
+    .md-hint{ color: var(--muted); font-size: 12px; }
+    .md-divider{ height: 1px; background: var(--line); margin: 10px 0; }
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   </style>
 </head>
 <body>
@@ -239,6 +247,7 @@
     </div>
   </section>
 
+<<<<<<< HEAD
   <!-- DOCUMENTS (UPLOAD) TAB -->
   <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
     <div class="page-wrap">
@@ -260,8 +269,58 @@
           <button id="docCancelBtn" class="btn" disabled>Discard</button>
           <button id="docSaveBtn" class="btn btn-primary" disabled>Save Document</button>
         </div>
+=======
+  <!-- MANAGE DOCUMENTS TAB -->
+  <section id="tab-manage" class="tabpanel" aria-labelledby="manage">
+    <div class="page-wrap">
+      <!-- Dual column shell: sticky sidebar + render area -->
+      <div class="docview-shell">
+        <!-- SIDEBAR -->
+        <aside class="list-card" id="mdSidebar" aria-label="Manage documents sidebar">
+          <!-- Section 1: Upload / Staged -->
+          <section class="md-section" aria-labelledby="mdUploadHdr">
+            <h4 id="mdUploadHdr">Upload / Staged</h4>
+            <div id="mdDropzone" class="upload-row" style="justify-content:space-between; cursor:pointer;">
+              <div>
+                <strong>Drop files here</strong>
+                <div class="md-hint">or click to choose (≤ 50 MB each)</div>
+              </div>
+              <input id="mdFileInput" type="file" multiple style="display:none;" />
+              <button id="mdPickBtn" class="btn">Choose</button>
+            </div>
+            <div class="md-hint" style="margin-top:6px;">Previewable types: PDF, JPG, PNG</div>
+            <div class="md-divider"></div>
+            <div class="uploads-list">
+              <h4 style="margin-bottom:6px;">Staged files</h4>
+              <div id="mdStagedList" class="list" aria-live="polite"></div>
+            </div>
+          </section>
+
+          <div class="md-divider"></div>
+
+          <!-- Section 2: Existing Documents -->
+          <section class="md-section" aria-labelledby="mdExistingHdr">
+            <h4 id="mdExistingHdr">Existing documents <span id="mdExistingCount" class="md-hint"></span></h4>
+            <div id="mdExistingList" class="list" aria-live="polite"></div>
+          </section>
+
+          <div class="md-divider"></div>
+
+          <!-- Section 3: Buttons (desktop only in sidebar) -->
+          <section class="md-section" aria-label="Actions">
+            <button id="mdSaveBtn" class="btn btn-primary" hidden>Save</button>
+          </section>
+        </aside>
+
+        <!-- RENDER AREA -->
+        <section class="viewer-card" aria-label="Document preview and tagging">
+          <!-- Render target (one file at a time) -->
+          <div id="mdRender"></div>
+        </section>
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
       </div>
 
+<<<<<<< HEAD
       <div class="uploads">
         <div class="uploads-list">
           <h3>Files</h3>
@@ -272,6 +331,18 @@
           <h3>PDF Viewer</h3>
           <div id="pdfContainer" class="pdf-grid-empty">Select a PDF to preview & tag pages (will upload on Save).</div>
         </div>
+=======
+    <!-- Floating controls (mobile + desktop) -->
+    <button id="mdPanelToggle" class="md-fab-panel" aria-label="Toggle documents panel" aria-expanded="false">^</button>
+    <button id="mdSaveFab" class="md-fab-save" aria-label="Save changes" hidden>💾</button>
+
+    <!-- Full-screen save overlay -->
+    <div id="mdSaveOverlay" class="md-overlay" hidden aria-live="polite" aria-modal="true" role="dialog">
+      <div class="md-overlay-card">
+        <div class="md-overlay-title">Saving changes…</div>
+        <div id="mdSaveProgress" class="md-overlay-list"></div>
+        <div class="md-overlay-hint md-hint">Please keep this tab open.</div>
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
       </div>
     </div>
   </section>

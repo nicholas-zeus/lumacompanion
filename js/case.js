@@ -1,4 +1,9 @@
 // /js/case.js
+<<<<<<< HEAD
+=======
+// Case page logic: Details, Manage Documents (new), View Documents, Comments
+
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 import { initFirebase, onAuth, signOutNow, auth, db } from "/js/firebase.js";
 import {
   loadRole, getCase, createCase, updateCase,
@@ -58,6 +63,7 @@ const fName=f("fName"), fMemberID=f("fMemberID"), fNationality=f("fNationality")
       fSummary=f("fSummary"), fTreatment=f("fTreatment"), fReasonAdm=f("fReasonAdm"),
       fReasonConsult=f("fReasonConsult"), fOtherRemark=f("fOtherRemark");
 
+<<<<<<< HEAD
 /* Upload tab */
 const fileInput      = document.getElementById("fileInput");
 const uploadsList    = document.getElementById("uploadsList");
@@ -76,6 +82,28 @@ const pdfStack       = document.getElementById("pdfStack");  // now a canvas-bas
 const tagHitsWrap    = document.getElementById("tagHits");
 const tagFilterSelect= document.getElementById("tagFilterSelect");
 const tagFilterClear = document.getElementById("tagFilterClear");
+=======
+/* -------- Manage Documents (new tab) -------- */
+const mdSidebar       = document.getElementById("mdSidebar");
+const mdDropzone      = document.getElementById("mdDropzone");
+const mdFileInput     = document.getElementById("mdFileInput");
+const mdPickBtn       = document.getElementById("mdPickBtn");
+const mdStagedList    = document.getElementById("mdStagedList");
+const mdExistingList  = document.getElementById("mdExistingList");
+const mdExistingCount = document.getElementById("mdExistingCount");
+const mdSaveBtn       = document.getElementById("mdSaveBtn");
+const mdRender        = document.getElementById("mdRender");
+const mdPanelToggle   = document.getElementById("mdPanelToggle");
+const mdSaveFab       = document.getElementById("mdSaveFab");
+const mdSaveOverlay   = document.getElementById("mdSaveOverlay");
+const mdSaveProgress  = document.getElementById("mdSaveProgress");
+
+/* -------- View Documents (existing tab) -------- */
+const docList         = document.getElementById("docList");
+const pdfStack        = document.getElementById("pdfStack");
+const tagHitsWrap     = document.getElementById("tagHits");
+const tagFilterSelect = document.getElementById("tagFilterSelect");
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 
 /* Comments */
 const commentsList   = document.getElementById("commentsList");
@@ -94,6 +122,7 @@ const state = {
   role: null,
   user: null,
 
+<<<<<<< HEAD
   // Upload staging
   stagedFile: null,
   stagedIsPdf: false,
@@ -107,6 +136,27 @@ const state = {
 
   // Render bookkeeping
   pageIndex: new Map(),    // map key `${uploadId}:${pageNo}` -> element
+=======
+  /* View Documents state (keep existing behavior) */
+  docviewLoaded: false,
+  uploadsIndex: [],
+  uploadsById: new Map(),
+  allTags: new Set(),
+  tagHits: [],
+  pageIndex: new Map(), // docview: key `${uploadId}:${page}` -> element
+
+  /* Manage Documents state */
+  md: {
+    initialized: false,
+    existing: [],                 // [{id, fileName, mimeType, driveFileId, size, uploadedAt, batchNo}]
+    staged: [],                   // [{ tempId, file, name, type, size, pageCount? }]
+    pendingDeletes: new Set(),    // uploadId to delete on save
+    tagState: new Map(),          // key `${keyPrefix}:${pageNo}` -> tag string
+    dirtySet: new Set(),          // keys changed for existing; all staged files imply dirty
+    renderedKey: null,            // current render keyPrefix (uploadId or tempId)
+    dprClamp: 1.25,               // reduced crispness target (organization task)
+  }
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 };
 
 /* ---------- Utils ---------- */
@@ -188,6 +238,7 @@ async function loadCase() {
   lockUIFinished(doc.status === "finished");
   downloadPdfBtn.hidden = false;
 
+<<<<<<< HEAD
   // initial uploads list
   await refreshUploadsList();
 }
@@ -287,6 +338,10 @@ async function refreshUploadsList() {
   if (!state.caseId || state.isNew) return;
   const rows = await listUploads(state.caseId);
   renderUploadsList(rows);
+=======
+  // Preload existing uploads for tabs
+  await refreshUploadsForAll();
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 }
 
 /* ---------- Details save/create ---------- */
@@ -393,6 +448,7 @@ async function postComment(confirmHandoff) {
   }
 }
 
+<<<<<<< HEAD
 /* ---------- View Documents (canvas-first + images) ---------- */
 async function ensureDocviewLoaded() {
   if (!state.caseId || state.isNew) return;
@@ -407,15 +463,29 @@ async function ensureDocviewLoaded() {
     await loadDocviewData();     // keep tags and list fresh
     await renderCanvasStack();   // re-render to reflect changes
   }
+=======
+/* =========================================================
+   View Documents tab (existing implementation, canvas-first)
+   ========================================================= */
+async function ensureDocviewLoaded() {
+  if (!state.caseId || state.isNew) return;
+  await loadPdfJsIfNeeded();
+  await loadDocviewData();
+  wireDocviewControls();
+  await renderCanvasStack();
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 }
 
 function wireDocviewControls() {
   tagFilterSelect?.addEventListener("change", () => applyDocTagFilter(tagFilterSelect.value));
+<<<<<<< HEAD
   tagFilterClear?.addEventListener("click", () => {
     if (tagFilterSelect) tagFilterSelect.value = "";
     applyDocTagFilter("");
     scrollToTop();
   });
+=======
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 }
 
 function buildStickySidebar() {
@@ -451,9 +521,13 @@ async function loadDocviewData() {
   state.uploadsIndex = rows;
   state.uploadsById.clear();
   rows.forEach(r => state.uploadsById.set(r.id, r));
+<<<<<<< HEAD
   if (docCount) docCount.textContent = `${rows.length} file${rows.length===1?"":"s"}`;
 
   // 2) tags (pageTags)
+=======
+  // Tags (pageTags)
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   state.allTags.clear(); state.tagHits = [];
   const col = collection(db, "pageTags");
   const qRef = query(col, where("caseId", "==", state.caseId), limit(5000));
@@ -465,16 +539,22 @@ async function loadDocviewData() {
       state.tagHits.push({ uploadId: row.uploadId, pageNumber: row.pageNumber, tag: row.tag });
     }
   });
+<<<<<<< HEAD
 
   // dropdown
+=======
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   if (tagFilterSelect) {
     const current = tagFilterSelect.value || "";
     tagFilterSelect.innerHTML = `<option value="">All tags</option>` +
       Array.from(state.allTags).sort().map(t => `<option value="${t}">${t}</option>`).join("");
     if (current && state.allTags.has(current)) tagFilterSelect.value = current;
   }
+<<<<<<< HEAD
 
   // left list
+=======
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   renderFileList();
 }
 
@@ -494,8 +574,12 @@ function renderFileList() {
       <div class="doc-sub">${who} • ${when}</div>
       <div class="doc-sub">Batch: ${u.batchNo || "-"}</div>
       <div class="doc-actions">
+<<<<<<< HEAD
         <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
         ${(isPdf(u) || isImage(u)) ? ` · <a href="#" data-open="${u.id}">Open</a>` : ""}
+=======
+        <a href="#" data-open="${u.id}">Open</a>
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
       </div>
     `;
     div.querySelectorAll("[data-open]").forEach(a => {
@@ -618,6 +702,7 @@ async function renderPdfFileAsCanvases(u) {
 function renderImageFile(u) {
   const section = document.createElement("div");
   section.className = "pdf-block";
+<<<<<<< HEAD
   section.innerHTML = `
     <div class="viewer-section">
       <h3>${u.fileName}</h3>
@@ -636,6 +721,16 @@ function renderImageFile(u) {
   pdfStack.appendChild(section);
 
   // index as page 1 so filter can optionally map if needed
+=======
+  const img = document.createElement("img");
+  img.src = streamFileUrl(u.driveFileId);
+  img.alt = u.fileName;
+  img.loading = "lazy";
+  img.decoding = "async";
+  img.style = "max-width:100%;width:auto;height:auto;border:1px solid var(--line);border-radius:8px;";
+  section.appendChild(img);
+  pdfStack.appendChild(section);
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   state.pageIndex.set(`${u.id}:1`, section);
 }
 
@@ -644,8 +739,11 @@ function focusFirstPageOf(uploadId) {
   const el = state.pageIndex.get(key1);
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+<<<<<<< HEAD
 
 /* Tag filter across all pages (PDF canvases + images) */
+=======
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 function applyDocTagFilter(tag) {
   if (!pdfStack || !tagHitsWrap) return;
   if (!tag) {
@@ -654,6 +752,7 @@ function applyDocTagFilter(tag) {
     tagHitsWrap.hidden = true; pdfStack.hidden = false;
     return;
   }
+<<<<<<< HEAD
 
   // Build set of matching keys like "uploadId:pageNumber"
   const allow = new Set(state.tagHits.filter(h => h.tag === tag).map(h => `${h.uploadId}:${h.pageNumber}`));
@@ -677,6 +776,241 @@ function applyDocTagFilter(tag) {
   } else {
     tagHitsWrap.hidden = true;
     pdfStack.hidden = false;
+=======
+  // existing docview filter is out of scope for manage tab
+}
+
+/* =========================================================
+   Manage Documents tab (new)
+   ========================================================= */
+async function ensureManageLoaded() {
+  if (!state.caseId || state.isNew) return;
+  if (state.md.initialized) return;
+  await loadPdfJsIfNeeded();
+  await mdPrecacheExisting();
+  mdWireUI();
+  mdRenderExistingList();
+  mdUpdateSaveButtons();
+  state.md.initialized = true;
+}
+
+/* Pre-cache existing uploads + their tags into tagState */
+async function mdPrecacheExisting() {
+  const rows = await listUploads(state.caseId);
+  state.md.existing = rows;
+  if (mdExistingCount) mdExistingCount.textContent = rows.length ? `(${rows.length})` : "";
+  // load tags
+  const col = collection(db, "pageTags");
+  const snap = await getDocs(query(col, where("caseId", "==", state.caseId), limit(5000)));
+  snap.forEach(d => {
+    const row = d.data();
+    if (row?.uploadId && row?.pageNumber) {
+      const key = `${row.uploadId}:${row.pageNumber}`;
+      state.md.tagState.set(key, row.tag || "");
+    }
+  });
+  // restore staging (session)
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(`md:${state.caseId}`) || "{}");
+    if (Array.isArray(saved.staged)) {
+      // can't restore File objects; just forget if present
+      state.md.staged = [];
+    }
+    if (saved.tagState) {
+      for (const [k,v] of Object.entries(saved.tagState)) state.md.tagState.set(k, v);
+    }
+  } catch {}
+}
+
+/* Save session state (staged filenames + tagState only) */
+function mdPersistSession() {
+  const tagStateObj = {};
+  state.md.tagState.forEach((v,k)=> tagStateObj[k]=v);
+  const payload = { staged: state.md.staged.map(s => ({ name:s.name, type:s.type, size:s.size })), tagState: tagStateObj };
+  try { sessionStorage.setItem(`md:${state.caseId}`, JSON.stringify(payload)); } catch {}
+}
+
+/* Wire UI interactions */
+function mdWireUI() {
+  // Dropzone
+  mdPickBtn?.addEventListener("click", () => mdFileInput?.click());
+  mdDropzone?.addEventListener("click", (e) => {
+    if (e.target !== mdPickBtn) mdFileInput?.click();
+  });
+  mdDropzone?.addEventListener("dragover", (e) => { e.preventDefault(); mdDropzone.classList.add("highlight"); });
+  mdDropzone?.addEventListener("dragleave", () => mdDropzone.classList.remove("highlight"));
+  mdDropzone?.addEventListener("drop", (e) => {
+    e.preventDefault(); mdDropzone.classList.remove("highlight");
+    const files = Array.from(e.dataTransfer.files || []);
+    mdStageFiles(files);
+  });
+  mdFileInput?.addEventListener("change", (e) => {
+    const files = Array.from(e.target.files || []);
+    mdStageFiles(files);
+    mdFileInput.value = "";
+  });
+
+  // Sidebar lists click
+  mdStagedList?.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-tempid]");
+    const x  = e.target.closest("[data-remove-tempid]");
+    if (x) {
+      const id = x.getAttribute("data-remove-tempid");
+      mdRemoveStaged(id);
+      return;
+    }
+    if (el) {
+      const tempId = el.getAttribute("data-tempid");
+      const item = state.md.staged.find(s => s.tempId === tempId);
+      if (item) mdRenderFile({ kind: "staged", keyPrefix: tempId, file: item.file, name: item.name, type: item.type });
+    }
+  });
+
+  mdExistingList?.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-delete-id]");
+    if (del) {
+      const uploadId = del.getAttribute("data-delete-id");
+      mdConfirmDeleteExisting(uploadId);
+      return;
+    }
+    const open = e.target.closest("[data-open-id]");
+    if (open) {
+      const uploadId = open.getAttribute("data-open-id");
+      const u = state.md.existing.find(r => r.id === uploadId);
+      if (u) mdRenderFile({ kind: "existing", keyPrefix: u.id, name: u.fileName, url: streamFileUrl(u.driveFileId), meta: u });
+    }
+  });
+
+  // Floating panel toggle (slide-in on mobile; on desktop just focus sidebar)
+  mdPanelToggle?.addEventListener("click", () => {
+    const expanded = mdPanelToggle.getAttribute("aria-expanded") === "true";
+    mdPanelToggle.setAttribute("aria-expanded", String(!expanded));
+    document.body.classList.toggle("md-panel-open", !expanded);
+    mdSidebar?.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  // Save buttons
+  mdSaveBtn?.addEventListener("click", mdSaveAll);
+  mdSaveFab?.addEventListener("click", mdSaveAll);
+}
+
+/* Stage new files */
+function mdStageFiles(files) {
+  const accepted = [];
+  for (const f of files) {
+    if (!f) continue;
+    if (f.size > 50 * 1024 * 1024) { alert(`${f.name}: exceeds 50 MB`); continue; }
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    accepted.push({ tempId, file: f, name: f.name, type: f.type || "", size: f.size });
+  }
+  if (!accepted.length) return;
+  state.md.staged.push(...accepted);
+  mdRenderStagedList();
+  mdUpdateSaveButtons();
+  mdPersistSession();
+}
+
+/* Remove a staged file */
+function mdRemoveStaged(tempId) {
+  if (!confirm("Remove this staged file?")) return;
+  state.md.staged = state.md.staged.filter(s => s.tempId !== tempId);
+  // purge tagState entries for this tempId
+  for (const k of Array.from(state.md.tagState.keys())) {
+    if (k.startsWith(`${tempId}:`)) state.md.tagState.delete(k);
+  }
+  if (state.md.renderedKey === tempId) {
+    mdRender.innerHTML = "";
+    state.md.renderedKey = null;
+  }
+  mdRenderStagedList();
+  mdUpdateSaveButtons();
+  mdPersistSession();
+}
+
+/* Mark existing for delete (soft, on save) */
+function mdConfirmDeleteExisting(uploadId) {
+  if (!confirm("Delete this document from the case?")) return;
+  state.md.pendingDeletes.add(uploadId);
+  // visually mark in list
+  const row = mdExistingList.querySelector(`[data-row-id="${uploadId}"]`);
+  if (row) row.classList.add("muted");
+  mdUpdateSaveButtons();
+}
+
+/* Render lists */
+function mdRenderStagedList() {
+  if (!mdStagedList) return;
+  mdStagedList.innerHTML = "";
+  for (const s of state.md.staged) {
+    const div = document.createElement("div");
+    div.className = "upload-row";
+    div.setAttribute("data-tempid", s.tempId);
+    div.innerHTML = `
+      <div style="min-width:0;">
+        <div class="doc-file" style="word-break:break-word;">${s.name}</div>
+        <div class="doc-sub">${(s.type||"").split("/")[1]||"file"} • ${(s.size/1024/1024).toFixed(1)} MB</div>
+      </div>
+      <button class="btn" title="Remove" data-remove-tempid="${s.tempId}">✕</button>
+    `;
+    mdStagedList.appendChild(div);
+  }
+}
+function mdRenderExistingList() {
+  if (!mdExistingList) return;
+  mdExistingList.innerHTML = "";
+  for (const u of state.md.existing) {
+    const delMarked = state.md.pendingDeletes.has(u.id);
+    const row = document.createElement("div");
+    row.className = "doc-list-item";
+    row.setAttribute("data-row-id", u.id);
+    if (delMarked) row.classList.add("muted");
+    row.innerHTML = `
+      <div class="doc-file" title="${u.fileName}">${u.fileName}</div>
+      <div class="doc-sub">${(u.mimeType||u.fileType||"").split("/")[1]||"file"} • ${(u.size? (u.size/1024/1024).toFixed(1)+" MB":"")}</div>
+      <div class="doc-actions">
+        <a href="#" data-open-id="${u.id}">Open</a>
+        &nbsp;·&nbsp;
+        <a href="#" data-delete-id="${u.id}" style="color:#b91c1c;">Delete</a>
+      </div>
+    `;
+    mdExistingList.appendChild(row);
+  }
+}
+
+/* Render a single file (replace previous) */
+async function mdRenderFile({ kind, keyPrefix, file, name, type, url, meta }) {
+  // Avoid re-render if already on screen: just scroll/focus
+  if (state.md.renderedKey === keyPrefix) {
+    const anchor = mdRender.querySelector(`[data-anchor="${keyPrefix}"]`);
+    if (anchor) anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  mdRender.innerHTML = ""; // replace previous
+  state.md.renderedKey = keyPrefix;
+
+  // header
+  const header = document.createElement("div");
+  header.className = "viewer-section";
+  header.setAttribute("data-anchor", keyPrefix);
+  header.innerHTML = `<h3 style="margin:0;">${name}</h3>`;
+  mdRender.appendChild(header);
+
+  // container
+  const wrap = document.createElement("div");
+  mdRender.appendChild(wrap);
+
+  // choose source
+  let isPdf = false, isImg = false;
+  if (kind === "staged") {
+    const low = (type || "").toLowerCase();
+    isPdf = low.includes("pdf") || (name||"").toLowerCase().endsWith(".pdf");
+    isImg = low.startsWith("image/") || /\.(jpg|jpeg|png)$/i.test(name||"");
+  } else {
+    const lowName = (name||"").toLowerCase();
+    const lowMime = (meta?.mimeType || meta?.fileType || "").toLowerCase();
+    isPdf = lowName.endsWith(".pdf") || lowMime === "application/pdf";
+    isImg = /(\.jpg|\.jpeg|\.png)$/.test(lowName) || (lowMime.startsWith("image/"));
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   }
 
   // Scroll to the first visible page
@@ -685,6 +1019,247 @@ function applyDocTagFilter(tag) {
   }
 }
 
+<<<<<<< HEAD
+=======
+/* PDF render (reduced width + DPR clamp) */
+async function mdRenderPdfPages({ kind, keyPrefix, file, url, container }) {
+  let src;
+  if (kind === "staged") {
+    src = URL.createObjectURL(file);
+  } else {
+    src = url;
+  }
+  let pdf;
+  try {
+    pdf = await window.pdfjsLib.getDocument(src).promise;
+  } catch {
+    container.innerHTML = `<div class="muted">Failed to load PDF.</div>`;
+    return;
+  }
+  const tagOptions = await getTagOptions();
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const cssWidth = Math.min(container.clientWidth || 900, 900);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const cssScale = cssWidth / baseViewport.width;
+    const DPR = Math.max(1, window.devicePixelRatio || 1);
+    const scale = cssScale * Math.min(DPR, state.md.dprClamp);
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    canvas.style.width = `${Math.ceil(viewport.width / Math.min(DPR, state.md.dprClamp))}px`;
+    canvas.style.height = `${Math.ceil(viewport.height / Math.min(DPR, state.md.dprClamp))}px`;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const card = document.createElement("div");
+    card.className = "page-card";
+    card.appendChild(canvas);
+
+    // footer with page tag dropdown
+    const footer = document.createElement("div");
+    footer.className = "pdf-footer";
+    const label = document.createElement("span"); label.className = "pdf-pg"; label.textContent = `Page ${p}`;
+    const sel = document.createElement("select"); sel.className = "tag-select";
+    sel.innerHTML = `<option value="">— tag —</option>` + tagOptions.map(t=>`<option value="${t}">${t}</option>`).join("");
+    const k = `${keyPrefix}:${p}`;
+    sel.value = state.md.tagState.get(k) || "";
+    sel.addEventListener("change", () => {
+      state.md.tagState.set(k, sel.value || "");
+      // mark dirty if existing or staged
+      state.md.dirtySet.add(k);
+      mdUpdateSaveButtons();
+      mdPersistSession();
+    });
+    footer.appendChild(label); footer.appendChild(sel);
+    card.appendChild(footer);
+    container.appendChild(card);
+  }
+}
+
+/* Image render */
+async function mdRenderImage({ kind, keyPrefix, file, url, container, pageNo }) {
+  const img = document.createElement("img");
+  img.loading = "lazy"; img.decoding = "async";
+  img.style = "max-width:100%;width:auto;height:auto;border:1px solid var(--line);border-radius:8px;display:block;";
+  img.src = kind === "staged" ? URL.createObjectURL(file) : url;
+
+  const card = document.createElement("div");
+  card.className = "page-card";
+  card.appendChild(img);
+
+  // footer with tag dropdown
+  const tagOptions = await getTagOptions();
+  const footer = document.createElement("div");
+  footer.className = "pdf-footer";
+  const label = document.createElement("span"); label.className = "pdf-pg"; label.textContent = `Page ${pageNo}`;
+  const sel = document.createElement("select"); sel.className = "tag-select";
+  sel.innerHTML = `<option value="">— tag —</option>` + tagOptions.map(t=>`<option value="${t}">${t}</option>`).join("");
+  const k = `${keyPrefix}:${pageNo}`;
+  sel.value = state.md.tagState.get(k) || "";
+  sel.addEventListener("change", () => {
+    state.md.tagState.set(k, sel.value || "");
+    state.md.dirtySet.add(k);
+    mdUpdateSaveButtons();
+    mdPersistSession();
+  });
+  footer.appendChild(label); footer.appendChild(sel);
+  card.appendChild(footer);
+
+  container.appendChild(card);
+}
+
+/* Update Save buttons visibility (sidebar + FAB) */
+function mdUpdateSaveButtons() {
+  const hasChanges = state.md.staged.length > 0 || state.md.dirtySet.size > 0 || state.md.pendingDeletes.size > 0;
+  if (mdSaveBtn) mdSaveBtn.hidden = !hasChanges;
+  if (mdSaveFab) mdSaveFab.hidden = !hasChanges;
+}
+
+/* Save flow with lock/assignment check and overlay */
+async function mdSaveAll() {
+  // pre-flight: nurse ownership
+  const assignedEmail = state.caseDoc?.assignedNurse?.email || "";
+  const isNurse = state.role === "nurse";
+  const isOwner = isNurse && assignedEmail && assignedEmail === state.user.email;
+  if (!isOwner) {
+    // Offer assign to self
+    await mdShowOwnershipOverlay();
+    const refreshed = await getCase(state.caseId);
+    state.caseDoc = refreshed;
+    const ok = refreshed?.assignedNurse?.email === state.user.email;
+    if (!ok) return; // user cancelled
+  }
+
+  // Show overlay
+  mdSaveOverlay.hidden = false;
+  mdSaveProgress.innerHTML = "";
+
+  const log = (txt) => {
+    const li = document.createElement("div");
+    li.textContent = txt;
+    mdSaveProgress.appendChild(li);
+  };
+
+  try {
+    // 1) Upload staged files -> write uploads docs -> map tempId->uploadId
+    const tempToReal = new Map();
+    for (const s of state.md.staged) {
+      log(`Uploading ${s.name}…`);
+      const meta = await uploadFile({ caseId: state.caseId, batchNo: 1, file: s.file });
+      // create Firestore uploads doc (client-side, same as uploader.js flow)
+      const upRef = await addDoc(collection(db, "uploads"), {
+        caseId: state.caseId,
+        batchNo: 1,
+        fileName: meta.fileName,
+        fileType: meta.mimeType,
+        size: meta.size,
+        driveFileId: meta.fileId,
+        fileHash: meta.md5,
+        uploadedBy: { email: (auth.currentUser?.email || ""), displayName: (auth.currentUser?.displayName || "") },
+        uploadedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      tempToReal.set(s.tempId, { uploadId: upRef.id, driveFileId: meta.fileId });
+      log(`Uploaded ${s.name}`);
+    }
+
+    // 2) Write pageTags:
+    // - for staged: use temp->real mapping
+    // - for existing edits: only keys in dirtySet that start with a real uploadId
+    // Collect writes
+    const writes = [];
+    // staged keys
+    for (const s of state.md.staged) {
+      const map = tempToReal.get(s.tempId);
+      if (!map) continue;
+      // iterate tagState entries for this tempId
+      for (const [k, v] of state.md.tagState.entries()) {
+        if (!k.startsWith(`${s.tempId}:`)) continue;
+        const pageNo = parseInt(k.split(":")[1], 10) || 1;
+        // upsert page tag to real id
+        writes.push(setDoc(doc(db, "pageTags", `${map.uploadId}_${pageNo}`), {
+          caseId: state.caseId, uploadId: map.uploadId, pageNumber: pageNo, tag: v || "", updatedAt: serverTimestamp()
+        }, { merge: true }));
+      }
+    }
+    // existing dirty keys
+    for (const k of state.md.dirtySet) {
+      const [prefix, pageStr] = k.split(":");
+      // skip temp keys
+      if (prefix.startsWith("temp_")) continue;
+      const pageNo = parseInt(pageStr, 10) || 1;
+      const tag = state.md.tagState.get(k) || "";
+      writes.push(setDoc(doc(db, "pageTags", `${prefix}_${pageNo}`), {
+        caseId: state.caseId, uploadId: prefix, pageNumber: pageNo, tag, updatedAt: serverTimestamp()
+      }, { merge: true }));
+    }
+    if (writes.length) log(`Updating ${writes.length} page tag(s)…`);
+    await Promise.all(writes);
+
+    // 3) Pending deletions
+    for (const uploadId of state.md.pendingDeletes) {
+      log(`Deleting ${uploadId}…`);
+      await softDeleteUpload(uploadId);
+    }
+
+    // Done
+    log("Finalizing…");
+    // Clear state
+    state.md.staged = [];
+    state.md.dirtySet.clear();
+    state.md.pendingDeletes.clear();
+    state.md.renderedKey = null;
+    mdRender.innerHTML = "";
+    sessionStorage.removeItem(`md:${state.caseId}`);
+
+    // Refresh existing list
+    await mdPrecacheExisting();
+    mdRenderExistingList();
+    mdRenderStagedList();
+    mdUpdateSaveButtons();
+
+    log("Saved successfully.");
+  } catch (e) {
+    log(`Error: ${e?.message || e}`);
+    alert("Some items failed to save. See list for details.");
+  } finally {
+    setTimeout(() => { mdSaveOverlay.hidden = true; }, 400);
+  }
+}
+
+/* Ownership overlay (assign to me) */
+function mdShowOwnershipOverlay() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "md-overlay";
+    overlay.innerHTML = `
+      <div class="md-overlay-card">
+        <div class="md-overlay-title">This case is not assigned to you</div>
+        <div class="md-overlay-hint">Only the assigned nurse can manage documents.</div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+          <button class="btn" data-cancel>Cancel</button>
+          <button class="btn btn-primary" data-assign>Assign to me</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const done = (v) => { overlay.remove(); resolve(v); };
+    overlay.querySelector("[data-cancel]")?.addEventListener("click", () => done(false));
+    overlay.querySelector("[data-assign]")?.addEventListener("click", async () => {
+      await updateCase(state.caseId, {
+        assignedNurse: { email: state.user.email, displayName: state.user.displayName || state.user.email, at: new Date() }
+      }, state.user);
+      done(true);
+    });
+  });
+}
+
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 /* ---------- pdf.js loader (CDN) ---------- */
 async function loadPdfJsIfNeeded() {
   if (window.pdfjsLib?.getDocument) return;
@@ -738,12 +1313,25 @@ tabsNav.addEventListener("click", (e) => {
 saveCommentBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(false); });
 confirmBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(true); });
 
+<<<<<<< HEAD
 fileInput?.addEventListener("change", async (e) => {
   const file = (e.target.files || [])[0];
   await onFileChosen(file);
 });
 docCancelBtn?.addEventListener("click", (e) => { e.preventDefault(); resetStaging(); if (fileInput) fileInput.value = ""; });
 docSaveBtn?.addEventListener("click", async (e) => { e.preventDefault(); await saveStagedDocument(); });
+=======
+/* ---------- Shared helpers ---------- */
+async function refreshUploadsForAll() {
+  const rows = await listUploads(state.caseId);
+  // view tab uses state.uploadsIndex; manage tab uses state.md.existing
+  state.uploadsIndex = rows;
+  if (state.md.initialized) {
+    state.md.existing = rows;
+    mdRenderExistingList();
+  }
+}
+>>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
 
 /* ---------- Auth ---------- */
 onAuth(async (user) => {
