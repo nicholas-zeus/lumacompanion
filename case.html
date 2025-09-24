@@ -2,303 +2,230 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Escalation — Case</title>
 
-  <!-- Global + case styles -->
   <link rel="stylesheet" href="/css/app.css" />
   <link rel="stylesheet" href="/css/case.css" />
+
+  <style>
+    /* Layout helpers */
+    .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 8px; border-bottom: 1px solid #e5e7eb; margin-bottom: 12px; }
+    .tab-btn { appearance: none; background: none; border: none; padding: 10px 14px; cursor: pointer; border-radius: 8px 8px 0 0; }
+    .tab-btn.active { background: #f3f4f6; font-weight: 600; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Overview: simple grid */
+    .ovr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .ovr-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
+    .ovr-kv { display: grid; grid-template-columns: 140px 1fr; gap: 8px; font-size: 14px; }
+    .ovr-kv div:nth-child(odd) { color: #6b7280; }
+
+    /* Comments */
+    .comment-wrap { display: grid; gap: 10px; }
+    .comment-item { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; }
+    .comment-meta { font-size: 12px; color: #6b7280; display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .comment-form { display: grid; gap: 8px; grid-template-columns: 1fr auto; }
+    .comment-form textarea { width: 100%; min-height: 70px; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db; }
+    .btn { padding: 8px 12px; border-radius: 8px; border: 1px solid #d1d5db; background: #111827; color: #fff; cursor: pointer; }
+    .btn-link { background: none; border: none; color: #2563eb; cursor: pointer; padding: 0; }
+    .btn.danger { background: #b91c1c; }
+
+    /* Documents (View) */
+    .docview-shell { display: grid; grid-template-columns: 280px 1fr; gap: 12px; }
+    .doc-list { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 150px); overflow: auto; }
+    .doc-list-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .doc-list-header input { flex: 1; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; }
+    .doc-list .count { font-size: 12px; color: #6b7280; }
+    .doc-list-item { width: 100%; text-align: left; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; margin-bottom: 8px; cursor: pointer; }
+    .doc-list-item.active { outline: 2px solid #2563eb; }
+    .doc-name { font-weight: 600; }
+    .doc-meta, .doc-tags { font-size: 12px; color: #6b7280; }
+
+    .viewer-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; }
+    .viewer-actions { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
+    #doc-viewer { height: calc(100vh - 220px); overflow: auto; }
+    .page-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; margin-bottom: 12px; background: #fafafa; }
+    .image-block img { display: block; border-radius: 10px; }
+    .pdf-fallback { width: 100%; height: 80vh; border: 0; }
+
+    /* Manage Documents */
+    .manage-wrap { display: grid; gap: 12px; }
+    .uploader { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+    .uploader .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .uploader input[type="text"] { padding: 8px; border: 1px solid #d1d5db; border-radius: 8px; }
+    .manage-list { display: grid; gap: 8px; }
+    .manage-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; }
+    .file-meta { font-size: 12px; color: #6b7280; }
+    #savingOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 50; }
+    #savingOverlay .box { background: #111827; color: #fff; padding: 16px 20px; border-radius: 12px; }
+
+    .empty, .loading { color: #6b7280; font-size: 14px; }
+  </style>
 </head>
 <body>
   <!-- Header -->
   <header class="app-header">
-    <div class="brand">
-      <a href="/index.html" class="brand-mark" aria-label="Back to Dashboard">E</a>
-      <div class="brand-text">
-        <strong>Escalation</strong>
-        <span class="brand-sub">Clinical Review</span>
+    <div class="page-wrap" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
+      <div class="brand">
+        <a href="/index.html" class="brand-mark" style="text-decoration:none;font-weight:700;">Escalation</a>
       </div>
-    </div>
-
-    <div class="header-actions">
-      <div id="roleBadge" class="role-badge" hidden></div>
-      <button id="signOutBtn" class="btn btn-ghost" hidden>Sign out</button>
-      <img id="avatar" class="avatar" alt="" hidden />
+      <div class="case-title" id="caseTitle">Case</div>
     </div>
   </header>
 
-  <!-- Persistent banners (e.g., duplicate MD5 info during upload) -->
-  <div id="bannerArea" class="banner-area" aria-live="polite"></div>
+  <main class="page-wrap">
+    <!-- Tabs -->
+    <nav class="tabs" role="tablist" aria-label="Case tabs">
+      <button id="tab-overview" class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-overview">Overview</button>
+      <button id="tab-comments" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-comments">Comments</button>
+      <button id="tab-documents" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-documents">View Documents</button>
+      <button id="tab-manage" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-manage">Manage Documents</button>
+    </nav>
 
-  <!-- Tabs -->
-  <nav class="tabs" role="tablist" aria-label="Case tabs">
-    <button class="tab is-active" data-tab="details" aria-controls="tab-details">Details</button>
-    <button class="tab" data-tab="manage"  aria-controls="tab-manage">Manage Documents</button>
-    <button class="tab" data-tab="docview" aria-controls="tab-docview">View Documents</button>
-    <button class="tab" data-tab="comments" aria-controls="tab-comments">Comments</button>
-  </nav>
-
-  <!-- ===== Details Tab ===== -->
-  <section id="tab-details" class="tabpanel is-active" aria-labelledby="details">
-    <div id="finishedLock" class="banner hidden">
-      <div><strong>Case finished.</strong> Editing is locked.</div>
-    </div>
-
-    <form id="detailsForm" class="form-grid" autocomplete="off">
-      <!-- Identity -->
-      <div class="field">
-        <label for="fName">Name</label>
-        <input id="fName" class="input" type="text" />
-      </div>
-      <div class="field">
-        <label for="fMemberID">MemberID</label>
-        <input id="fMemberID" class="input" type="text" />
-      </div>
-
-      <div class="field">
-        <label for="fNationality">Nationality</label>
-        <input id="fNationality" class="input" type="text" />
-      </div>
-      <div class="field">
-        <label for="fPolicyEff">Policy Effective Date</label>
-        <input id="fPolicyEff" class="input" type="date" />
-      </div>
-
-      <div class="field">
-        <label for="fDOB">Date of Birth</label>
-        <input id="fDOB" class="input" type="date" />
-      </div>
-      <div class="field">
-        <label>Age</label>
-        <div class="split">
-          <input id="fAgeYears" class="input" type="text" placeholder="years" disabled />
-          <input id="fAgeMonths" class="input" type="text" placeholder="months" disabled />
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="fUWType">Underwriting Type</label>
-        <input id="fUWType" class="input" type="text" />
-      </div>
-      <div class="field">
-        <label for="fAdmissionType">Type of Admission</label>
-        <input id="fAdmissionType" class="input" type="text" />
-      </div>
-
-      <div class="field">
-        <label for="fConsultType">Type of Consultation</label>
-        <input id="fConsultType" class="input" type="text" />
-      </div>
-      <div class="field">
-        <label for="fVisitDate">Visit Date</label>
-        <input id="fVisitDate" class="input" type="date" />
-      </div>
-
-      <div class="field">
-        <label for="fHospital">Hospital</label>
-        <input id="fHospital" class="input" type="text" />
-      </div>
-      <div class="field">
-        <label for="fDiagnosis">Diagnosis</label>
-        <input id="fDiagnosis" class="input" type="text" />
-      </div>
-
-      <div class="field">
-        <label for="fDischargeDate">Discharge Date</label>
-        <input id="fDischargeDate" class="input" type="date" />
-      </div>
-      <div class="field">
-        <label for="fExclusion">Exclusion</label>
-        <input id="fExclusion" class="input" type="text" />
-      </div>
-
-      <div class="field span-2">
-        <label for="fChiefComplaint">Chief Complaint</label>
-        <textarea id="fChiefComplaint" class="input" rows="2"></textarea>
-      </div>
-
-      <div class="field span-2">
-        <label for="fPresentIllness">Present Illness</label>
-        <textarea id="fPresentIllness" class="input" rows="3"></textarea>
-      </div>
-
-      <div class="field span-2">
-        <label for="fVitalSigns">Vital Signs</label>
-        <textarea id="fVitalSigns" class="input" rows="2"></textarea>
-      </div>
-
-      <div class="field span-2">
-        <label for="fPhysicalFindings">Physical Findings</label>
-        <textarea id="fPhysicalFindings" class="input" rows="2"></textarea>
-      </div>
-
-      <div class="field span-2">
-        <label for="fSummary">Summary</label>
-        <textarea id="fSummary" class="input" rows="3"></textarea>
-      </div>
-
-      <div class="field span-2">
-        <label for="fTreatment">Treatment</label>
-        <textarea id="fTreatment" class="input" rows="3"></textarea>
-      </div>
-
-      <div class="field span-2">
-        <label for="fReasonAdm">Reason for Admission</label>
-        <textarea id="fReasonAdm" class="input" rows="2"></textarea>
-      </div>
-
-      <div class="field span-2">
-        <label for="fReasonConsult">Reason for Consultation</label>
-        <textarea id="fReasonConsult" class="input" rows="2"></textarea>
-      </div>
-
-      <div class="field span-2">
-        <label for="fOtherRemark">Other Remark</label>
-        <textarea id="fOtherRemark" class="input" rows="2"></textarea>
-      </div>
-
-      <div class="field">
-        <label for="fUrgent">Urgent</label>
-        <input id="fUrgent" type="checkbox" />
-      </div>
-      <div class="field">
-        <label for="fDeadline">Deadline</label>
-        <input id="fDeadline" class="input" type="datetime-local" />
-      </div>
-
-      <div class="span-2 split">
-        <div class="status-readout">
-          <span>Status:</span>&nbsp;<span id="statusText">—</span>
-        </div>
-        <div class="right-actions">
-          <button id="assignNurseBtn" class="btn">Assign to me (Nurse)</button>
-          <button id="assignDoctorBtn" class="btn">Assign to me (Doctor)</button>
-          <button id="editDetailsBtn" class="btn">Edit</button>
-          <button id="saveDetailsBtn" class="btn btn-primary" hidden>Save</button>
-          <button id="finishBtn" class="btn btn-primary">Finish</button>
-          <button id="undoBtn" class="btn" hidden>Undo Finish</button>
-          <button id="downloadPdf" class="btn">Export Transcript</button>
-        </div>
-      </div>
-    </form>
-
-    <!-- New case helper -->
-    <div id="newCaseActions" class="banner hidden">
-      <div><strong>New case:</strong> Fill details, then Save to create.</div>
-    </div>
-  </section>
-
-  <!-- ===== Manage Documents Tab (ISOLATED) ===== -->
-  <section id="tab-manage" class="tabpanel" aria-labelledby="manage">
-    <div id="mdRecovered" hidden>
-      <div><strong>Recovered unsaved session.</strong> Your local tag edits were restored.</div>
-      <button class="btn">Dismiss</button>
-    </div>
-
-    <div class="md-shell">
-      <!-- Render area (thumbnails grid) -->
-      <section id="mdRenderArea" class="md-card">
-        <div class="muted">Select a staged or existing file from the sidebar to view thumbnails and set page tags.</div>
-      </section>
-
-      <!-- Sidebar -->
-      <aside id="mdSidebar" class="md-card">
-        <!-- Upload / Stage -->
-        <div class="md-section">
-          <h3>Upload file (staged)</h3>
-          <div id="mdDropzone" class="md-drop" role="button" tabindex="0" aria-label="Upload files by click or drop">
-            <div>Drag &amp; drop files here</div>
-            <div class="muted">or click to choose</div>
-            <input id="mdFileInput" class="md-file" type="file" multiple />
-          </div>
-          <div class="md-sep"></div>
-          <h4>Staged files</h4>
-          <div id="mdStagedList" class="md-list"></div>
-        </div>
-
-        <div class="md-sep"></div>
-
-        <!-- Existing list -->
-        <div class="md-section">
-          <h3>Existing documents</h3>
-          <div id="mdExistingList" class="md-list"></div>
-        </div>
-
-        <div class="md-sep"></div>
-
-        <!-- Save button (desktop) -->
-        <button id="mdSaveBtn" class="btn btn-primary" hidden>Save</button>
-      </aside>
-    </div>
-
-    <!-- Floating cluster (mobile) -->
-    <button id="mdToggleFab" class="md-fab-toggle" aria-label="Open document sidebar">^</button>
-    <button id="mdSaveFab"   class="md-fab-save"   aria-label="Save changes" hidden>💾</button>
-
-    <!-- Full-screen overlay & toast (managed by JS) -->
-    <div id="mdOverlay"></div>
-    <div id="mdToast" role="status" aria-live="polite"></div>
-  </section>
-
-  <!-- ===== View Documents Tab (legacy read/organize) ===== -->
-  <section id="tab-docview" class="tabpanel" aria-labelledby="docview">
-    <div class="docview-shell">
-      <!-- LEFT: sticky list -->
-      <aside class="list-card">
-        <h3>Documents</h3>
-        <div class="muted" style="margin:6px 0;">
-          <span id="docCount">0 files</span>
-        </div>
-
-        <div style="display:grid; gap:6px; margin:8px 0;">
-          <label for="tagFilterSelect" class="muted" style="font-size:12px;">Filter by tag</label>
-          <select id="tagFilterSelect" class="input">
-            <option value="">All tags</option>
-          </select>
-          <button id="tagFilterClear" class="btn">Clear</button>
-        </div>
-
-        <div id="docList"></div>
-      </aside>
-
-      <!-- RIGHT: viewer -->
-      <section class="viewer-card">
-        <div class="viewer-section">
-          <h3>Preview</h3>
-        </div>
-        <div id="tagHits" class="tag-hits" hidden></div>
-        <div id="pdfStack"></div>
-      </section>
-    </div>
-  </section>
-
-  <!-- ===== Comments Tab ===== -->
-  <section id="tab-comments" class="tabpanel" aria-labelledby="comments">
-    <div class="comments">
-      <div id="commentsList" class="comments-list"></div>
-
-      <form id="commentForm" class="comment-form">
-        <label for="commentBody"><strong>Add comment</strong></label>
-        <textarea id="commentBody" rows="3" class="input" placeholder="Write your note…"></textarea>
-
-        <label for="commentMQ"><strong>Medical Questionnaire (optional)</strong></label>
-        <textarea id="commentMQ" rows="3" class="input" placeholder="Draft MQ to attach with this comment…"></textarea>
-
-        <div class="split">
-          <div></div>
-          <div class="right-actions">
-            <button id="saveCommentBtn" class="btn">Post</button>
-            <button id="confirmBtn" class="btn btn-primary">Post &amp; Finish</button>
+    <!-- Panels -->
+    <!-- Overview -->
+    <section id="panel-overview" class="tab-panel active" role="tabpanel" aria-labelledby="tab-overview">
+      <div class="ovr-grid">
+        <div class="ovr-card">
+          <h3>Patient</h3>
+          <div class="ovr-kv">
+            <div>Name</div><div id="ovr-patientName"></div>
+            <div>Patient ID</div><div id="ovr-patientId"></div>
+            <div>Gender</div><div id="ovr-gender"></div>
+            <div>DOB</div><div id="ovr-dob"></div>
+            <div>Age</div><div id="ovr-age"></div>
           </div>
         </div>
-      </form>
-    </div>
-  </section>
+        <div class="ovr-card">
+          <h3>Visit</h3>
+          <div class="ovr-kv">
+            <div>Visit Date</div><div id="ovr-visitDate"></div>
+            <div>Hospital</div><div id="ovr-hospital"></div>
+          </div>
+        </div>
+        <div class="ovr-card" style="grid-column:1 / -1;">
+          <h3>Diagnosis</h3>
+          <div id="ovr-diagnosis"></div>
+        </div>
+        <div class="ovr-card" style="grid-column:1 / -1;">
+          <h3>Summary</h3>
+          <div id="ovr-summary"></div>
+        </div>
+      </div>
+    </section>
 
-  <!-- Scripts -->
-  <script type="module" src="/js/case.js"></script>
+    <!-- Comments -->
+    <section id="panel-comments" class="tab-panel" role="tabpanel" aria-labelledby="tab-comments">
+      <div class="comment-wrap">
+        <div id="comments-list"></div>
+        <form id="comment-form" class="comment-form">
+          <textarea id="comment-input" placeholder="Write a comment…"></textarea>
+          <button class="btn" type="submit">Post</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- View Documents -->
+    <section id="panel-documents" class="tab-panel" role="tabpanel" aria-labelledby="tab-documents">
+      <div class="docview-shell">
+        <aside class="doc-list">
+          <div class="doc-list-header">
+            <input id="tagFilter" type="text" placeholder="Filter by tag or filename…" />
+            <button id="tagFilterClear" class="btn-link" type="button">Clear</button>
+          </div>
+          <div class="count">Files: <span id="docCount">0</span></div>
+          <div id="docs-list"></div>
+        </aside>
+
+        <div class="viewer-card">
+          <div class="viewer-actions">
+            <a id="doc-open" class="btn" target="_blank" rel="noopener">Open in new window</a>
+            <a id="doc-download" class="btn" target="_blank" rel="noopener">Download</a>
+          </div>
+          <div id="doc-viewer"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Manage Documents -->
+    <section id="panel-manage" class="tab-panel" role="tabpanel" aria-labelledby="tab-manage">
+      <div class="manage-wrap">
+        <div class="uploader">
+          <div class="row">
+            <div>
+              <label>Choose files</label>
+              <input id="fileInput" type="file" multiple />
+            </div>
+            <div>
+              <label>Batch No. (optional)</label>
+              <input id="batchNo" type="text" placeholder="e.g., 2025-09-24-A" />
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Tags (comma-separated)</label>
+              <input id="uploadTags" type="text" placeholder="e.g., OPD, Invoice, Lab" />
+            </div>
+            <div style="display:flex;align-items:end;justify-content:flex-end;">
+              <button id="uploadBtn" class="btn" type="button">Upload</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="manage-list" class="manage-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Saving overlay (optional) -->
+  <div id="savingOverlay">
+    <div class="box">Saving changes…</div>
+  </div>
+
+  <!-- Boot globals (set these from your auth/session) -->
+  <script>
+    // TODO: replace with real values from your app
+    window.caseId = window.caseId || new URLSearchParams(location.search).get("caseId");
+    window.currentUser = window.currentUser || { id: "user_anon", name: "Anonymous" };
+    // Set title if available
+    if (window.caseId) document.getElementById("caseTitle").textContent = "Case: " + window.caseId;
+  </script>
+
+  <!-- Tab switching (kept tiny & generic) -->
+  <script>
+    const tabs = [
+      { btn: "tab-overview", panel: "panel-overview" },
+      { btn: "tab-comments", panel: "panel-comments" },
+      { btn: "tab-documents", panel: "panel-documents" },
+      { btn: "tab-manage", panel: "panel-manage" },
+    ];
+    function activateTab(id) {
+      tabs.forEach(t => {
+        const b = document.getElementById(t.btn);
+        const p = document.getElementById(t.panel);
+        const active = t.btn === id;
+        b?.classList.toggle("active", active);
+        p?.classList.toggle("active", active);
+        b?.setAttribute("aria-selected", active ? "true" : "false");
+      });
+    }
+    document.addEventListener("DOMContentLoaded", () => {
+      tabs.forEach(t => {
+        document.getElementById(t.btn)?.addEventListener("click", () => activateTab(t.btn));
+      });
+    });
+  </script>
+
+  <!-- Your modules (each handles its own tab’s events) -->
+  <!-- firebase.js must export `db` -->
+  <script type="module" src="/js/case-overview.js"></script>
+  <script type="module" src="/js/case-comments.js"></script>
+  <script type="module" src="/js/case-documents.js"></script>
+  <script type="module" src="/js/case-manage.js"></script>
 </body>
 </html>
