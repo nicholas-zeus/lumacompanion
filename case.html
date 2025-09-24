@@ -11,6 +11,11 @@
   <!-- Page-level wrapper for consistent max width across all tabs -->
   <style>
     .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+    /* Inline helpers used only for this file’s scaffolding (kept minimal) */
+    .md-section h4{ margin:8px 0; }
+    .md-hint{ color: var(--muted); font-size: 12px; }
+    .md-divider{ height: 1px; background: var(--line); margin: 10px 0; }
   </style>
 </head>
 <body>
@@ -221,11 +226,12 @@
     </div>
   </section>
 
-  <!-- MANAGE DOCUMENTS TAB (new; isolated) -->
+  <!-- MANAGE DOCUMENTS TAB -->
   <section id="tab-manage" class="tabpanel" aria-labelledby="manage">
     <div class="page-wrap">
+      <!-- Dual column shell: sticky sidebar + render area -->
       <div class="docview-shell">
-        <!-- Sidebar -->
+        <!-- SIDEBAR -->
         <aside class="list-card" id="mdSidebar" aria-label="Manage documents sidebar">
           <!-- Section 1: Upload / Staged -->
           <section class="md-section" aria-labelledby="mdUploadHdr">
@@ -248,7 +254,7 @@
 
           <div class="md-divider"></div>
 
-          <!-- Section 2: Existing -->
+          <!-- Section 2: Existing Documents -->
           <section class="md-section" aria-labelledby="mdExistingHdr">
             <h4 id="mdExistingHdr">Existing documents <span id="mdExistingCount" class="md-hint"></span></h4>
             <div id="mdExistingList" class="list" aria-live="polite"></div>
@@ -256,24 +262,25 @@
 
           <div class="md-divider"></div>
 
-          <!-- Section 3: Buttons (desktop only) -->
+          <!-- Section 3: Buttons (desktop only in sidebar) -->
           <section class="md-section" aria-label="Actions">
             <button id="mdSaveBtn" class="btn btn-primary" hidden>Save</button>
           </section>
         </aside>
 
-        <!-- Render area (single file at a time) -->
+        <!-- RENDER AREA -->
         <section class="viewer-card" aria-label="Document preview and tagging">
+          <!-- Render target (one file at a time) -->
           <div id="mdRender"></div>
         </section>
       </div>
     </div>
 
-    <!-- Floating controls -->
+    <!-- Floating controls (mobile + desktop) -->
     <button id="mdPanelToggle" class="md-fab-panel" aria-label="Toggle documents panel" aria-expanded="false">^</button>
     <button id="mdSaveFab" class="md-fab-save" aria-label="Save changes" hidden>💾</button>
 
-    <!-- Save overlay -->
+    <!-- Full-screen save overlay -->
     <div id="mdSaveOverlay" class="md-overlay" hidden aria-live="polite" aria-modal="true" role="dialog">
       <div class="md-overlay-card">
         <div class="md-overlay-title">Saving changes…</div>
@@ -283,7 +290,7 @@
     </div>
   </section>
 
-  <!-- VIEW DOCUMENTS TAB (restored) -->
+  <!-- DOCUMENTS (VIEW) TAB -->
   <section id="tab-docview" class="tabpanel" aria-labelledby="docview">
     <div class="page-wrap">
       <div class="docs-toolbar">
@@ -296,20 +303,10 @@
       </div>
 
       <div class="docview-shell">
-        <!-- Sticky file list -->
         <aside class="list-card" id="docList"></aside>
 
-        <!-- Viewer -->
         <section class="viewer-card">
-          <div class="viewer-section">
-            <h3 id="docviewHeader" style="margin:0;">Documents</h3>
-            <div class="docview-actions muted" id="docviewActions"></div>
-          </div>
-
-          <!-- Full stack render -->
           <div id="pdfStack"></div>
-
-          <!-- Tag hits (filter mode) -->
           <div id="tagHits" class="tag-hits" hidden></div>
         </section>
       </div>
