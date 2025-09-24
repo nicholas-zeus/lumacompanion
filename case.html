@@ -11,7 +11,6 @@
   <!-- Page-level wrapper for consistent max width across all tabs -->
   <style>
     .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
-<<<<<<< HEAD
     /* viewer cards used by the new Document View tab */
     .docview-shell { display: grid; grid-template-columns: 280px 1fr; gap: 12px; }
     @media (max-width: 900px){ .docview-shell { grid-template-columns: 1fr; } }
@@ -30,13 +29,6 @@
     .tag-hits { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
     .tag-hit { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 8px; }
     .tag-hit .hit-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted); }
-=======
-
-    /* Inline helpers used only for this file’s scaffolding (kept minimal) */
-    .md-section h4{ margin:8px 0; }
-    .md-hint{ color: var(--muted); font-size: 12px; }
-    .md-divider{ height: 1px; background: var(--line); margin: 10px 0; }
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
   </style>
 </head>
 <body>
@@ -247,29 +239,6 @@
     </div>
   </section>
 
-<<<<<<< HEAD
-  <!-- DOCUMENTS (UPLOAD) TAB -->
-  <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
-    <div class="page-wrap">
-      <div class="docs-toolbar">
-        <div class="left">
-          <input id="fileInput" type="file" />
-          <small class="hint">Any file ≤ 50 MB. PDFs will show page thumbnails for tagging before upload.</small>
-          <div id="stagedInfo" class="muted" style="margin-top:6px; display:none;">
-            Selected: <span id="stagedName" class="mono"></span>
-          </div>
-        </div>
-        <div class="right" style="display:flex; gap:8px; align-items:center;">
-          <label class="tag-filter" id="tagFilterWrap" style="display:none;">
-            <span>Filter pages:</span>
-            <select id="tagFilter">
-              <option value="">All</option>
-            </select>
-          </label>
-          <button id="docCancelBtn" class="btn" disabled>Discard</button>
-          <button id="docSaveBtn" class="btn btn-primary" disabled>Save Document</button>
-        </div>
-=======
   <!-- MANAGE DOCUMENTS TAB -->
   <section id="tab-manage" class="tabpanel" aria-labelledby="manage">
     <div class="page-wrap">
@@ -317,21 +286,8 @@
           <!-- Render target (one file at a time) -->
           <div id="mdRender"></div>
         </section>
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
       </div>
 
-<<<<<<< HEAD
-      <div class="uploads">
-        <div class="uploads-list">
-          <h3>Files</h3>
-          <div id="uploadsList" class="list"></div>
-        </div>
-
-        <div class="viewer">
-          <h3>PDF Viewer</h3>
-          <div id="pdfContainer" class="pdf-grid-empty">Select a PDF to preview & tag pages (will upload on Save).</div>
-        </div>
-=======
     <!-- Floating controls (mobile + desktop) -->
     <button id="mdPanelToggle" class="md-fab-panel" aria-label="Toggle documents panel" aria-expanded="false">^</button>
     <button id="mdSaveFab" class="md-fab-save" aria-label="Save changes" hidden>💾</button>
@@ -342,7 +298,6 @@
         <div class="md-overlay-title">Saving changes…</div>
         <div id="mdSaveProgress" class="md-overlay-list"></div>
         <div class="md-overlay-hint md-hint">Please keep this tab open.</div>
->>>>>>> 134dcaade26b493f45a8de619e72cad512d42df5
       </div>
     </div>
   </section>
