@@ -418,19 +418,28 @@ function wireDocviewControls() {
   });
 }
 
-// /js/case.js  (replace the whole function)
 function buildStickySidebar() {
-  // Keep the sticky list on desktop as-is (CSS already does this):contentReference[oaicite:0]{index=0}.
-  // Add one floating 'Go to top' button for all viewports.
-  if (!document.getElementById("goTopBtn")) {
-    const btn = document.createElement("button");
-    btn.id = "goTopBtn";
-    btn.className = "go-top-btn";
-    btn.setAttribute("aria-label", "Go to top");
-    btn.textContent = "↑";
-    btn.addEventListener("click", scrollToTop);
-    document.body.appendChild(btn);
-  }
+  // Keep sticky list for desktop (no change needed to .list-card)
+  // Add a floating 'Go to top' on mobile
+  const ensureBtn = () => {
+    const isMobile = window.matchMedia('(max-width: 860px)').matches;
+    let btn = document.getElementById('goTopBtn');
+    if (isMobile) {
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'goTopBtn';
+        btn.className = 'go-top-btn';
+        btn.setAttribute('aria-label', 'Go to top');
+        btn.textContent = '↑';
+        btn.addEventListener('click', scrollToTop);
+        document.body.appendChild(btn);
+      }
+    } else {
+      btn?.remove();
+    }
+  };
+  ensureBtn();
+  window.addEventListener('resize', ensureBtn, { passive: true });
 }
 
 
@@ -577,7 +586,7 @@ async function renderPdfFileAsCanvases(u) {
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const viewport0 = page.getViewport({ scale: 1 });
-    const maxWidth = Math.min(pagesWrap.clientWidth || 1000, 1400); // guard
+    const maxWidth = Math.min(pagesWrap.clientWidth || 1000, 1000); // guard
     const scale = maxWidth / viewport0.width;
     const viewport = page.getViewport({ scale: scale });
 
