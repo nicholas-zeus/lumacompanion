@@ -11,24 +11,11 @@
   <!-- Page-level wrapper for consistent max width across all tabs -->
   <style>
     .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
-    /* viewer cards used by the new Document View tab */
-    .docview-shell { display: grid; grid-template-columns: 280px 1fr; gap: 12px; }
-    @media (max-width: 900px){ .docview-shell { grid-template-columns: 1fr; } }
 
-    .doc-list-item {
-      padding: 8px; border: 1px solid var(--line); border-radius: 10px; background:#fff;
-      display: grid; gap: 4px; margin-bottom: 8px; cursor: pointer;
-    }
-    .doc-list-item:hover { background: #f9fafb; }
-    .doc-file { font-weight: 700; word-break: break-word; }
-    .doc-sub { font-size: 12px; color: var(--muted); }
-    .doc-actions a { font-size: 12px; }
-    .viewer-section { display:flex; justify-content:space-between; align-items:center; margin: 4px 0 10px; }
-    .viewer-section h3 { margin: 0; }
-    .pdf-frame { width: 100%; height: 680px; border: 1px solid var(--line); border-radius: 8px; }
-    .tag-hits { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-    .tag-hit { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 8px; }
-    .tag-hit .hit-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted); }
+    /* Inline helpers used only for this file’s scaffolding (kept minimal) */
+    .md-section h4{ margin:8px 0; }
+    .md-hint{ color: var(--muted); font-size: 12px; }
+    .md-divider{ height: 1px; background: var(--line); margin: 10px 0; }
   </style>
 </head>
 <body>
@@ -66,7 +53,7 @@
   <nav class="tabs">
     <div class="page-wrap" style="display:flex;gap:8px;">
       <button class="tab is-active" data-tab="details">Details</button>
-      <button class="tab" data-tab="documents">Upload Documents</button>
+      <button class="tab" data-tab="manage">Manage Documents</button>
       <button class="tab" data-tab="docview">View Documents</button>
       <button class="tab" data-tab="comments">Comments</button>
     </div>
@@ -239,39 +226,66 @@
     </div>
   </section>
 
-  <!-- DOCUMENTS (UPLOAD) TAB -->
-  <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
+  <!-- MANAGE DOCUMENTS TAB -->
+  <section id="tab-manage" class="tabpanel" aria-labelledby="manage">
     <div class="page-wrap">
-      <div class="docs-toolbar">
-        <div class="left">
-          <input id="fileInput" type="file" />
-          <small class="hint">Any file ≤ 50 MB. PDFs will show page thumbnails for tagging before upload.</small>
-          <div id="stagedInfo" class="muted" style="margin-top:6px; display:none;">
-            Selected: <span id="stagedName" class="mono"></span>
-          </div>
-        </div>
-        <div class="right" style="display:flex; gap:8px; align-items:center;">
-          <label class="tag-filter" id="tagFilterWrap" style="display:none;">
-            <span>Filter pages:</span>
-            <select id="tagFilter">
-              <option value="">All</option>
-            </select>
-          </label>
-          <button id="docCancelBtn" class="btn" disabled>Discard</button>
-          <button id="docSaveBtn" class="btn btn-primary" disabled>Save Document</button>
-        </div>
+      <!-- Dual column shell: sticky sidebar + render area -->
+      <div class="docview-shell">
+        <!-- SIDEBAR -->
+        <aside class="list-card" id="mdSidebar" aria-label="Manage documents sidebar">
+          <!-- Section 1: Upload / Staged -->
+          <section class="md-section" aria-labelledby="mdUploadHdr">
+            <h4 id="mdUploadHdr">Upload / Staged</h4>
+            <div id="mdDropzone" class="upload-row" style="justify-content:space-between; cursor:pointer;">
+              <div>
+                <strong>Drop files here</strong>
+                <div class="md-hint">or click to choose (≤ 50 MB each)</div>
+              </div>
+              <input id="mdFileInput" type="file" multiple style="display:none;" />
+              <button id="mdPickBtn" class="btn">Choose</button>
+            </div>
+            <div class="md-hint" style="margin-top:6px;">Previewable types: PDF, JPG, PNG</div>
+            <div class="md-divider"></div>
+            <div class="uploads-list">
+              <h4 style="margin-bottom:6px;">Staged files</h4>
+              <div id="mdStagedList" class="list" aria-live="polite"></div>
+            </div>
+          </section>
+
+          <div class="md-divider"></div>
+
+          <!-- Section 2: Existing Documents -->
+          <section class="md-section" aria-labelledby="mdExistingHdr">
+            <h4 id="mdExistingHdr">Existing documents <span id="mdExistingCount" class="md-hint"></span></h4>
+            <div id="mdExistingList" class="list" aria-live="polite"></div>
+          </section>
+
+          <div class="md-divider"></div>
+
+          <!-- Section 3: Buttons (desktop only in sidebar) -->
+          <section class="md-section" aria-label="Actions">
+            <button id="mdSaveBtn" class="btn btn-primary" hidden>Save</button>
+          </section>
+        </aside>
+
+        <!-- RENDER AREA -->
+        <section class="viewer-card" aria-label="Document preview and tagging">
+          <!-- Render target (one file at a time) -->
+          <div id="mdRender"></div>
+        </section>
       </div>
+    </div>
 
-      <div class="uploads">
-        <div class="uploads-list">
-          <h3>Files</h3>
-          <div id="uploadsList" class="list"></div>
-        </div>
+    <!-- Floating controls (mobile + desktop) -->
+    <button id="mdPanelToggle" class="md-fab-panel" aria-label="Toggle documents panel" aria-expanded="false">^</button>
+    <button id="mdSaveFab" class="md-fab-save" aria-label="Save changes" hidden>💾</button>
 
-        <div class="viewer">
-          <h3>PDF Viewer</h3>
-          <div id="pdfContainer" class="pdf-grid-empty">Select a PDF to preview & tag pages (will upload on Save).</div>
-        </div>
+    <!-- Full-screen save overlay -->
+    <div id="mdSaveOverlay" class="md-overlay" hidden aria-live="polite" aria-modal="true" role="dialog">
+      <div class="md-overlay-card">
+        <div class="md-overlay-title">Saving changes…</div>
+        <div id="mdSaveProgress" class="md-overlay-list"></div>
+        <div class="md-overlay-hint md-hint">Please keep this tab open.</div>
       </div>
     </div>
   </section>
@@ -280,13 +294,11 @@
   <section id="tab-docview" class="tabpanel" aria-labelledby="docview">
     <div class="page-wrap">
       <div class="docs-toolbar">
-
         <div class="tag-filter" style="display:flex;align-items:center;gap:8px;">
           <label for="tagFilterSelect">Page tag</label>
           <select id="tagFilterSelect">
             <option value="">All tags</option>
           </select>
-          
         </div>
       </div>
 

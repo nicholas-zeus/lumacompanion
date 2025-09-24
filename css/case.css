@@ -185,3 +185,115 @@
 }
 /* /css/case.css  (append near the end) */
 
+/* ===== Manage Documents (new) ===== */
+
+/* Section headings + divider */
+.md-section h4{ margin:6px 0; }
+.md-hint{ color: var(--muted); font-size: 12px; }
+.md-divider{ height:1px; background: var(--line); margin:10px 0; }
+
+/* Drop zone */
+#mdDropzone{
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+  transition: background .15s ease, border-color .15s ease;
+}
+#mdDropzone.highlight{
+  background: #f0f9ff;
+  border-color: #93c5fd;
+}
+
+/* Staged/existing list items share existing tokens */
+#mdStagedList .upload-row{ justify-content: space-between; }
+#mdExistingList .doc-list-item .doc-actions a{ font-size: 12px; }
+
+/* Floating controls (panel toggle + Save) — visible on all viewports */
+.md-fab-panel,
+.md-fab-save{
+  position: fixed;
+  right: 16px;
+  z-index: 70;
+  width: 48px; height: 48px;
+  border-radius: 999px;
+  display: grid; place-items: center;
+  box-shadow: var(--shadow);
+  border: 0; cursor: pointer;
+}
+.md-fab-panel{
+  bottom: 88px;
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-size: 20px;
+}
+.md-fab-save{
+  bottom: 32px;
+  background: linear-gradient(135deg, var(--brand), var(--accent));
+  color: var(--brand-ink);
+  font-size: 20px;
+}
+
+/* Slide-in sidebar on small screens */
+@media (max-width: 860px){
+  /* Start hidden off-canvas to the right */
+  #mdSidebar{
+    position: fixed;
+    top: 56px;               /* below app header */
+    right: -320px;           /* hidden by default */
+    width: 280px;
+    max-height: calc(100vh - 72px);
+    overflow: auto;
+    transition: right .2s ease;
+  }
+  /* When panel is open (toggled via body class) */
+  body.md-panel-open #mdSidebar{
+    right: 16px;             /* slide in with small inset */
+  }
+}
+
+/* Full-screen overlay for Save operation */
+.md-overlay{
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.45); /* slate-900/45 */
+  z-index: 80;
+  display: grid; place-items: center;
+}
+.md-overlay-card{
+  width: min(520px, 90vw);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+.md-overlay-title{
+  font-weight: 800; color: var(--brand);
+  margin-bottom: 8px;
+}
+.md-overlay-list{
+  max-height: 40vh; overflow: auto;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px; margin: 8px 0;
+  background: #fafafa;
+}
+.md-overlay-hint{ color: var(--muted); }
+
+/* Ensure the main viewer grows naturally (no trapped scroll) */
+.viewer-card{
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* Image quality: avoid blurry upscaling in page cards */
+.page-card img{
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: optimizeQuality;
+}
