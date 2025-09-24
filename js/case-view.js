@@ -10,6 +10,17 @@ const pdfStack       = document.getElementById("pdfStack");
 const tagHitsWrap    = document.getElementById("tagHits");
 const tagFilterSelect= document.getElementById("tagFilterSelect");
 const tagFilterClear = document.getElementById("tagFilterClear");
+function buildStickySidebar() {
+  if (!document.getElementById("goTopBtn")) {
+    const btn = document.createElement("button");
+    btn.id = "goTopBtn";
+    btn.className = "go-top-btn";
+    btn.setAttribute("aria-label", "Go to top");
+    btn.textContent = "↑";
+    btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+    document.body.appendChild(btn);
+  }
+}
 
 function wireDocviewControls() {
   tagFilterSelect?.addEventListener("change", () => applyDocTagFilter(tagFilterSelect.value));
@@ -124,6 +135,7 @@ export async function ensureDocviewLoaded() {
     await loadPdfJsIfNeeded();
     await loadDocviewData();
     wireDocviewControls();
+    buildStickySidebar();   // <--- re-add
     await renderCanvasStack();
     state.docviewLoaded = true;
   } else {
@@ -131,6 +143,7 @@ export async function ensureDocviewLoaded() {
     await renderCanvasStack();
   }
 }
+
 
 async function renderCanvasStack() {
   if (!pdfStack || !tagHitsWrap) return;
