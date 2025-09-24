@@ -173,7 +173,7 @@
   border-radius: 50%;
   background: var(--brand);
   color: var(--brand-ink);
-  display: none;             /* hidden by default */
+  display: grid;             /* hidden by default */
   place-items: center;
   box-shadow: var(--shadow);
   font-size: 20px;
@@ -183,3 +183,5 @@
 @media (max-width: 860px){
   .go-top-btn{ display: grid; }   /* show only on mobile */
 }
+/* /css/case.css  (append near the end) */
+
