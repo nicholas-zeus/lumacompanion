@@ -185,3 +185,70 @@
 }
 /* /css/case.css  (append near the end) */
 
+/* Manage Documents */
+.upload-drop {
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.upload-drop.dragging { background: #f0f9ff; }
+
+.file-list { display: grid; gap: 6px; }
+.file-row { display: flex; justify-content: space-between; align-items: center; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background:#fff; }
+.file-row .file-name { cursor: pointer; flex: 1; }
+.file-row .trash { background:none; border:none; cursor:pointer; }
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.thumb-card { border:1px solid var(--line); border-radius:8px; padding:8px; background:#fff; }
+.thumb-card img, .thumb-card canvas { width:100%; height:auto; display:block; }
+
+.saving-overlay {
+  position: fixed; top:0; left:0; right:0; bottom:0;
+  background: rgba(255,255,255,0.8);
+  display:flex; align-items:center; justify-content:center;
+  z-index:1000;
+}
+.saving-overlay.hidden { display:none; }
+.saving-content { text-align:center; }
+.spinner {
+  width:32px; height:32px; border:4px solid #ccc; border-top-color: var(--brand);
+  border-radius:50%; animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Mobile floating buttons */
+.fab-toggle, .fab-save {
+  position: fixed; right: 16px; bottom: 16px;
+  width: 48px; height: 48px; border-radius: 50%;
+  box-shadow: var(--shadow);
+  border: none; cursor: pointer;
+  font-size: 20px;
+}
+.fab-save { bottom: 72px; background: var(--brand); color: var(--brand-ink); }
+.fab-toggle { background: var(--accent); color: var(--accent-ink); }
+
+/* Sidebar mobile */
+#manageSidebar { transition: transform 0.3s ease; }
+#manageSidebar.open { transform: translateY(0); }
+@media (max-width: 860px) {
+  #manageSidebar {
+    position: fixed; bottom:0; left:0; right:0;
+    background:#fff; border-top:1px solid var(--line);
+    max-height:60%; overflow:auto;
+    transform: translateY(100%);
+    z-index:999;
+  }
+  body.dimmed::before {
+    content:""; position:fixed; top:0; left:0; right:0; bottom:0;
+    background:rgba(0,0,0,0.3); z-index:998;
+  }
+  #saveSection { display:none; }
+  .preview-grid { grid-template-columns: 1fr; }
+}

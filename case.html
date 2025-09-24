@@ -241,40 +241,51 @@
 
   <!-- DOCUMENTS (UPLOAD) TAB -->
   <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
-    <div class="page-wrap">
-      <div class="docs-toolbar">
-        <div class="left">
-          <input id="fileInput" type="file" />
-          <small class="hint">Any file ≤ 50 MB. PDFs will show page thumbnails for tagging before upload.</small>
-          <div id="stagedInfo" class="muted" style="margin-top:6px; display:none;">
-            Selected: <span id="stagedName" class="mono"></span>
+  <div class="page-wrap">
+    <div class="docview-shell">
+      <!-- Left sticky bar -->
+      <aside class="list-card" id="manageSidebar">
+        <!-- Upload Section -->
+        <div class="sidebar-section">
+          <h3>Upload</h3>
+          <div id="uploadDrop" class="upload-drop">
+            <p>Click or drag files here</p>
+            <input id="fileInput" type="file" multiple hidden />
           </div>
-        </div>
-        <div class="right" style="display:flex; gap:8px; align-items:center;">
-          <label class="tag-filter" id="tagFilterWrap" style="display:none;">
-            <span>Filter pages:</span>
-            <select id="tagFilter">
-              <option value="">All</option>
-            </select>
-          </label>
-          <button id="docCancelBtn" class="btn" disabled>Discard</button>
-          <button id="docSaveBtn" class="btn btn-primary" disabled>Save Document</button>
-        </div>
-      </div>
-
-      <div class="uploads">
-        <div class="uploads-list">
-          <h3>Files</h3>
-          <div id="uploadsList" class="list"></div>
+          <div id="stagedList" class="file-list"></div>
         </div>
 
-        <div class="viewer">
-          <h3>PDF Viewer</h3>
-          <div id="pdfContainer" class="pdf-grid-empty">Select a PDF to preview & tag pages (will upload on Save).</div>
+        <!-- List Section -->
+        <div class="sidebar-section">
+          <h3>Existing</h3>
+          <div id="uploadedList" class="file-list"></div>
         </div>
-      </div>
+
+        <!-- Save Section (desktop only) -->
+        <div class="sidebar-section" id="saveSection" hidden>
+          <button id="saveBtn" class="btn btn-primary">💾 Save</button>
+        </div>
+      </aside>
+
+      <!-- Right viewer -->
+      <section class="viewer-card">
+        <div id="previewArea" class="preview-grid"></div>
+      </section>
     </div>
-  </section>
+  </div>
+
+  <!-- Overlay during save -->
+  <div id="savingOverlay" class="saving-overlay hidden">
+    <div class="saving-content">
+      <div class="spinner"></div>
+      <p>Saving…</p>
+    </div>
+  </div>
+
+  <!-- Floating buttons (mobile only) -->
+  <button id="toggleSidebarBtn" class="fab fab-toggle">^</button>
+  <button id="mobileSaveBtn" class="fab fab-save" hidden>💾</button>
+</section>
 
   <!-- DOCUMENTS (VIEW) TAB -->
   <section id="tab-docview" class="tabpanel" aria-labelledby="docview">
@@ -325,7 +336,7 @@
   <!-- Scripts -->
   <script type="module" src="/js/case-shared.js"></script>
 <script type="module" src="/js/case-details.js"></script>
-<script type="module" src="/js/case-upload.js"></script>
+<script type="module" src="/js/case-manage.js"></script>
 <script type="module" src="/js/case-view.js"></script>
 <script type="module" src="/js/case-comments.js"></script>
 
