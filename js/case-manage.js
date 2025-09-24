@@ -15,6 +15,12 @@ const toggleSidebarBtn = document.getElementById("toggleSidebarBtn");
 const mobileSaveBtn    = document.getElementById("mobileSaveBtn");
 const sidebar          = document.getElementById("manageSidebar");
 
+// Modal confirm
+const confirmOverlay   = document.getElementById("confirmOverlay");
+const confirmMessage   = document.getElementById("confirmMessage");
+const confirmYes       = document.getElementById("confirmYes");
+const confirmNo        = document.getElementById("confirmNo");
+
 // --- State ---
 let stagedFiles = [];       // [{ file, key }]
 let uploadedFiles = [];     // [{ id, fileName, driveFileId, mimeType }]
@@ -36,15 +42,42 @@ function markDirty(flag = true) {
     mobileSaveBtn.hidden = true;
   }
 }
-function confirmDelete(name) {
-  return confirm(`Delete ${name}? This cannot be undone.`);
-}
 function clearPreview() {
   previewArea.innerHTML = "";
   state.pageIndex?.clear?.();
 }
+function extFromName(name = "") {
+  const n = name.toLowerCase();
+  const i = n.lastIndexOf(".");
+  return i >= 0 ? n.slice(i + 1) : "";
+}
+function isPdfMeta(meta) {
+  const mt = (meta?.mimeType || meta?.fileType || "").toLowerCase();
+  const ex = extFromName(meta?.fileName);
+  return mt.includes("application/pdf") || ex === "pdf";
+}
+function isImageMeta(meta) {
+  const mt = (meta?.mimeType || meta?.fileType || "").toLowerCase();
+  const ex = extFromName(meta?.fileName);
+  return mt.startsWith("image/") || ["jpg","jpeg","png","gif","webp"].includes(ex);
+}
+function confirmUI(msg) {
+  return new Promise((resolve) => {
+    confirmMessage.textContent = msg;
+    confirmOverlay.classList.remove("hidden");
+    const close = (val) => { confirmOverlay.classList.add("hidden"); resolve(val); };
+    const onYes = () => close(true);
+    const onNo  = () => close(false);
+    confirmYes.onclick = onYes;
+    confirmNo.onclick  = onNo;
+    confirmOverlay.onclick = (e) => { if (e.target === confirmOverlay) onNo(); };
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { document.removeEventListener("keydown", esc); onNo(); }
+    }, { once: true });
+  });
+}
 
-// --- PDF.js loader (same strategy as View tab) ---
+// --- PDF.js loader (same approach as View tab) ---
 async function loadPdfJsIfNeeded() {
   if (window.pdfjsLib?.getDocument) return;
   await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js");
@@ -95,9 +128,9 @@ function renderStagedList() {
     div.querySelector(".file-name").addEventListener("click", () => {
       renderPreview(sf.file, sf.key);
     });
-    div.querySelector(".trash").addEventListener("click", () => {
-      if (confirmDelete(sf.file.name)) {
-        // purge staged tags for this file
+    div.querySelector(".trash").addEventListener("click", async () => {
+      const ok = await confirmUI(`Remove ${sf.file.name} from staging?`);
+      if (ok) {
         for (const k of [...pageTags.keys()]) {
           if (k.startsWith(`${sf.key}:`)) pageTags.delete(k);
         }
@@ -122,7 +155,8 @@ function renderUploadedList() {
       renderPreview(uf, uf.id);
     });
     div.querySelector(".trash").addEventListener("click", async () => {
-      if (confirmDelete(uf.fileName)) {
+      const ok = await confirmUI(`Delete ${uf.fileName}? This cannot be undone.`);
+      if (ok) {
         await hardDeleteFile(uf.id);
         for (const k of [...pageTags.keys()]) {
           if (k.startsWith(`${uf.id}:`)) pageTags.delete(k);
@@ -141,20 +175,21 @@ async function renderPreview(fileOrMeta, fileKey) {
   clearPreview();
 
   if (fileOrMeta instanceof File) {
-    if (fileOrMeta.type.includes("pdf")) {
+    const type = (fileOrMeta.type || "").toLowerCase();
+    if (type.includes("pdf")) {
       await renderPdf(fileOrMeta, fileKey);
-    } else if (fileOrMeta.type.startsWith("image/")) {
+    } else if (type.startsWith("image/")) {
       renderImage(URL.createObjectURL(fileOrMeta), fileKey);
     } else {
       previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
     }
   } else {
     // uploaded meta
-    const url = streamFileUrl(fileOrMeta.driveFileId);
-    const mime = (fileOrMeta.mimeType || "").toLowerCase();
-    if (mime.includes("pdf")) {
+    if (isPdfMeta(fileOrMeta)) {
+      const url = streamFileUrl(fileOrMeta.driveFileId);
       await renderPdf(url, fileKey);
-    } else if (mime.startsWith("image/")) {
+    } else if (isImageMeta(fileOrMeta)) {
+      const url = streamFileUrl(fileOrMeta.driveFileId);
       renderImage(url, fileKey);
     } else {
       previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
@@ -288,5 +323,5 @@ window.addEventListener("resize", () => markDirty(dirty));
 document.addEventListener("caseLoaded", () => {
   refreshUploadedList();
   renderStagedList();
-  markDirty(false); // ensure both save controls start hidden
+  markDirty(false); // both save controls start hidden
 });

@@ -240,52 +240,65 @@
   </section>
 
   <!-- MANAGE DOCUMENTS TAB -->
-  <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
-    <div class="page-wrap">
-      <div class="docview-shell">
-        <!-- Left sticky bar -->
-        <aside class="list-card" id="manageSidebar">
-          <!-- Upload Section -->
-          <div class="sidebar-section">
-            <h3>Upload</h3>
-            <div id="uploadDrop" class="upload-drop">
-              <p>Click or drag files here</p>
-              <input id="fileInput" type="file" multiple hidden />
-            </div>
-            <div id="stagedList" class="file-list"></div>
+  <!-- MANAGE DOCUMENTS TAB -->
+<section id="tab-documents" class="tabpanel" aria-labelledby="documents">
+  <div class="page-wrap">
+    <div class="docview-shell">
+      <!-- Left sticky/drawer bar -->
+      <aside class="list-card" id="manageSidebar">
+        <!-- Upload Section -->
+        <div class="sidebar-section">
+          <h3>Upload</h3>
+          <div id="uploadDrop" class="upload-drop">
+            <p>Click or drag files here</p>
+            <input id="fileInput" type="file" multiple hidden />
           </div>
+          <div id="stagedList" class="file-list"></div>
+        </div>
 
-          <!-- List Section -->
-          <div class="sidebar-section">
-            <h3>Existing</h3>
-            <div id="uploadedList" class="file-list"></div>
-          </div>
+        <!-- List Section -->
+        <div class="sidebar-section">
+          <h3>Existing</h3>
+          <div id="uploadedList" class="file-list"></div>
+        </div>
 
-          <!-- Save Section (desktop only) -->
-          <div class="sidebar-section" id="saveSection" hidden>
-            <button id="saveBtn" class="btn btn-primary">💾 Save</button>
-          </div>
-        </aside>
+        <!-- Save Section (desktop only) -->
+        <div class="sidebar-section" id="saveSection" hidden>
+          <button id="saveBtn" class="btn btn-primary">💾 Save</button>
+        </div>
+      </aside>
 
-        <!-- Right viewer -->
-        <section class="viewer-card">
-          <div id="previewArea" class="preview-grid"></div>
-        </section>
+      <!-- Right viewer -->
+      <section class="viewer-card">
+        <div id="previewArea" class="preview-grid"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Overlay during save -->
+  <div id="savingOverlay" class="saving-overlay hidden">
+    <div class="saving-content">
+      <div class="spinner"></div>
+      <p>Saving…</p>
+    </div>
+  </div>
+
+  <!-- Modal confirm -->
+  <div id="confirmOverlay" class="modal hidden">
+    <div class="modal-card">
+      <p id="confirmMessage"></p>
+      <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+        <button id="confirmNo" class="btn">Cancel</button>
+        <button id="confirmYes" class="btn btn-primary">Delete</button>
       </div>
     </div>
+  </div>
 
-    <!-- Overlay during save -->
-    <div id="savingOverlay" class="saving-overlay hidden">
-      <div class="saving-content">
-        <div class="spinner"></div>
-        <p>Saving…</p>
-      </div>
-    </div>
+  <!-- Floating buttons (mobile only) -->
+  <button id="toggleSidebarBtn" class="fab fab-toggle">^</button>
+  <button id="mobileSaveBtn" class="fab fab-save" hidden>💾</button>
+</section>
 
-    <!-- Floating buttons (mobile only) -->
-    <button id="toggleSidebarBtn" class="fab fab-toggle">^</button>
-    <button id="mobileSaveBtn" class="fab fab-save" hidden>💾</button>
-  </section>
 
   <!-- DOCUMENTS (VIEW) TAB -->
   <section id="tab-docview" class="tabpanel" aria-labelledby="docview">
@@ -345,6 +358,65 @@
     /* Floating buttons visible only on mobile */
     @media (max-width: 860px) { .fab-toggle, .fab-save { display: inline-grid; } }
     @media (min-width: 861px) { .fab-toggle, .fab-save { display: none !important; } }
+
+
+    
+  /* Manage Documents: desktop vs mobile */
+  @media (min-width: 861px){
+    /* Desktop: visible sidebar, classic sticky like other list-card */
+    #manageSidebar{
+      position: sticky;
+      top: 12px;
+      align-self: start;
+      max-height: calc(100vh - 24px);
+      overflow: auto;
+      transform: none;
+    }
+    .fab-toggle, .fab-save{ display: none !important; }
+  }
+  @media (max-width: 860px){
+    /* Mobile: sidebar is a bottom drawer, hidden until toggled */
+    #manageSidebar{
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      background: #fff;
+      border-top: 1px solid var(--line);
+      max-height: 60%;
+      overflow: auto;
+      transform: translateY(100%);
+      transition: transform .25s ease;
+      z-index: 999;
+    }
+    #manageSidebar.open{ transform: translateY(0); }
+    body.dimmed::before{
+      content: "";
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 998;
+    }
+    .fab-toggle, .fab-save{ display: inline-grid; }
+  }
+
+  /* Modal confirm */
+  .modal{
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 1001;
+  }
+  .modal.hidden{ display: none; }
+  .modal:not(.hidden){ display: flex; }
+  .modal-card{
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+    width: 90%; max-width: 360px;
+  }
+
+
   </style>
 </body>
 </html>
