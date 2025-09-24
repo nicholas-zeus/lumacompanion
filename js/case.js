@@ -6,16 +6,14 @@ import {
   listComments, addComment,
   getCommentMQ, upsertCommentMQ,
   listUploads, streamFileUrl,
-  getTagOptions, getPageTagsForUpload, setPageTag,
-  statusLabel,
-  uploadFile,
-  softDeleteUpload
+  getTagOptions, statusLabel,
+  setPageTag, uploadFile
 } from "/js/api.js";
 import { computeAge, requireFields, toDate } from "/js/utils.js";
+import { renderLocalPdfWithTags } from "/js/tagging.js"; // used on Upload tab only
 
 import {
-  collection, doc, addDoc, serverTimestamp,
-  query, where, limit, getDocs
+  collection, query, where, orderBy, limit, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ---------------- Boot ---------------- */
@@ -30,7 +28,7 @@ const bannerArea    = document.getElementById("bannerArea");
 const tabsNav = document.querySelector(".tabs");
 const tabs = {
   details:   document.getElementById("tab-details"),
-  manage:    document.getElementById("tab-manage"),      // NEW tab (isolated)
+  documents: document.getElementById("tab-documents"),
   docview:   document.getElementById("tab-docview"),
   comments:  document.getElementById("tab-comments"),
 };
@@ -60,6 +58,33 @@ const fName=f("fName"), fMemberID=f("fMemberID"), fNationality=f("fNationality")
       fSummary=f("fSummary"), fTreatment=f("fTreatment"), fReasonAdm=f("fReasonAdm"),
       fReasonConsult=f("fReasonConsult"), fOtherRemark=f("fOtherRemark");
 
+/* Upload tab */
+const fileInput      = document.getElementById("fileInput");
+const uploadsList    = document.getElementById("uploadsList");
+const pdfContainer   = document.getElementById("pdfContainer");
+const tagFilterSel   = document.getElementById("tagFilter");
+const tagFilterWrap  = document.getElementById("tagFilterWrap");
+const docSaveBtn     = document.getElementById("docSaveBtn");
+const docCancelBtn   = document.getElementById("docCancelBtn");
+const stagedInfo     = document.getElementById("stagedInfo");
+const stagedName     = document.getElementById("stagedName");
+
+/* View tab */
+const docList        = document.getElementById("docList");
+const docCount       = document.getElementById("docCount");
+const pdfStack       = document.getElementById("pdfStack");  // now a canvas-based stack
+const tagHitsWrap    = document.getElementById("tagHits");
+const tagFilterSelect= document.getElementById("tagFilterSelect");
+const tagFilterClear = document.getElementById("tagFilterClear");
+
+/* Comments */
+const commentsList   = document.getElementById("commentsList");
+const commentForm    = document.getElementById("commentForm");
+const commentBody    = document.getElementById("commentBody");
+const commentMQ      = document.getElementById("commentMQ");
+const saveCommentBtn = document.getElementById("saveCommentBtn");
+const confirmBtn     = document.getElementById("confirmBtn");
+
 /* ---------- State ---------- */
 const state = {
   caseId: null,
@@ -69,50 +94,27 @@ const state = {
   role: null,
   user: null,
 
-  // View Documents (legacy tab) bookkeeping remains unchanged
+  // Upload staging
+  stagedFile: null,
+  stagedIsPdf: false,
+
+  // View Documents
   docviewLoaded: false,
+  uploadsIndex: [],        // [{ id, fileName, mimeType, driveFileId, uploadedBy, uploadedAt, batchNo }]
+  uploadsById: new Map(),
+  allTags: new Set(),      // set of tag values for dropdown
+  tagHits: [],             // [{ uploadId, pageNumber, tag }]
 
-  /* ===== Manage Documents (ISOLATED) ===== */
-  manage: {
-    inited: false,
-    // DOM (scoped to #tab-manage only)
-    root: null,
-    sidebar: null,
-    dropzone: null,
-    fileInput: null,
-    stagedList: null,
-    existingList: null,
-    renderArea: null,
-    saveBtn: null,
-    saveFab: null,
-    toggleFab: null,
-    overlay: null,
-    toast: null,
-    recoveredNote: null,
-
-    // Data
-    tagOptions: [],
-    uploads: [],                 // existing uploads from Firestore (non-deleted)
-    uploadsById: new Map(),
-    // staged: tempId -> { file, kind: 'local', tags: Map(pageNo->tag), type: 'pdf'|'image'|'other', pages?: number }
-    staged: new Map(),
-    // edits for existing: uploadId -> Map(pageNo->tagOrNull)
-    edits: new Map(),
-    current: null,               // { kind: 'staged'|'existing', key: tempId|uploadId }
-    dirty: false,
-
-    // session recovery key
-    sessionKey: null,
-  },
+  // Render bookkeeping
+  pageIndex: new Map(),    // map key `${uploadId}:${pageNo}` -> element
 };
 
 /* ---------- Utils ---------- */
 function getHashId() { const h = (location.hash || "").slice(1); return h || "new"; }
 function setActiveTab(name) {
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("is-active", b.dataset.tab === name));
-  Object.entries(tabs).forEach(([k, el]) => el && el.classList.toggle("is-active", k === name));
-  // Lazy init Manage tab
-  if (name === "manage") initManageTab().catch(console.error);
+  Object.entries(tabs).forEach(([k, el]) => el.classList.toggle("is-active", k === name));
+  if (name === "docview") ensureDocviewLoaded().catch(console.error);
 }
 function setHeaderUser(user, role) {
   if (!user) return;
@@ -122,7 +124,6 @@ function setHeaderUser(user, role) {
   avatar.hidden = false;
   avatar.alt = user.displayName || user.email || "User";
 }
-
 function toInputDate(d) {
   const dt = toDate(d); if (!dt) return "";
   return new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -132,13 +133,15 @@ function toInputDateTimeLocal(d) {
   return new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16);
 }
 function updateAgeFields() {
-  const res = computeAge(fDOB.value, fVisitDate.value);
-  fAgeYears.value = res?.years ?? "";
-  fAgeMonths.value = res?.months ?? "";
+  const years = computeAge(fDOB.value, fVisitDate.value, "years");
+  const months = computeAge(fDOB.value, fVisitDate.value, "months");
+  fAgeYears.value = (years ?? "");
+  fAgeMonths.value = (months ?? "");
 }
 function lockUIFinished(isFinished) {
   finishedLock.classList.toggle("hidden", !isFinished);
   detailsForm.querySelectorAll(".input").forEach(i => i.disabled = isFinished || (!state.isNew && !state.isEditing));
+  if (fileInput) fileInput.disabled = isFinished;
   finishBtn.hidden = isFinished || !(state.role === "nurse" || state.role === "admin");
   undoBtn.hidden   = !isFinished || !(state.role === "nurse" || state.role === "admin");
 }
@@ -151,7 +154,7 @@ async function loadCase() {
 
   if (state.isNew) {
     newCaseActions.classList.remove("hidden");
-    setActiveTab("manage"); // new cases go straight to Manage Documents
+    setActiveTab("documents");
     return;
   }
 
@@ -165,10 +168,8 @@ async function loadCase() {
   // Fill details UI
   const d = doc.details || {};
   fName.value = d.Name || ""; fMemberID.value = d.MemberID || ""; fNationality.value = d.Nationality || "";
-  fDOB.value = toInputDate(d.DOB);
-  const age = computeAge(d.DOB, d.VisitDate);
-  fAgeYears.value = age?.years ?? "";
-  fAgeMonths.value = age?.months ?? "";
+  fDOB.value = toInputDate(d.DOB); fAgeYears.value = computeAge(d.DOB, d.VisitDate, "years") ?? "";
+  fAgeMonths.value = computeAge(d.DOB, d.VisitDate, "months") ?? "";
   fPolicyEff.value = toInputDate(d.PolicyEffectiveDate);
   fUWType.value = d.UnderwritingType || ""; fAdmissionType.value = d.TypeOfAdmission || "";
   fConsultType.value = d.TypeOfConsultation || ""; fVisitDate.value = toInputDate(d.VisitDate);
@@ -183,18 +184,109 @@ async function loadCase() {
   fUrgent.checked = !!doc.urgent;
   fDeadline.value = toInputDateTimeLocal(doc.deadlineAt);
 
+  // lock / actions
   lockUIFinished(doc.status === "finished");
   downloadPdfBtn.hidden = false;
 
-  // Manage tab preload (existing uploads list)
-  if (tabs.manage) {
-    // do not fully init here; just prefetch uploads for quick first paint later
-    try {
-      const items = await listUploads(state.caseId);
-      state.manage.uploads = items.filter(r => !r.deletedAt);
-      state.manage.uploadsById = new Map(state.manage.uploads.map(u => [u.id, u]));
-    } catch(e) { /* ignore */ }
+  // initial uploads list
+  await refreshUploadsList();
+}
+
+/* ---------- Uploads tab (existing flow; unchanged except staging helpers) ---------- */
+function resetStaging() {
+  state.stagedFile = null; state.stagedIsPdf = false;
+  pdfContainer.className = "pdf-grid-empty";
+  pdfContainer.innerHTML = "Select a PDF to preview & tag pages (will upload on Save).";
+  docSaveBtn.disabled = true; docCancelBtn.disabled = true;
+  stagedInfo.style.display = "none"; stagedName.textContent = "";
+}
+async function onFileChosen(file) {
+  resetStaging();
+  if (!file) return;
+
+  state.stagedFile = file;
+  stagedInfo.style.display = "";
+  stagedName.textContent = file.name;
+
+  // Preview via canvas (Upload tab continues to use tagging.js renderer)
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+    state.stagedIsPdf = true;
+    pdfContainer.className = "pdf-grid";
+    pdfContainer.innerHTML = "";
+    await renderLocalPdfWithTags(pdfContainer, file, {
+      caseId: state.caseId,
+      onTagChange: () => applyTagFilterUpload()
+    });
+    const tags = await getTagOptions();
+    tagFilterSel.innerHTML = `<option value="">All</option>` + tags.map(t => `<option>${t}</option>`).join("");
+    tagFilterWrap.style.display = "";
+    applyTagFilterUpload();
+  } else {
+    pdfContainer.className = "pdf-grid-empty";
+    pdfContainer.innerHTML = "This file type does not support page tagging. Click Save to upload.";
   }
+
+  docSaveBtn.disabled = false; docCancelBtn.disabled = false;
+}
+function applyTagFilterUpload() {
+  const val = tagFilterSel.value || "";
+  pdfContainer.querySelectorAll(".pdf-page").forEach(pg => {
+    const sel = pg.querySelector(".tag-select");
+    const t = sel?.value || "";
+    pg.style.display = (!val || val === t) ? "" : "none";
+  });
+}
+async function saveStagedDocument() {
+  if (!state.stagedFile) return;
+
+  // 1) Upload to Drive
+  const meta = await uploadFile({ file: state.stagedFile, caseId: state.caseId, batchNo: 1 });
+
+  // 2) Save page tags (if pdf) — Upload tab only
+  if (state.stagedIsPdf) {
+    const pages = pdfContainer.querySelectorAll(".pdf-page");
+    let pageNo = 0;
+    for (const pg of pages) {
+      pageNo++;
+      const sel = pg.querySelector(".tag-select");
+      const tag = sel?.value || "";
+      if (tag) {
+        await setPageTag({
+          caseId: state.caseId,
+          uploadId: meta.uploadId || meta.fileId || "",
+          pageNumber: pageNo,
+          tag
+        });
+      }
+    }
+  }
+
+  // 3) Reset & refresh
+  resetStaging();
+  if (fileInput) fileInput.value = "";
+  await refreshUploadsList();
+  if (state.docviewLoaded) await loadDocviewData(); // keep View tab in sync
+}
+function renderUploadsList(rows) {
+  uploadsList.innerHTML = "";
+  rows.forEach(r => {
+    const row = document.createElement("div");
+    row.className = "upload-row";
+    const link = document.createElement("a");
+    link.href = streamFileUrl(r.driveFileId);
+    link.target = "_blank";
+    link.textContent = r.fileName;
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = ` • ${r.mimeType || ""}`;
+    row.appendChild(link); row.appendChild(meta);
+    uploadsList.appendChild(row);
+  });
+}
+async function refreshUploadsList() {
+  if (!state.caseId || state.isNew) return;
+  const rows = await listUploads(state.caseId);
+  renderUploadsList(rows);
 }
 
 /* ---------- Details save/create ---------- */
@@ -271,8 +363,6 @@ undoBtn?.addEventListener("click", async () => {
 
 /* ---------- Comments ---------- */
 async function renderComments() {
-  const commentsList = document.getElementById("commentsList");
-  if (!commentsList) return;
   commentsList.innerHTML = "";
   const items = await listComments(state.caseId);
   for (const c of items) {
@@ -288,15 +378,11 @@ async function renderComments() {
   }
 }
 async function postComment(confirmHandoff) {
-  const commentBody = document.getElementById("commentBody");
-  const commentMQ   = document.getElementById("commentMQ");
-  if (!commentBody || !commentMQ) return;
-
   const body = commentBody.value.trim();
   const mq = commentMQ.value.trim();
   if (!body && !mq) return;
   const id = await addComment(state.caseId, body, state.user);
-  if (mq) await upsertCommentMQ({ caseId: state.caseId, commentId: id.id || id, text: mq, currentUser: state.user });
+  if (mq) await upsertCommentMQ(state.caseId, id, mq, state.user);
   commentBody.value = "";
   await renderComments();
   if (confirmHandoff) {
@@ -307,294 +393,294 @@ async function postComment(confirmHandoff) {
   }
 }
 
-/* =======================================================================
-   MANAGE DOCUMENTS TAB (ISOLATED TO #tab-manage)
-   ======================================================================= */
-async function initManageTab() {
-  if (!tabs.manage || state.manage.inited) return;
-  const M = state.manage;
-  M.inited = true;
-  M.root = tabs.manage;
-  M.sessionKey = `md:${state.caseId}`;
-
-  // Scoped DOM queries inside Manage tab only
-  M.sidebar     = M.root.querySelector("#mdSidebar");
-  M.dropzone    = M.root.querySelector("#mdDropzone");
-  M.fileInput   = M.root.querySelector("#mdFileInput");
-  M.stagedList  = M.root.querySelector("#mdStagedList");
-  M.existingList= M.root.querySelector("#mdExistingList");
-  M.renderArea  = M.root.querySelector("#mdRenderArea");
-  M.saveBtn     = M.root.querySelector("#mdSaveBtn");
-  M.saveFab     = M.root.querySelector("#mdSaveFab");
-  M.toggleFab   = M.root.querySelector("#mdToggleFab");
-  M.overlay     = M.root.querySelector("#mdOverlay");
-  M.toast       = M.root.querySelector("#mdToast");
-  M.recoveredNote = M.root.querySelector("#mdRecovered");
-
-  // Load tag options (scoped)
-  M.tagOptions = await getTagOptions();
-
-  // Existing uploads (refresh if needed)
-  await refreshExistingList();
-
-  // Session recovery (optional)
-  tryRecoverSession();
-
-  // Wire events (ALL scoped)
-  wireManageEvents();
-
-  // Initial buttons
-  updateSaveVisibility();
-  updateMobileCluster();
+/* ---------- View Documents (canvas-first + images) ---------- */
+async function ensureDocviewLoaded() {
+  if (!state.caseId || state.isNew) return;
+  if (!state.docviewLoaded) {
+    await loadPdfJsIfNeeded();
+    await loadDocviewData();
+    wireDocviewControls();
+    buildStickySidebar();
+    await renderCanvasStack(); // render all files (pdfs as canvases, images as <img>)
+    state.docviewLoaded = true;
+  } else {
+    await loadDocviewData();     // keep tags and list fresh
+    await renderCanvasStack();   // re-render to reflect changes
+  }
 }
 
-/* ----- Manage: helpers ----- */
-function isAssignedNurse() {
-  const c = state.caseDoc;
-  if (!c || !c.assignedNurse || !state.user) return false;
-  return (c.assignedNurse.email || "").toLowerCase() === (state.user.email || "").toLowerCase();
-}
-
-function showOverlay(message, withSpinner = false, actions = []) {
-  const M = state.manage;
-  if (!M.overlay) return;
-  M.overlay.innerHTML = `
-    <div class="md-ovl-box">
-      ${withSpinner ? `<div class="md-spinner" aria-hidden="true"></div>` : ""}
-      <div class="md-ovl-msg">${message || ""}</div>
-      <div class="md-ovl-actions"></div>
-    </div>`;
-  const actionsWrap = M.overlay.querySelector(".md-ovl-actions");
-  actions.forEach(({ text, className = "btn", onClick }) => {
-    const b = document.createElement("button");
-    b.className = className;
-    b.textContent = text;
-    b.addEventListener("click", onClick);
-    actionsWrap.appendChild(b);
+function wireDocviewControls() {
+  tagFilterSelect?.addEventListener("change", () => applyDocTagFilter(tagFilterSelect.value));
+  tagFilterClear?.addEventListener("click", () => {
+    if (tagFilterSelect) tagFilterSelect.value = "";
+    applyDocTagFilter("");
+    scrollToTop();
   });
-  M.overlay.classList.add("is-open");
-}
-function hideOverlay() {
-  const M = state.manage;
-  if (M.overlay) M.overlay.classList.remove("is-open");
 }
 
-function showToast(text) {
-  const M = state.manage;
-  if (!M.toast) return;
-  M.toast.textContent = text;
-  M.toast.classList.add("is-on");
-  setTimeout(() => M.toast.classList.remove("is-on"), 2500);
-}
-
-function updateSaveVisibility() {
-  const M = state.manage;
-  const needsSave = M.staged.size > 0 || M.edits.size > 0;
-  if (M.saveBtn) M.saveBtn.hidden = !needsSave;
-  if (M.saveFab) M.saveFab.hidden = !needsSave;
-}
-
-function updateMobileCluster() {
-  const M = state.manage;
-  if (!M.toggleFab) return;
-  // The toggleFab is always visible on mobile; visibility is CSS-driven
-  // SaveFab visibility is handled in updateSaveVisibility()
-}
-
-/* ----- Manage: session recovery ----- */
-function tryRecoverSession() {
-  const M = state.manage;
-  try {
-    const raw = sessionStorage.getItem(M.sessionKey);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    // Restore staged
-    (parsed.staged || []).forEach(s => {
-      // cannot restore Blob bytes; only metadata; user must re-select if needed
-      // We only restore tags/identity if we had a tempId; file will need re-add.
-      // To keep UX simple, we skip restoring staged file rows without File object.
-    });
-    // Restore edits
-    if (parsed.edits) {
-      M.edits = new Map(parsed.edits.map(([k, arr]) => [k, new Map(arr)]));
-    }
-    if (M.recoveredNote && (M.edits.size > 0)) {
-      M.recoveredNote.hidden = false;
-    }
-    updateSaveVisibility();
-  } catch { /* ignore */ }
-}
-
-function persistSession() {
-  const M = state.manage;
-  try {
-    const payload = {
-      // staged cannot be serialized (blobs), so store empty or filenames only
-      staged: Array.from(M.staged.values()).map(s => ({ name: s.file?.name || "", type: s.type, pages: s.pages || 0 })),
-      edits: Array.from(M.edits.entries()).map(([k, v]) => [k, Array.from(v.entries())]),
-    };
-    sessionStorage.setItem(M.sessionKey, JSON.stringify(payload));
-  } catch { /* ignore */ }
-}
-
-/* ----- Manage: drag & drop + file staging ----- */
-function wireManageEvents() {
-  const M = state.manage;
-  if (!M.root) return;
-
-  // Entering manage tab should clear recovered banner when user interacts
-  if (M.recoveredNote) {
-    M.recoveredNote.querySelector("button")?.addEventListener("click", () => {
-      M.recoveredNote.hidden = true;
-      sessionStorage.removeItem(M.sessionKey);
-    });
-  }
-
-  // Dropzone
-  if (M.dropzone) {
-    ["dragenter","dragover"].forEach(evt => M.dropzone.addEventListener(evt, (e) => {
-      e.preventDefault(); e.stopPropagation(); M.dropzone.classList.add("is-hover");
-    }));
-    ["dragleave","drop"].forEach(evt => M.dropzone.addEventListener(evt, (e) => {
-      e.preventDefault(); e.stopPropagation(); M.dropzone.classList.remove("is-hover");
-    }));
-    M.dropzone.addEventListener("drop", (e) => {
-      const files = Array.from(e.dataTransfer?.files || []);
-      if (files.length) stageFiles(files);
-    });
-    M.dropzone.addEventListener("click", () => M.fileInput?.click());
-  }
-  // File input
-  M.fileInput?.addEventListener("change", (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length) stageFiles(files);
-    M.fileInput.value = "";
-  });
-
-  // Sidebar toggle (mobile)
-  M.toggleFab?.addEventListener("click", () => {
-    M.sidebar?.classList.toggle("is-open");
-  });
-
-  // Save buttons (desktop + mobile)
-  M.saveBtn?.addEventListener("click", onSaveManage);
-  M.saveFab?.addEventListener("click", onSaveManage);
-}
-
-function stageFiles(files) {
-  const M = state.manage;
-  for (const file of files) {
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
-    const lower = (file.name || "").toLowerCase();
-    const isPdf = lower.endsWith(".pdf") || file.type === "application/pdf";
-    const isImg = /^image\//.test(file.type) || /\.(png|jpg|jpeg)$/i.test(lower);
-    M.staged.set(tempId, { file, kind: "local", type: isPdf ? "pdf" : (isImg ? "image" : "other"), tags: new Map(), pages: 0 });
-  }
-  renderStagedList();
-  updateSaveVisibility();
-  persistSession();
-}
-
-/* ----- Manage: render lists (staged + existing) ----- */
-function renderStagedList() {
-  const M = state.manage;
-  if (!M.stagedList) return;
-  M.stagedList.innerHTML = "";
-  for (const [id, s] of M.staged.entries()) {
-    const row = document.createElement("div");
-    row.className = "md-item";
-    row.innerHTML = `
-      <button class="md-name" data-open="${id}">📄 ${s.file?.name || "staged file"}</button>
-      <button class="md-del" data-del="${id}" title="Remove">✕</button>
-    `;
-    row.querySelector("[data-open]")?.addEventListener("click", () => openStaged(id));
-    row.querySelector("[data-del]")?.addEventListener("click", () => confirmDeleteStaged(id));
-    M.stagedList.appendChild(row);
+// /js/case.js  (replace the whole function)
+function buildStickySidebar() {
+  // Keep the sticky list on desktop as-is (CSS already does this):contentReference[oaicite:0]{index=0}.
+  // Add one floating 'Go to top' button for all viewports.
+  if (!document.getElementById("goTopBtn")) {
+    const btn = document.createElement("button");
+    btn.id = "goTopBtn";
+    btn.className = "go-top-btn";
+    btn.setAttribute("aria-label", "Go to top");
+    btn.textContent = "↑";
+    btn.addEventListener("click", scrollToTop);
+    document.body.appendChild(btn);
   }
 }
 
-async function refreshExistingList() {
-  const M = state.manage;
-  if (!M.existingList) return;
+
+function scrollToTop() { window.scrollTo({ top: 0, behavior: "smooth" }); }
+
+async function loadDocviewData() {
+  // 1) uploads
   const rows = await listUploads(state.caseId);
-  M.uploads = rows.filter(r => !r.deletedAt);
-  M.uploadsById = new Map(M.uploads.map(u => [u.id, u]));
-  renderExistingList();
+  state.uploadsIndex = rows;
+  state.uploadsById.clear();
+  rows.forEach(r => state.uploadsById.set(r.id, r));
+  if (docCount) docCount.textContent = `${rows.length} file${rows.length===1?"":"s"}`;
+
+  // 2) tags (pageTags)
+  state.allTags.clear(); state.tagHits = [];
+  const col = collection(db, "pageTags");
+  const qRef = query(col, where("caseId", "==", state.caseId), limit(5000));
+  const snap = await getDocs(qRef);
+  snap.forEach(d => {
+    const row = d.data();
+    if (row?.tag) {
+      state.allTags.add(row.tag);
+      state.tagHits.push({ uploadId: row.uploadId, pageNumber: row.pageNumber, tag: row.tag });
+    }
+  });
+
+  // dropdown
+  if (tagFilterSelect) {
+    const current = tagFilterSelect.value || "";
+    tagFilterSelect.innerHTML = `<option value="">All tags</option>` +
+      Array.from(state.allTags).sort().map(t => `<option value="${t}">${t}</option>`).join("");
+    if (current && state.allTags.has(current)) tagFilterSelect.value = current;
+  }
+
+  // left list
+  renderFileList();
 }
 
-function renderExistingList() {
-  const M = state.manage;
-  if (!M.existingList) return;
-  M.existingList.innerHTML = "";
-  for (const u of M.uploads) {
-    const row = document.createElement("div");
-    row.className = "md-item";
-    row.innerHTML = `
-      <button class="md-name" data-open="${u.id}">📎 ${u.fileName}</button>
-      <button class="md-del" data-del="${u.id}" title="Delete">✕</button>
+function renderFileList() {
+  if (!docList) return;
+  // preserve sticky header
+  docList.querySelectorAll(".doc-list-item, .doc-divider").forEach(n => n.remove());
+
+  const items = state.uploadsIndex;
+  for (const u of items) {
+    const who = u.uploadedBy?.displayName || u.uploadedBy?.email || "Unknown";
+    const when = (u.uploadedAt?.seconds) ? new Date(u.uploadedAt.seconds * 1000).toLocaleString() : "";
+    const div = document.createElement("div");
+    div.className = "doc-list-item";
+    div.innerHTML = `
+      <div class="doc-file">${u.fileName}</div>
+      <div class="doc-sub">${who} • ${when}</div>
+      <div class="doc-sub">Batch: ${u.batchNo || "-"}</div>
+      <div class="doc-actions">
+        <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
+        ${(isPdf(u) || isImage(u)) ? ` · <a href="#" data-open="${u.id}">Open</a>` : ""}
+      </div>
     `;
-    row.querySelector("[data-open]")?.addEventListener("click", () => openExisting(u.id));
-    row.querySelector("[data-del]")?.addEventListener("click", () => confirmDeleteExisting(u.id));
-    M.existingList.appendChild(row);
+    div.querySelectorAll("[data-open]").forEach(a => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        focusFirstPageOf(u.id);
+      });
+    });
+    docList.appendChild(div);
   }
 }
 
-/* ----- Manage: render area (thumbnails + tag dropdowns) ----- */
-async function openStaged(tempId) {
-  const M = state.manage;
-  const s = M.staged.get(tempId);
-  if (!s) return;
-  M.current = { kind: "staged", key: tempId };
-  await renderFileIntoArea({ type: s.type, source: s.file, tagMap: s.tags, isLocal: true, onTagChange: (pg, val) => {
-    s.tags.set(pg, val || "");
-    M.dirty = true; updateSaveVisibility(); persistSession();
-  }});
-}
-
-async function openExisting(uploadId) {
-  const M = state.manage;
-  const info = M.uploadsById.get(uploadId);
-  if (!info) return;
-  M.current = { kind: "existing", key: uploadId };
-
-  // Existing map: start with server tags (for display), then overlay local edits (if present)
-  const serverMap = await getPageTagsForUpload(state.caseId, uploadId, 2000);
-  let local = M.edits.get(uploadId);
-  if (!local) { local = new Map(); M.edits.set(uploadId, local); }
-
-  // Build a view map: prefer local override when present (including null to clear)
-  const viewMap = new Map(serverMap);
-  for (const [pg, tag] of local.entries()) viewMap.set(pg, tag || "");
-
-  const type = isPdfName(info.fileName, info.mimeType) ? "pdf" :
-               isImageName(info.fileName, info.mimeType) ? "image" : "other";
-
-  await renderFileIntoArea({
-    type,
-    source: streamFileUrl(info.driveFileId),
-    tagMap: viewMap,
-    isLocal: false,
-    onTagChange: (pg, val) => {
-      local.set(pg, val || "");
-      M.dirty = true; updateSaveVisibility(); persistSession();
-    }
-  });
-}
-
-function isPdfName(name = "", mime = "") {
-  const n = (name || "").toLowerCase();
-  const t = (mime || "").toLowerCase();
+function isPdf(u) {
+  const n = (u.fileName || "").toLowerCase();
+  const t = (u.mimeType || u.fileType || "").toLowerCase();
   return n.endsWith(".pdf") || t === "application/pdf";
 }
-function isImageName(name = "", mime = "") {
-  const n = (name || "").toLowerCase();
-  const t = (mime || "").toLowerCase();
-  return /\.(png|jpg|jpeg)$/i.test(n) || t.startsWith("image/");
+function isImage(u) {
+  const n = (u.fileName || "").toLowerCase();
+  const t = (u.mimeType || u.fileType || "").toLowerCase();
+  return /(\.jpg|\.jpeg|\.png)$/.test(n) || t.startsWith("image/");
 }
 
-async function ensurePdfJs() {
+async function renderCanvasStack() {
+  if (!pdfStack || !tagHitsWrap) return;
+  pdfStack.hidden = false; tagHitsWrap.hidden = true;
+  pdfStack.innerHTML = "";
+  state.pageIndex.clear();
+
+  // Render each file (PDF as canvases, images as <img> blocks)
+  for (const u of state.uploadsIndex) {
+    if (isPdf(u)) {
+      await renderPdfFileAsCanvases(u);
+    } else if (isImage(u)) {
+      renderImageFile(u);
+    } else {
+      // Non-previewable fallback: just show a link
+      const card = document.createElement("div");
+      card.className = "pdf-block";
+      card.innerHTML = `
+        <div class="viewer-section">
+          <h3>${u.fileName}</h3>
+          <div>
+            <a href="${streamFileUrl(u.driveFileId)}" target="_blank" rel="noopener">Open</a>
+            &nbsp;·&nbsp;
+            <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
+          </div>
+        </div>
+        <div class="muted">Preview not available for this file type.</div>
+      `;
+      pdfStack.appendChild(card);
+    }
+  }
+
+  if (!pdfStack.children.length) {
+    pdfStack.innerHTML = `<div class="muted">No files uploaded yet.</div>`;
+  }
+}
+
+async function renderPdfFileAsCanvases(u) {
+  const section = document.createElement("div");
+  section.className = "pdf-block";
+  section.innerHTML = `
+    <div class="viewer-section">
+      <h3>${u.fileName}</h3>
+      <div>
+        <a href="${streamFileUrl(u.driveFileId)}" target="_blank" rel="noopener">Open in new tab</a>
+        &nbsp;·&nbsp;
+        <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
+      </div>
+    </div>
+    <div class="pdf-pages"></div>
+  `;
+  const pagesWrap = section.querySelector(".pdf-pages");
+  pdfStack.appendChild(section);
+
+  // Load & render with pdf.js
+  const url = streamFileUrl(u.driveFileId); // Netlify function URL
+  let pdf;
+  try {
+    pdf = await window.pdfjsLib.getDocument(url).promise;
+  } catch (e) {
+    pagesWrap.innerHTML = `<div class="muted">Failed to load PDF.</div>`;
+    return;
+  }
+
+  // Render pages sequentially (keeps memory in check)
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const viewport0 = page.getViewport({ scale: 1 });
+    const maxWidth = Math.min(pagesWrap.clientWidth || 1000, 1400); // guard
+    const scale = maxWidth / viewport0.width;
+    const viewport = page.getViewport({ scale: scale });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = "100%";
+    canvas.style.height = "auto";
+    canvas.style.display = "block";
+    canvas.setAttribute("data-upload-id", u.id);
+    canvas.setAttribute("data-page", String(p));
+    canvas.className = "page-canvas";
+
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    // Wrapper card per page (gives page-level scrolling/focus)
+    const pageCard = document.createElement("div");
+    pageCard.className = "page-card";
+    pageCard.style = "margin-bottom:12px;";
+    pageCard.appendChild(canvas);
+    pagesWrap.appendChild(pageCard);
+
+    // index for scroll-to from left list / tag filter
+    state.pageIndex.set(`${u.id}:${p}`, pageCard);
+  }
+}
+
+function renderImageFile(u) {
+  const section = document.createElement("div");
+  section.className = "pdf-block";
+  section.innerHTML = `
+    <div class="viewer-section">
+      <h3>${u.fileName}</h3>
+      <div>
+        <a href="${streamFileUrl(u.driveFileId)}" target="_blank" rel="noopener">Open in new tab</a>
+        &nbsp;·&nbsp;
+        <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
+      </div>
+    </div>
+  `;
+  const img = document.createElement("img");
+  img.src = streamFileUrl(u.driveFileId);
+  img.alt = u.fileName;
+  img.style = "width:100%;height:auto;border:1px solid var(--line);border-radius:8px;";
+  section.appendChild(img);
+  pdfStack.appendChild(section);
+
+  // index as page 1 so filter can optionally map if needed
+  state.pageIndex.set(`${u.id}:1`, section);
+}
+
+function focusFirstPageOf(uploadId) {
+  const key1 = `${uploadId}:1`;
+  const el = state.pageIndex.get(key1);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* Tag filter across all pages (PDF canvases + images) */
+function applyDocTagFilter(tag) {
+  if (!pdfStack || !tagHitsWrap) return;
+  if (!tag) {
+    // show everything
+    Array.from(pdfStack.querySelectorAll(".page-card, img, .pdf-block")).forEach(el => el.style.display = "");
+    tagHitsWrap.hidden = true; pdfStack.hidden = false;
+    return;
+  }
+
+  // Build set of matching keys like "uploadId:pageNumber"
+  const allow = new Set(state.tagHits.filter(h => h.tag === tag).map(h => `${h.uploadId}:${h.pageNumber}`));
+
+  // Hide all, then show matches
+  let shown = 0;
+  for (const [key, el] of state.pageIndex.entries()) {
+    if (allow.has(key)) {
+      el.style.display = "";
+      shown++;
+    } else {
+      el.style.display = "none";
+    }
+  }
+
+  // If no pages matched, show message
+  if (shown === 0) {
+    pdfStack.hidden = true;
+    tagHitsWrap.hidden = false;
+    tagHitsWrap.innerHTML = `<div class="muted">No pages tagged “${tag}”.</div>`;
+  } else {
+    tagHitsWrap.hidden = true;
+    pdfStack.hidden = false;
+  }
+
+  // Scroll to the first visible page
+  for (const [key, el] of state.pageIndex.entries()) {
+    if (el.style.display !== "none") { el.scrollIntoView({ behavior: "smooth", block: "start" }); break; }
+  }
+}
+
+/* ---------- pdf.js loader (CDN) ---------- */
+async function loadPdfJsIfNeeded() {
   if (window.pdfjsLib?.getDocument) return;
   await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js");
+  // worker
   window.pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
 }
@@ -606,225 +692,7 @@ function loadScript(src) {
   });
 }
 
-async function renderFileIntoArea({ type, source, tagMap, isLocal, onTagChange }) {
-  const M = state.manage;
-  if (!M.renderArea) return;
-  M.renderArea.innerHTML = "";
-
-  // Grid: desktop up to 3 per row (via CSS), mobile 1 per row
-  const grid = document.createElement("div");
-  grid.className = "md-grid";
-  M.renderArea.appendChild(grid);
-
-  if (type === "pdf") {
-    await ensurePdfJs();
-    let pdf;
-    try {
-      const src = isLocal ? URL.createObjectURL(source) : source;
-      pdf = await window.pdfjsLib.getDocument(src).promise;
-    } catch (e) {
-      grid.innerHTML = `<div class="muted">Failed to load PDF.</div>`;
-      return;
-    }
-    const DPR = Math.max(1, window.devicePixelRatio || 1);
-    const SCALE = 0.35 * DPR; // small thumbnails
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const page = await pdf.getPage(p);
-      const viewport = page.getViewport({ scale: SCALE });
-
-      const card = document.createElement("div");
-      card.className = "md-thumb";
-
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
-      canvas.style.width = "100%";
-      canvas.style.height = "auto";
-      const ctx = canvas.getContext("2d");
-      await page.render({ canvasContext: ctx, viewport }).promise;
-
-      const footer = document.createElement("div");
-      footer.className = "md-thumb-foot";
-      footer.innerHTML = `<span class="md-pg">Pg ${p}</span>`;
-
-      const sel = buildTagSelect(tagMap.get(p) || "", (val) => onTagChange(p, val));
-      footer.appendChild(sel);
-
-      card.appendChild(canvas);
-      card.appendChild(footer);
-      grid.appendChild(card);
-    }
-  } else if (type === "image") {
-    const card = document.createElement("div");
-    card.className = "md-thumb";
-    const img = document.createElement("img");
-    img.alt = "image";
-    img.loading = "lazy";
-    img.decoding = "async";
-    img.src = isLocal ? URL.createObjectURL(source) : source;
-    img.style = "width:100%;height:auto;display:block;";
-    const footer = document.createElement("div");
-    footer.className = "md-thumb-foot";
-    footer.innerHTML = `<span class="md-pg">Image</span>`;
-    const sel = buildTagSelect(tagMap.get(1) || "", (val) => onTagChange(1, val));
-    footer.appendChild(sel);
-    card.appendChild(img);
-    card.appendChild(footer);
-    grid.appendChild(card);
-  } else {
-    grid.innerHTML = `<div class="muted">Preview not available. You can still upload and add tags later.</div>`;
-  }
-}
-
-function buildTagSelect(current, onChange) {
-  const M = state.manage;
-  const sel = document.createElement("select");
-  sel.className = "md-tag";
-  const empty = document.createElement("option");
-  empty.value = "";
-  empty.textContent = "— tag —";
-  sel.appendChild(empty);
-  M.tagOptions.forEach(t => {
-    const o = document.createElement("option");
-    o.value = t; o.textContent = t; sel.appendChild(o);
-  });
-  sel.value = current || "";
-  sel.addEventListener("change", () => onChange(sel.value || ""));
-  return sel;
-}
-
-/* ----- Manage: deletes with confirmation overlay (scoped) ----- */
-function confirmDeleteStaged(tempId) {
-  const M = state.manage;
-  showOverlay(`Remove staged file?`, false, [
-    { text: "Cancel", className: "btn", onClick: () => hideOverlay() },
-    { text: "Remove", className: "btn btn-primary", onClick: () => {
-        M.staged.delete(tempId);
-        hideOverlay();
-        renderStagedList();
-        if (M.current?.kind === "staged" && M.current.key === tempId) {
-          M.renderArea.innerHTML = "";
-          M.current = null;
-        }
-        updateSaveVisibility(); persistSession();
-      } }
-  ]);
-}
-function confirmDeleteExisting(uploadId) {
-  showOverlay(`Delete this file from case? (Soft delete)`, false, [
-    { text: "Cancel", className: "btn", onClick: () => hideOverlay() },
-    { text: "Delete", className: "btn btn-primary", onClick: async () => {
-        try {
-          await softDeleteUpload(uploadId);
-          hideOverlay();
-          await refreshExistingList();
-          const M = state.manage;
-          if (M.current?.kind === "existing" && M.current.key === uploadId) {
-            M.renderArea.innerHTML = "";
-            M.current = null;
-          }
-          showToast("Deleted.");
-        } catch(e) {
-          hideOverlay(); showToast("Delete failed.");
-        }
-      } }
-  ]);
-}
-
-/* ----- Manage: Save flow ----- */
-async function onSaveManage() {
-  const M = state.manage;
-
-  // Assignment enforcement
-  if (!isAssignedNurse()) {
-    showOverlay(
-      "This case is not assigned to you.",
-      false,
-      [
-        { text: "Close", className: "btn", onClick: () => hideOverlay() },
-        { text: "Assign to me", className: "btn btn-primary", onClick: async () => {
-            try {
-              await updateCase(state.caseId, {
-                assignedNurse: { email: state.user.email, displayName: state.user.displayName || state.user.email, at: new Date() }
-              }, state.user);
-              state.caseDoc = await getCase(state.caseId);
-              hideOverlay();
-              showToast("Assigned. You can save now.");
-            } catch {
-              showToast("Failed to assign.");
-            }
-          } }
-      ]
-    );
-    return;
-  }
-
-  // Block UI
-  showOverlay("Saving changes…", true);
-
-  try {
-    // 1) Upload staged files → Drive + Firestore uploads doc
-    const createdUploads = [];
-    for (const [tempId, s] of M.staged.entries()) {
-      const meta = await uploadFile({ caseId: state.caseId, batchNo: 1, file: s.file });
-      // Firestore uploads doc
-      const ref = await addDoc(collection(db, "uploads"), {
-        caseId: state.caseId,
-        batchNo: 1,
-        fileName: meta.fileName,
-        fileType: meta.mimeType,
-        size: meta.size,
-        driveFileId: meta.fileId,
-        fileHash: meta.md5 || null,
-        uploadedBy: {
-          email: (auth.currentUser?.email || ""),
-          displayName: (auth.currentUser?.displayName || "")
-        },
-        uploadedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      createdUploads.push({ uploadId: ref.id, staged: s });
-    }
-
-    // 2) Persist tags for newly uploaded (staged)
-    for (const u of createdUploads) {
-      for (const [pg, tag] of u.staged.tags.entries()) {
-        if (!tag) continue;
-        await setPageTag({ caseId: state.caseId, uploadId: u.uploadId, pageNumber: Number(pg), tag });
-      }
-    }
-
-    // 3) Persist edits for existing files
-    for (const [uploadId, map] of M.edits.entries()) {
-      for (const [pg, tag] of map.entries()) {
-        // tag may be empty string to clear
-        await setPageTag({ caseId: state.caseId, uploadId, pageNumber: Number(pg), tag: tag || null });
-      }
-    }
-
-    // 4) Refresh existing list, clear staged + edits
-    await refreshExistingList();
-    M.staged.clear();
-    M.edits.clear();
-    M.current = null;
-    M.renderArea.innerHTML = "";
-    sessionStorage.removeItem(M.sessionKey);
-
-    hideOverlay();
-    showToast("Saved.");
-    updateSaveVisibility();
-  } catch (e) {
-    console.error(e);
-    hideOverlay();
-    showOverlay("Failed to save changes. Please try again.", false, [
-      { text: "Close", className: "btn btn-primary", onClick: () => hideOverlay() }
-    ]);
-  }
-}
-
-/* =======================================================================
-   Legacy: tab switching + minimal wiring (UNCHANGED for other tabs)
-   ======================================================================= */
+/* ---------- Wire events ---------- */
 document.getElementById("fDOB")?.addEventListener("change", updateAgeFields);
 document.getElementById("fVisitDate")?.addEventListener("change", updateAgeFields);
 signOutBtn.addEventListener("click", () => signOutNow());
@@ -852,14 +720,21 @@ downloadPdfBtn?.addEventListener("click", async () => {
   alert("Transcript export coming soon.");
 });
 
-tabsNav?.addEventListener("click", (e) => {
+tabsNav.addEventListener("click", (e) => {
   const btn = e.target.closest(".tab");
   if (!btn) return;
   setActiveTab(btn.dataset.tab);
 });
 
-document.getElementById("saveCommentBtn")?.addEventListener("click", (e) => { e.preventDefault(); postComment(false); });
-document.getElementById("confirmBtn")?.addEventListener("click", (e) => { e.preventDefault(); postComment(true); });
+saveCommentBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(false); });
+confirmBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(true); });
+
+fileInput?.addEventListener("change", async (e) => {
+  const file = (e.target.files || [])[0];
+  await onFileChosen(file);
+});
+docCancelBtn?.addEventListener("click", (e) => { e.preventDefault(); resetStaging(); if (fileInput) fileInput.value = ""; });
+docSaveBtn?.addEventListener("click", async (e) => { e.preventDefault(); await saveStagedDocument(); });
 
 /* ---------- Auth ---------- */
 onAuth(async (user) => {
@@ -869,8 +744,4 @@ onAuth(async (user) => {
   setHeaderUser(user, state.role);
   await loadCase();
   if (state.isNew) updateAgeFields();
-
-  // If page hash points to manage, ensure tab active
-  const hashTab = (document.querySelector(`.tab.is-active`)?.dataset.tab) || "details";
-  if (hashTab === "manage") initManageTab().catch(console.error);
 });
