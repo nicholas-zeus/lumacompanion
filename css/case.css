@@ -162,3 +162,24 @@
     max-height: none;
   }
 }
+/* Floating go-to-top button (mobile only) */
+.go-top-btn{
+  position: fixed;
+  right: 16px;
+  bottom: 72px; /* sits above FAB if present */
+  z-index: 60;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--brand-ink);
+  display: none;             /* hidden by default */
+  place-items: center;
+  box-shadow: var(--shadow);
+  font-size: 20px;
+  cursor: pointer;
+  border: 0;
+}
+@media (max-width: 860px){
+  .go-top-btn{ display: grid; }   /* show only on mobile */
+}

@@ -419,14 +419,29 @@ function wireDocviewControls() {
 }
 
 function buildStickySidebar() {
-  if (!docList) return;
-  // "Go to top" control
-  const topBtn = document.createElement("div");
-  topBtn.style = "position:sticky; top:0; background:#fff; z-index:1; padding:6px 0 8px; border-bottom:1px solid var(--line); margin-bottom:8px;";
-  topBtn.innerHTML = `<button id="goTopBtn" class="btn" style="width:100%;">↑ Go to top</button>`;
-  docList.prepend(topBtn);
-  document.getElementById("goTopBtn")?.addEventListener("click", scrollToTop);
+  // Keep sticky list for desktop (no change needed to .list-card)
+  // Add a floating 'Go to top' on mobile
+  const ensureBtn = () => {
+    const isMobile = window.matchMedia('(max-width: 860px)').matches;
+    let btn = document.getElementById('goTopBtn');
+    if (isMobile) {
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'goTopBtn';
+        btn.className = 'go-top-btn';
+        btn.setAttribute('aria-label', 'Go to top');
+        btn.textContent = '↑';
+        btn.addEventListener('click', scrollToTop);
+        document.body.appendChild(btn);
+      }
+    } else {
+      btn?.remove();
+    }
+  };
+  ensureBtn();
+  window.addEventListener('resize', ensureBtn, { passive: true });
 }
+
 
 function scrollToTop() { window.scrollTo({ top: 0, behavior: "smooth" }); }
 
@@ -480,7 +495,7 @@ function renderFileList() {
       <div class="doc-sub">Batch: ${u.batchNo || "-"}</div>
       <div class="doc-actions">
         <a href="${streamFileUrl(u.driveFileId)}?download=1" target="_blank" rel="noopener">Download</a>
-        ${isPdf(u) ? ` · <a href="#" data-open="${u.id}">Open</a>` : ""}
+        ${(isPdf(u) || isImage(u)) ? ` · <a href="#" data-open="${u.id}">Open</a>` : ""}
       </div>
     `;
     div.querySelectorAll("[data-open]").forEach(a => {
