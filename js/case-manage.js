@@ -51,6 +51,31 @@ function extFromName(name = "") {
   const i = n.lastIndexOf(".");
   return i >= 0 ? n.slice(i + 1) : "";
 }
+
+// Load existing page tags for this case so previews can preselect dropdowns
+async function loadExistingTags() {
+  pageTags.clear();
+  if (!state.caseId || state.isNew) return;
+
+  // Lazy import Firestore only when needed
+  const { db } = await import("/js/firebase.js");
+  const { collection, query, where, limit, getDocs } =
+    await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+
+  const col = collection(db, "pageTags");
+  const qRef = query(col, where("caseId", "==", state.caseId), limit(5000));
+  const snap = await getDocs(qRef);
+
+  snap.forEach(d => {
+    const r = d.data();
+    const fid = r.uploadId;
+    const pno = r.pageNumber;
+    const tag = r.tag || "";
+    if (fid && pno) pageTags.set(`${fid}:${pno}`, tag);
+  });
+}
+
+
 function isPdfMeta(meta) {
   const mt = (meta?.mimeType || meta?.fileType || "").toLowerCase();
   const ex = extFromName(meta?.fileName);
@@ -171,32 +196,35 @@ function renderUploadedList() {
 }
 
 // --- Preview ---
+// --- Preview ---
 async function renderPreview(fileOrMeta, fileKey) {
   clearPreview();
 
   if (fileOrMeta instanceof File) {
     const type = (fileOrMeta.type || "").toLowerCase();
     if (type.includes("pdf")) {
-      await renderPdf(fileOrMeta, fileKey);
+      await renderPdf(fileOrMeta, fileKey, null);
     } else if (type.startsWith("image/")) {
-      renderImage(URL.createObjectURL(fileOrMeta), fileKey);
+      renderImage(URL.createObjectURL(fileOrMeta), fileKey, null);
     } else {
       previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
     }
   } else {
     // uploaded meta
+    const altKey = fileOrMeta.driveFileId || null; // fallback in case pageTags use driveFileId
     if (isPdfMeta(fileOrMeta)) {
       const url = streamFileUrl(fileOrMeta.driveFileId);
-      await renderPdf(url, fileKey);
+      await renderPdf(url, fileKey, altKey);
     } else if (isImageMeta(fileOrMeta)) {
       const url = streamFileUrl(fileOrMeta.driveFileId);
-      renderImage(url, fileKey);
+      renderImage(url, fileKey, altKey);
     } else {
       previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
     }
   }
 }
-async function renderPdf(source, fileKey) {
+
+async function renderPdf(source, fileKey, altKey) {
   await loadPdfJsIfNeeded();
   const pdf = await window.pdfjsLib.getDocument(source).promise;
 
@@ -220,9 +248,14 @@ async function renderPdf(source, fileKey) {
       <option>doctor order</option>
       <option>lab tests</option>
       <option>medical questionnaire</option>`;
-    sel.value = pageTags.get(`${fileKey}:${p}`) || "";
+
+    // preselect: prefer `${fileKey}:${p}`; fallback `${altKey}:${p}` if provided
+    const k1 = `${fileKey}:${p}`;
+    const k2 = altKey ? `${altKey}:${p}` : null;
+    sel.value = (pageTags.get(k1) ?? (k2 ? pageTags.get(k2) : "")) || "";
+
     sel.addEventListener("change", () => {
-      pageTags.set(`${fileKey}:${p}`, sel.value);
+      pageTags.set(`${fileKey}:${p}`, sel.value); // always normalize to the main fileKey
       markDirty(true);
     });
 
@@ -231,7 +264,8 @@ async function renderPdf(source, fileKey) {
     state.pageIndex?.set?.(`${fileKey}:${p}`, wrapper);
   }
 }
-function renderImage(url, fileKey) {
+
+function renderImage(url, fileKey, altKey) {
   const wrapper = document.createElement("div");
   wrapper.className = "thumb-card";
   const img = document.createElement("img");
@@ -245,9 +279,13 @@ function renderImage(url, fileKey) {
     <option>doctor order</option>
     <option>lab tests</option>
     <option>medical questionnaire</option>`;
-  sel.value = pageTags.get(`${fileKey}:1`) || "";
+
+  const k1 = `${fileKey}:1`;
+  const k2 = altKey ? `${altKey}:1` : null;
+  sel.value = (pageTags.get(k1) ?? (k2 ? pageTags.get(k2) : "")) || "";
+
   sel.addEventListener("change", () => {
-    pageTags.set(`${fileKey}:1`, sel.value);
+    pageTags.set(`${fileKey}:1`, sel.value); // normalize to main key
     markDirty(true);
   });
   wrapper.appendChild(sel);
@@ -255,6 +293,7 @@ function renderImage(url, fileKey) {
   previewArea.appendChild(wrapper);
   state.pageIndex?.set?.(`${fileKey}:1`, wrapper);
 }
+
 
 // --- Save flow ---
 async function saveAll() {
@@ -320,8 +359,17 @@ toggleSidebarBtn.addEventListener("click", () => {
 window.addEventListener("resize", () => markDirty(dirty));
 
 // --- Init: wait until caseId is known ---
-document.addEventListener("caseLoaded", () => {
-  refreshUploadedList();
+// --- Init: wait until caseId is known ---
+document.addEventListener("caseLoaded", async () => {
+  // Sidebar should start closed on mobile
+  if (isMobile()) {
+    sidebar.classList.remove("open");
+    document.body.classList.remove("dimmed");
+  }
+
+  await loadExistingTags();   // <-- preload page tags for preselect
+  await refreshUploadedList();
   renderStagedList();
-  markDirty(false); // both save controls start hidden
+  markDirty(false);           // both save controls start hidden
 });
+
