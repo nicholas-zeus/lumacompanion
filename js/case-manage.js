@@ -58,7 +58,7 @@ function applySidebarInlineStyles(forceClose = false) {
     document.body.classList.remove("dimmed");
   }
 }
-function isMobile(){ return window.matchMedia("(max-width: 860px)").matches; }
+
 
 function openManageOverlay(){
   if (!sidebar) return;
