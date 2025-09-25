@@ -162,14 +162,19 @@ function isMobile() {
 }
 function markDirty(flag = true) {
   dirty = !!flag;
-  if (isMobile()) {
-    saveSection.hidden = true;          // never show sidebar Save on mobile
-    mobileSaveBtn.hidden = !dirty;      // show floppy only when dirty
-  } else {
-    saveSection.hidden = !dirty;        // show desktop Save only when dirty
-    mobileSaveBtn.hidden = true;
+
+  // Desktop: show sidebar Save only when dirty
+  if (!isMobile()) {
+    if (saveSection) saveSection.style.display = dirty ? "" : "none";
+    if (mobileSaveBtn) mobileSaveBtn.style.display = "none";
+    return;
   }
+
+  // Mobile: never show sidebar Save; control FAB explicitly
+  if (saveSection) saveSection.style.display = "none";
+  if (mobileSaveBtn) mobileSaveBtn.style.display = dirty ? "inline-grid" : "none";
 }
+
 function clearPreview() {
   previewArea.innerHTML = "";
   state.pageIndex?.clear?.();
@@ -278,9 +283,11 @@ function renderStagedList() {
     div.innerHTML = `
       <span class="file-name">${sf.file.name}</span>
       <button class="trash" title="Remove">🗑</button>`;
-    div.querySelector(".file-name").addEventListener("click", () => {
-      renderPreview(sf.file, sf.key);
-    });
+div.querySelector(".file-name").addEventListener("click", () => {
+  if (isMobile()) closeManageOverlay();   // <-- close overlay on selection
+  renderPreview(sf.file, sf.key);
+});
+
     div.querySelector(".trash").addEventListener("click", async () => {
       const ok = await confirmUI(`Remove ${sf.file.name} from staging?`);
       if (ok) {
@@ -313,6 +320,7 @@ function renderUploadedList() {
       <span class="file-name">${uf.fileName || uf.name || "(untitled)"}</span>
       <button class="trash" title="Delete from Drive">🗑</button>`;
     div.querySelector(".file-name").addEventListener("click", () => {
+         if (isMobile()) closeManageOverlay();
       // prefer stable id for tag keys; fall back to driveFileId
       const key = uf.id || uf.uploadId || uf.driveFileId;
       renderPreview(
@@ -561,6 +569,15 @@ document.addEventListener("caseLoaded", async () => {
   renderStagedList();
   markDirty(false);  // 💾 FAB only when there are changes
 });
+// Close overlay if user taps outside the panel (mobile only)
+document.addEventListener("click", (e) => {
+  if (!isMobile()) return;
+  if (!sidebar) return;
+  if (!sidebar.classList.contains("open")) return;
+
+  const clickedInside = sidebar.contains(e.target) || e.target === toggleSidebarBtn || e.target === mobileSaveBtn;
+  if (!clickedInside) closeManageOverlay();
+}, true); // capture phase so it runs before internal handlers if needed
 
 
 
