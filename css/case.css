@@ -252,3 +252,12 @@
   #saveSection { display:none; }
   .preview-grid { grid-template-columns: 1fr; }
 }
+/* --- Manage: ensure desktop Save section can be shown by JS --- */
+
+/* Baseline: visible on desktop, hidden on mobile */
+@media (min-width: 861px) {
+  #saveSection { display: block; }
+}
+
+/* JS can force it on even if some class left it hidden */
+#saveSection.force-show { display: block !important; }
