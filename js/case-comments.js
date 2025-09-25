@@ -20,6 +20,17 @@ const saveCommentBtn = document.getElementById("saveCommentBtn");
 const confirmBtn     = document.getElementById("confirmBtn");
 const statusText     = document.getElementById("statusText");
 
+// Ensure the composer is physically before the list in the DOM
+function ensureComposerOnTop() {
+  if (!commentForm || !commentsList) return;
+  const parent = commentsList.parentElement || commentForm.parentElement;
+  if (!parent) return;
+  if (commentForm.nextElementSibling !== commentsList) {
+    // Move form to be the element immediately before the list
+    parent.insertBefore(commentForm, commentsList);
+  }
+}
+
 // --- MQ modal (lazy) ---
 let mqModal, mqModalBody;
 function ensureMqModal() {
@@ -71,6 +82,8 @@ function hideMqModal() { if (mqModal) mqModal.style.display = "none"; }
 let renderRun = 0;
 export async function renderComments() {
   if (!commentsList || !state.caseId) return;
+  ensureComposerOnTop();
+
   const run = ++renderRun;
 
   // Load & sort
@@ -116,12 +129,16 @@ export async function renderComments() {
   commentsList.innerHTML = "";
   commentsList.appendChild(frag);
 
-  // keep compose focused
+  // keep compose focused and visible at the top
+  ensureComposerOnTop();
+  commentForm?.scrollIntoView({ behavior: "auto", block: "start" });
   commentBody?.focus();
 }
 
 // --- Save / Confirm flow (assign + optional handoff) ---
 async function postComment(confirmHandoff) {
+  ensureComposerOnTop();
+
   const body = (commentBody.value || "").trim();
   const mq = (commentMQ.value || "").trim();
   if (!body && !mq) return;
@@ -172,7 +189,8 @@ async function postComment(confirmHandoff) {
   }
 
   // keep form visible/focused at the top
-  commentForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+  ensureComposerOnTop();
+  commentForm?.scrollIntoView({ behavior: "auto", block: "start" });
   commentBody?.focus();
 }
 
@@ -183,3 +201,6 @@ confirmBtn?.addEventListener("click", (e) => { e.preventDefault(); postComment(t
 // NOTE: Do NOT auto-wire tab/caseLoaded listeners here.
 // Keep a single source of truth: let case-shared.js call renderComments()
 // when the Comments tab is opened or when caseLoaded fires and the tab is active.
+
+// Also ensure on initial script load we place the form first (helpful if commentsList is before form in HTML)
+ensureComposerOnTop();
