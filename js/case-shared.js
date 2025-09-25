@@ -44,17 +44,7 @@ export function setActiveTab(name) {
   // ⬇️ central place to show/hide floating UI per tab
   updateFloatingUI(name);
 }
-function updateFloatingUI(tabName) {
-  // Details tab FAB (✏️ / 💾)
-  const detailsFab = document.getElementById("detailsFab");
-  if (detailsFab) detailsFab.hidden = (tabName !== "details");
 
-  // DocView tab “Go to top” button
-  const goTopBtn = document.getElementById("goTopBtn");
-  if (goTopBtn) goTopBtn.style.display = (tabName === "docview" ? "grid" : "none");
-
-  // Manage tab FABs live inside the manage tab panel; they hide with the panel automatically.
-}
 export function setHeaderUser(user, role) {
   if (!user) return;
   roleBadge.hidden = false;
