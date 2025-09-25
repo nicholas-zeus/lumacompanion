@@ -163,17 +163,26 @@ function isMobile() {
 function markDirty(flag = true) {
   dirty = !!flag;
 
-  // Desktop: show sidebar Save only when dirty
-  if (!isMobile()) {
-    if (saveSection) saveSection.style.display = dirty ? "" : "none";
-    if (mobileSaveBtn) mobileSaveBtn.style.display = "none";
+  // Re-resolve elements in case DOM wasn’t ready at load
+  let _saveSection = saveSection || document.getElementById("saveSection");
+  let _mobileSaveBtn = mobileSaveBtn || document.getElementById("mobileSaveBtn");
+  let _saveBtn = saveBtn || document.getElementById("saveBtn");
+
+  const desktop = !isMobile();
+
+  if (desktop) {
+    // Desktop: Show the inline save section when dirty; hide mobile FAB
+    if (_saveSection) _saveSection.style.display = dirty ? "" : "none";
+    if (_mobileSaveBtn) _mobileSaveBtn.style.display = "none";
+    if (_saveBtn) _saveBtn.disabled = !dirty;
     return;
   }
 
-  // Mobile: never show sidebar Save; control FAB explicitly
-  if (saveSection) saveSection.style.display = "none";
-  if (mobileSaveBtn) mobileSaveBtn.style.display = dirty ? "inline-grid" : "none";
+  // Mobile: never show the inline save section; use floating FAB
+  if (_saveSection) _saveSection.style.display = "none";
+  if (_mobileSaveBtn) _mobileSaveBtn.style.display = dirty ? "inline-grid" : "none";
 }
+
 
 function clearPreview() {
   previewArea.innerHTML = "";
