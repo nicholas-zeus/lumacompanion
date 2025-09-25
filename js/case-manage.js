@@ -14,7 +14,9 @@ const savingOverlay    = document.getElementById("savingOverlay");
 const toggleSidebarBtn = document.getElementById("toggleSidebarBtn");
 const mobileSaveBtn    = document.getElementById("mobileSaveBtn");
 // Use whichever id your HTML currently has
-const sidebar = document.getElementById("manageDrawer") || document.getElementById("manageSidebar");
+const sidebar = document.getElementById("managePanel");
+const manageCloseBtn = document.getElementById("manageCloseBtn");
+
 // Inline-style the Manage sidebar for mobile/desktop (no CSS dependency)
 function applySidebarInlineStyles(forceClose = false) {
   if (!sidebar) return;
@@ -53,6 +55,37 @@ function applySidebarInlineStyles(forceClose = false) {
     sidebar.style.visibility = "visible";
     sidebar.style.pointerEvents = "auto";
     sidebar.style.zIndex = ""; // reset
+    document.body.classList.remove("dimmed");
+  }
+}
+function isMobile(){ return window.matchMedia("(max-width: 860px)").matches; }
+
+function openManageOverlay(){
+  if (!sidebar) return;
+  sidebar.classList.add("open");
+  document.body.classList.add("dimmed");
+  // show the mobile header (✕) if present
+  const hdr = sidebar.querySelector(".sidebar-head");
+  if (hdr) hdr.style.display = "block";
+}
+function closeManageOverlay(){
+  if (!sidebar) return;
+  sidebar.classList.remove("open");
+  document.body.classList.remove("dimmed");
+}
+
+function applyManagePanelLayout(){
+  if (!sidebar) return;
+  if (isMobile()){
+    // start hidden as overlay
+    sidebar.classList.remove("open");
+    document.body.classList.remove("dimmed");
+    const hdr = sidebar.querySelector(".sidebar-head");
+    if (hdr) hdr.style.display = "block";
+  } else {
+    // desktop sticky, ensure visible and header hidden
+    const hdr = sidebar.querySelector(".sidebar-head");
+    if (hdr) hdr.style.display = "none";
     document.body.classList.remove("dimmed");
   }
 }
@@ -452,21 +485,22 @@ async function hardDeleteFile(fileId) {
 
 // --- Sidebar toggle (mobile) ---
 // --- Sidebar toggle (mobile) ---
+// Floating ^ button toggles overlay on mobile (no-op on desktop)
 toggleSidebarBtn.addEventListener("click", () => {
-  if (!sidebar) return;
-  // Toggle data-open flag and re-apply inline styles
-  const opened = sidebar.dataset.open === "1";
-  if (opened) delete sidebar.dataset.open;
-  else sidebar.dataset.open = "1";
-  applySidebarInlineStyles(false);
+  if (!isMobile()) return;            // desktop: ignore
+  if (sidebar.classList.contains("open")) closeManageOverlay();
+  else openManageOverlay();
 });
+
+// Inside overlay ✕ button
+manageCloseBtn.addEventListener("click", () => closeManageOverlay());
 
 
 // Re-evaluate which save control is visible on resize
 // Re-evaluate layout on resize; close drawer when switching to mobile
 window.addEventListener("resize", () => {
-  applySidebarInlineStyles(true);   // force close on breakpoint change
-  markDirty(dirty);                 // keep save controls in correct state
+  applyManagePanelLayout();
+  markDirty(dirty); // keep save controls correct
 });
 
 
@@ -474,15 +508,14 @@ window.addEventListener("resize", () => {
 // --- Init: wait until caseId is known ---
 // --- Init: wait until caseId is known ---
 document.addEventListener("caseLoaded", async () => {
-  // Ensure correct starting state (closed on mobile, visible on desktop)
-  applySidebarInlineStyles(true);
-
-  // If you already added tag preloading, keep it; otherwise ignore this comment.
+  applyManagePanelLayout();          // set correct starting state
+  // (Optional) if you implemented loadExistingTags earlier, call it here:
   // await loadExistingTags();
 
   await refreshUploadedList();
   renderStagedList();
-  markDirty(false); // both save controls start hidden
+  markDirty(false);                  // 💾 FAB only when dirty
 });
+
 
 
