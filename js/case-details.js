@@ -311,10 +311,10 @@ function hydrateFormFromDoc(doc) {
 // Floating unified primary button (FAB) with icons
 let fabBtn;
 function ensureFloatingPrimaryButton() {
-  if (fabBtn) return fabBtn;
+  if (fabBtn && document.body.contains(fabBtn)) return fabBtn;
+
   fabBtn = document.createElement("button");
   fabBtn.id = "detailsFab";
-  // inline styles so no CSS file edits needed
   Object.assign(fabBtn.style, {
     position: "fixed",
     right: "16px",
@@ -330,15 +330,19 @@ function ensureFloatingPrimaryButton() {
     display: "grid",
     placeItems: "center",
     zIndex: "1001",
-    cursor: "pointer"
+    cursor: "pointer",
   });
   fabBtn.setAttribute("aria-label", "Action");
+  fabBtn.hidden = false; // allow tab manager to toggle visibility
   document.body.appendChild(fabBtn);
   return fabBtn;
 }
 
 // labelMode: "edit" | "create" | "save"
 function setPrimaryButton(labelMode, onClick) {
+  // Normalize callers that pass "Edit"/"Create"/"Save"
+  const mode = String(labelMode || "").trim().toLowerCase();
+
   // Hide legacy buttons/areas
   const saveDetailsBtn = document.getElementById("saveDetailsBtn");
   const newCaseActions = document.getElementById("newCaseActions");
@@ -350,10 +354,11 @@ function setPrimaryButton(labelMode, onClick) {
   const btn = ensureFloatingPrimaryButton();
 
   // icon & tooltip
+  // create → 💾, edit (locked) → ✏️, save (editing) → 💾
   let icon = "💾", tooltip = "Save";
-  if (labelMode === "edit") { icon = "✏️"; tooltip = "Edit"; }
-  if (labelMode === "create") { icon = "💾"; tooltip = "Create"; }
-  if (labelMode === "save") { icon = "💾"; tooltip = "Save"; }
+  if (mode === "edit")   { icon = "✏️"; tooltip = "Edit"; }
+  if (mode === "create") { icon = "💾"; tooltip = "Create"; }
+  if (mode === "save")   { icon = "💾"; tooltip = "Save"; }
 
   btn.textContent = icon;
   btn.title = tooltip;
@@ -361,6 +366,12 @@ function setPrimaryButton(labelMode, onClick) {
 
   // (re)bind
   btn.onclick = (e) => { e.preventDefault(); onClick?.(); };
+
+  // Make sure it’s visible only when Details tab is active; case-shared.js will also enforce this on tab switches.
+  try {
+    const activeTab = document.querySelector(".tab.is-active")?.dataset?.tab;
+    btn.hidden = activeTab !== "details";
+  } catch (_) {}
 }
 
 

@@ -67,21 +67,19 @@ tabsNav.addEventListener("click", async (e) => {
 
   const tabName = btn.dataset.tab;
   setActiveTab(tabName);
+  updateFloatingUI(tabName);
 
   try {
     if (tabName === "docview") {
       const m = await import("/js/case-view.js");
       await m.ensureDocviewLoaded();
     } else if (tabName === "comments") {
-      // lazily load and render comments when tab opens
       const m = await import("/js/case-comments.js");
       if (typeof m.renderComments === "function") {
         await m.renderComments();
       }
-      // keep the new-comment box in view
       const form = document.getElementById("commentForm");
       form?.scrollIntoView({ behavior: "smooth", block: "start" });
-      // optionally refocus textarea
       const ta = document.getElementById("commentBody");
       ta?.focus();
     }
@@ -90,8 +88,21 @@ tabsNav.addEventListener("click", async (e) => {
   }
 });
 
+function updateFloatingUI(tabName) {
+  // Details FAB
+  const detailsFab = document.getElementById("detailsFab");
+  if (detailsFab) detailsFab.hidden = (tabName !== "details");
 
+  // DocView "Go to Top" button
+  const goTopBtn = document.getElementById("goTopBtn");
+  if (goTopBtn) goTopBtn.style.display = (tabName === "docview" ? "grid" : "none");
 
+  // Manage tab FABs live inside #tab-documents, so they hide with the panel automatically.
+}
+document.addEventListener("caseLoaded", () => {
+  const activeTab = document.querySelector(".tab.is-active")?.dataset?.tab || "details";
+  updateFloatingUI(activeTab);
+});
 // Init Firebase + auth
 initFirebase();
 onAuth(async (user) => {
