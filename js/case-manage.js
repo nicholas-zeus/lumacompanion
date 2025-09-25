@@ -189,24 +189,25 @@ function extFromName(name = "") {
 async function loadExistingTags() {
   pageTags.clear();
   if (!state.caseId || state.isNew) return;
-
-  // Lazy import Firestore only when needed
-  const { db } = await import("/js/firebase.js");
-  const { collection, query, where, limit, getDocs } =
-    await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-
-  const col = collection(db, "pageTags");
-  const qRef = query(col, where("caseId", "==", state.caseId), limit(5000));
-  const snap = await getDocs(qRef);
-
-  snap.forEach(d => {
-    const r = d.data();
-    const fid = r.uploadId;
-    const pno = r.pageNumber;
-    const tag = r.tag || "";
-    if (fid && pno) pageTags.set(`${fid}:${pno}`, tag);
-  });
+  try {
+    const { db } = await import("/js/firebase.js");
+    const { collection, query, where, limit, getDocs } =
+      await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const col = collection(db, "pageTags");
+    const qRef = query(col, where("caseId", "==", state.caseId), limit(5000));
+    const snap = await getDocs(qRef);
+    snap.forEach(d => {
+      const r = d.data();
+      const fid = r.uploadId;
+      const pno = r.pageNumber;
+      const tag = r.tag || "";
+      if (fid && pno) pageTags.set(`${fid}:${pno}`, tag);
+    });
+  } catch (e) {
+    console.warn("loadExistingTags skipped:", e);
+  }
 }
+
 
 
 function isPdfMeta(meta) {
@@ -333,21 +334,22 @@ function renderUploadedList() {
         key
       );
     });
-    div.querySelector(".trash").addEventListener("click", async () => {
-      const name = uf.fileName || uf.name || "(untitled)";
-      const ok = await confirmUI(`Delete ${name}? This cannot be undone.`);
-      if (ok) {
-        await hardDeleteFile(uf.id || uf.uploadId || uf.driveFileId);
-        // clear any tag edits we were tracking for that file
-        const fid = uf.id || uf.uploadId || uf.driveFileId;
-        for (const k of [...pageTags.keys()]) {
-          if (k.startsWith(`${fid}:`)) pageTags.delete(k);
-        }
-        await refreshUploadedList();
-        markDirty(true);
-        clearPreview();
-      }
-    });
+div.querySelector(".trash").addEventListener("click", async () => {
+  const name = uf.fileName || uf.name || "(untitled)";
+  const ok = await confirmUI(`Delete ${name}? This cannot be undone.`);
+  if (ok) {
+    await hardDeleteFile(uf); // <-- pass the full object
+    // clear any tag edits we were tracking for that file
+    const fid = (uf.id || uf.uploadId || uf.driveFileId);
+    for (const k of [...pageTags.keys()]) {
+      if (k.startsWith(`${fid}:`)) pageTags.delete(k);
+    }
+    await refreshUploadedList();
+    markDirty(true);
+    clearPreview();
+  }
+});
+
     uploadedList.appendChild(div);
   });
 }
@@ -526,10 +528,28 @@ async function refreshUploadedList() {
 }
 
 // --- Hard delete (Drive) ---
-async function hardDeleteFile(fileId) {
-  const res = await fetch(`/.netlify/functions/file/${encodeURIComponent(fileId)}`, { method: "DELETE" });
+// --- Hard delete (Drive + Firestore metadata) ---
+async function hardDeleteFile(uf) {
+  // 1) Delete the binary from Google Drive via Netlify function
+  const driveId = uf.driveFileId;
+  if (!driveId) throw new Error("Missing driveFileId for deletion");
+  const res = await fetch(`/.netlify/functions/file/${encodeURIComponent(driveId)}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Delete failed");
+
+  // 2) Delete the Firestore metadata row (uploads/{id})
+  try {
+    const uploadId = uf.id || uf.uploadId;
+    if (uploadId) {
+      const { db } = await import("/js/firebase.js");
+      const { doc, deleteDoc } =
+        await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      await deleteDoc(doc(db, "uploads", uploadId));
+    }
+  } catch (e) {
+    console.warn("Metadata delete non-fatal:", e);
+  }
 }
+
 
 // --- Sidebar toggle (mobile) ---
 // --- Sidebar toggle (mobile) ---
