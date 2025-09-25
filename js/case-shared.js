@@ -59,17 +59,37 @@ export function toInputDateTimeLocal(d) {
 
 signOutBtn.addEventListener("click", () => signOutNow());
 // Tab switching
+// Tab switching
 const tabsNav = document.querySelector(".tabs");
-tabsNav.addEventListener("click", (e) => {
+tabsNav.addEventListener("click", async (e) => {
   const btn = e.target.closest(".tab");
   if (!btn) return;
-  setActiveTab(btn.dataset.tab);
 
-  // Special: load View tab on demand
-  if (btn.dataset.tab === "docview") {
-    import("/js/case-view.js").then(m => m.ensureDocviewLoaded()).catch(console.error);
+  const tabName = btn.dataset.tab;
+  setActiveTab(tabName);
+
+  try {
+    if (tabName === "docview") {
+      const m = await import("/js/case-view.js");
+      await m.ensureDocviewLoaded();
+    } else if (tabName === "comments") {
+      // lazily load and render comments when tab opens
+      const m = await import("/js/case-comments.js");
+      if (typeof m.renderComments === "function") {
+        await m.renderComments();
+      }
+      // keep the new-comment box in view
+      const form = document.getElementById("commentForm");
+      form?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // optionally refocus textarea
+      const ta = document.getElementById("commentBody");
+      ta?.focus();
+    }
+  } catch (err) {
+    console.error("tab init failed:", err);
   }
 });
+
 
 
 // Init Firebase + auth
