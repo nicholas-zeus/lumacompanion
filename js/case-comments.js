@@ -1,15 +1,17 @@
-// case-comments.js
+// /js/case-comments.js
 import { state } from "/js/case-shared.js";
 import {
   listComments,
   addComment,
   upsertCommentMQ,
+  getCommentMQ,
   getCase,
   updateCase,
   statusLabel
 } from "/js/api.js";
 import { toDate } from "/js/utils.js";
 
+// --- DOM ---
 const commentsList   = document.getElementById("commentsList");
 const commentForm    = document.getElementById("commentForm");
 const commentBody    = document.getElementById("commentBody");
@@ -17,6 +19,8 @@ const commentMQ      = document.getElementById("commentMQ");
 const saveCommentBtn = document.getElementById("saveCommentBtn");
 const confirmBtn     = document.getElementById("confirmBtn");
 const statusText     = document.getElementById("statusText");
+
+// --- MQ modal (lazy) ---
 let mqModal, mqModalBody;
 function ensureMqModal() {
   if (mqModal) return;
@@ -62,14 +66,17 @@ function ensureMqModal() {
 function showMqModal(text) { ensureMqModal(); mqModalBody.textContent = text || ""; mqModal.style.display = "flex"; }
 function hideMqModal() { if (mqModal) mqModal.style.display = "none"; }
 
-async function renderComments() {
+// --- Render newest → oldest; keep compose box on top ---
+export async function renderComments() {
+  if (!commentsList || !state.caseId) return;
+
+  // IMPORTANT: only clear the list container so the compose form stays on top
   commentsList.innerHTML = "";
 
-  // pull and sort newest → oldest
+  // Firestore query is case-scoped already; we reverse for newest-first
   const itemsAsc = await listComments(state.caseId);
-  const items = itemsAsc.slice().reverse(); // UI wants newest first
+  const items = itemsAsc.slice().reverse();
 
-  // lazy-build a simple MQ modal once
   ensureMqModal();
 
   for (const c of items) {
@@ -77,10 +84,10 @@ async function renderComments() {
     const when = toDate(c.createdAt);
     const whenText = when ? when.toLocaleString() : "";
 
-    // try to fetch MQ for this comment; show a button if present
+    // Try to fetch MQ; if exists, show a button to open modal
     let mqText = "";
     try {
-      const mq = await (await import("/js/api.js")).getCommentMQ(c.id);
+      const mq = await getCommentMQ(c.id);
       mqText = mq?.text || "";
     } catch { /* ignore */ }
 
@@ -90,30 +97,28 @@ async function renderComments() {
       <div><span class="who">${who}</span>
       <span class="when"> • ${whenText}</span></div>
       <div class="body">${(c.body || "").replace(/\n/g, "<br>")}</div>
-      ${mqText
-        ? `<div class="mq"><button class="btn" data-mq="${c.id}">View MQ</button></div>`
-        : ""
-      }
+      ${mqText ? `<div class="mq"><button class="btn" data-mq="${c.id}">View MQ</button></div>` : ""}
     `;
 
-    // wire MQ button (opens modal)
     const btn = el.querySelector("[data-mq]");
     if (btn) {
-      btn.addEventListener("click", async () => {
-        showMqModal(mqText);
-      });
+      btn.addEventListener("click", () => showMqModal(mqText));
     }
 
     commentsList.appendChild(el);
   }
+
+  // keep compose anchored/focused after any refresh
+  commentBody?.focus();
 }
 
+// --- Save / Confirm flow (assign + optional handoff) ---
 async function postComment(confirmHandoff) {
   const body = (commentBody.value || "").trim();
   const mq = (commentMQ.value || "").trim();
   if (!body && !mq) return;
 
-  // 1) Save the comment
+  // 1) Save the comment (author is stored by addComment)
   const created = await addComment(state.caseId, body, state.user);
 
   // 2) Save MQ (if provided)
@@ -126,42 +131,71 @@ async function postComment(confirmHandoff) {
     });
   }
 
-  // 3) Auto-assign to commenter (respecting role)
-  //    nurse → assignedNurse; doctor → assignedDoctor
-  //    confirm → also handoff status to the other role
+  // 3) Auto-assign to commenter (respecting role) and optionally handoff
   const role = (state.role || "").toLowerCase();
-  const assignPatch = {};
+  const patch = {};
   if (role === "nurse") {
-    assignPatch.assignedNurse = {
+    patch.assignedNurse = {
       email: state.user.email,
       displayName: state.user.displayName || state.user.email
     };
-    if (confirmHandoff) assignPatch.status = "awaiting doctor";
+    if (confirmHandoff) patch.status = "awaiting doctor";
   } else if (role === "doctor") {
-    assignPatch.assignedDoctor = {
+    patch.assignedDoctor = {
       email: state.user.email,
       displayName: state.user.displayName || state.user.email
     };
-    if (confirmHandoff) assignPatch.status = "awaiting nurse";
+    if (confirmHandoff) patch.status = "awaiting nurse";
   }
-  if (Object.keys(assignPatch).length) {
-    await updateCase(state.caseId, assignPatch, state.user);
+  if (Object.keys(patch).length) {
+    await updateCase(state.caseId, patch, state.user);
   }
 
-  // 4) Clear inputs, refresh UI/status
+  // 4) Clear inputs; refresh list; update status label
   commentBody.value = "";
-  // keep MQ textarea? Clear it after save per your spec:
   commentMQ.value = "";
 
   await renderComments();
 
-  // refresh case doc + status label
   const updated = await getCase(state.caseId);
-  state.caseDoc = updated;
-  statusText.textContent = statusLabel(updated?.status || "—");
+  if (updated) {
+    state.caseDoc = updated;
+    statusText.textContent = statusLabel(updated.status || "—");
+  }
+
+  // keep form visible/focused at the top
+  commentForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+  commentBody?.focus();
 }
 
-saveCommentBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(false); });
-confirmBtn.addEventListener("click", (e) => { e.preventDefault(); postComment(true); });
+// --- Wire buttons ---
+saveCommentBtn?.addEventListener("click", (e) => { e.preventDefault(); postComment(false); });
+confirmBtn?.addEventListener("click", (e) => { e.preventDefault(); postComment(true); });
 
-export { renderComments };
+// --- Auto-load when the Comments tab is opened (no edits needed elsewhere) ---
+const tabsNav = document.querySelector(".tabs");
+tabsNav?.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".tab");
+  if (!btn) return;
+  if (btn.dataset.tab === "comments") {
+    try {
+      await renderComments();
+      commentBody?.focus();
+    } catch (err) {
+      console.error("comments init failed:", err);
+    }
+  }
+});
+
+// --- Also load if the page opens with the Comments tab already active ---
+document.addEventListener("caseLoaded", async () => {
+  const active = document.querySelector(".tabpanel.is-active");
+  if (active?.id === "tab-comments") {
+    try {
+      await renderComments();
+      commentBody?.focus();
+    } catch (err) {
+      console.error("initial comments load failed:", err);
+    }
+  }
+});
