@@ -364,43 +364,6 @@
     @media (min-width: 861px) { .fab-toggle, .fab-save { display: none !important; } }
 
 /* old */
-    
-  /* Manage Documents: desktop vs mobile */
-  @media (min-width: 861px){
-    /* Desktop: visible sidebar, classic sticky like other list-card */
-    #manageSidebar{
-      position: sticky;
-      top: 12px;
-      align-self: start;
-      max-height: calc(100vh - 24px);
-      overflow: auto;
-      transform: none;
-    }
-    .fab-toggle, .fab-save{ display: none !important; }
-  }
-  @media (max-width: 860px){
-    /* Mobile: sidebar is a bottom drawer, hidden until toggled */
-    #manageSidebar{
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      background: #fff;
-      border-top: 1px solid var(--line);
-      max-height: 60%;
-      overflow: auto;
-      transform: translateY(100%);
-      transition: transform .25s ease;
-      z-index: 999;
-    }
-    #manageSidebar.open{ transform: translateY(0); }
-    body.dimmed::before{
-      content: "";
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.35);
-      z-index: 998;
-    }
-    .fab-toggle, .fab-save{ display: inline-grid; }
-  }
-
   /* Modal confirm */
   .modal{
     position: fixed; inset: 0;

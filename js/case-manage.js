@@ -298,21 +298,42 @@ function renderStagedList() {
 }
 function renderUploadedList() {
   uploadedList.innerHTML = "";
+  if (!uploadedFiles.length) {
+    const div = document.createElement("div");
+    div.className = "muted";
+    div.style.padding = "6px";
+    div.textContent = "No documents uploaded yet.";
+    uploadedList.appendChild(div);
+    return;
+  }
   uploadedFiles.forEach((uf) => {
     const div = document.createElement("div");
     div.className = "file-row";
     div.innerHTML = `
-      <span class="file-name">${uf.fileName}</span>
+      <span class="file-name">${uf.fileName || uf.name || "(untitled)"}</span>
       <button class="trash" title="Delete from Drive">🗑</button>`;
     div.querySelector(".file-name").addEventListener("click", () => {
-      renderPreview(uf, uf.id);
+      // prefer stable id for tag keys; fall back to driveFileId
+      const key = uf.id || uf.uploadId || uf.driveFileId;
+      renderPreview(
+        {
+          ...uf,
+          // normalize props read by isPdfMeta/isImageMeta
+          mimeType: uf.mimeType || uf.type || "",
+          fileName: uf.fileName || uf.name || "",
+        },
+        key
+      );
     });
     div.querySelector(".trash").addEventListener("click", async () => {
-      const ok = await confirmUI(`Delete ${uf.fileName}? This cannot be undone.`);
+      const name = uf.fileName || uf.name || "(untitled)";
+      const ok = await confirmUI(`Delete ${name}? This cannot be undone.`);
       if (ok) {
-        await hardDeleteFile(uf.id);
+        await hardDeleteFile(uf.id || uf.uploadId || uf.driveFileId);
+        // clear any tag edits we were tracking for that file
+        const fid = uf.id || uf.uploadId || uf.driveFileId;
         for (const k of [...pageTags.keys()]) {
-          if (k.startsWith(`${uf.id}:`)) pageTags.delete(k);
+          if (k.startsWith(`${fid}:`)) pageTags.delete(k);
         }
         await refreshUploadedList();
         markDirty(true);
@@ -322,6 +343,7 @@ function renderUploadedList() {
     uploadedList.appendChild(div);
   });
 }
+
 
 // --- Preview ---
 // --- Preview ---
@@ -471,9 +493,27 @@ saveBtn.addEventListener("click", saveAll);
 mobileSaveBtn.addEventListener("click", saveAll);
 
 // --- Uploaded list refresh ---
+// --- Uploaded list refresh ---
 async function refreshUploadedList() {
-  if (!state.caseId || state.isNew) return;
-  uploadedFiles = await listUploads(state.caseId);
+  if (!state.caseId || state.isNew) {
+    uploadedFiles = [];
+    renderUploadedList();
+    return;
+  }
+  try {
+    const data = await listUploads(state.caseId);
+    // normalize to array defensively
+    uploadedFiles = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.files)
+          ? data.files
+          : [];
+  } catch (e) {
+    console.error("listUploads failed:", e);
+    uploadedFiles = [];
+  }
   renderUploadedList();
 }
 
@@ -504,17 +544,22 @@ window.addEventListener("resize", () => {
 });
 
 
-// --- Init: wait until caseId is known ---
-// --- Init: wait until caseId is known ---
+
 // --- Init: wait until caseId is known ---
 document.addEventListener("caseLoaded", async () => {
-  applyManagePanelLayout();          // set correct starting state
-  // (Optional) if you implemented loadExistingTags earlier, call it here:
-  // await loadExistingTags();
+  // set correct starting layout (desktop sticky / mobile overlay closed)
+  applyManagePanelLayout();
+
+  // Preload existing page tags so dropdowns preselect
+  try {
+    await loadExistingTags();
+  } catch (e) {
+    console.warn("loadExistingTags failed (non-fatal):", e);
+  }
 
   await refreshUploadedList();
   renderStagedList();
-  markDirty(false);                  // 💾 FAB only when dirty
+  markDirty(false);  // 💾 FAB only when there are changes
 });
 
 
