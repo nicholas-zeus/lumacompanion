@@ -89,49 +89,106 @@ const LONG_FIELD_IDS = [
 ];
 function isTextarea(el) { return el && (el.tagName || "").toLowerCase() === "textarea"; }
 function buttonIcon(expanded) { return expanded ? "▴" : "▾"; }
+// Makes long fields collapsible in LOCKED mode; fully expands on click (no inner scroll)
+
+
 function applyOverflowToggles(isLocked) {
   LONG_FIELD_IDS.forEach(id => {
-    const el = f(id);
+    const el = document.getElementById(id);
     if (!el) return;
-    // wrapper .field
+
     const wrap = el.closest(".field") || el.parentElement;
     if (!wrap) return;
 
-    // Ensure base collapsed style in CSS terms via inline class
+    // Ensure base collapsed class when locked
     wrap.classList.toggle("collapsible", !!isLocked);
 
-    // Add/remove button
+    // find or create the button
     let btn = wrap.querySelector(".expand-btn");
-    if (isLocked) {
-      if (!btn) {
-        btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "expand-btn";
-        btn.style.border = "1px solid var(--line)";
-        btn.style.background = "#fff";
-        btn.style.borderRadius = "8px";
-        btn.style.fontSize = "12px";
-        btn.style.padding = "2px 6px";
-        btn.style.alignSelf = "start";
-        btn.style.cursor = "pointer";
-        btn.style.marginTop = "4px";
-        btn.textContent = "Expand " + buttonIcon(false);
-        btn.setAttribute("aria-expanded", "false");
-        btn.addEventListener("click", () => {
-          const expanded = wrap.classList.toggle("expanded");
-          btn.textContent = (expanded ? "Collapse " : "Expand ") + buttonIcon(expanded);
-          btn.setAttribute("aria-expanded", expanded ? "true" : "false");
-        });
-        // insert after the field control
-        el.insertAdjacentElement("afterend", btn);
-      }
-    } else {
-      // editing: remove collapsed styling and the button
+    if (!isLocked) {
+      // Editing mode: show full content, remove button and any forced sizing
       wrap.classList.remove("expanded");
       if (btn) btn.remove();
+      el.style.maxHeight = "";
+      el.style.overflow = "";
+      el.style.height = "";
+      return;
+    }
+
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "expand-btn";
+      Object.assign(btn.style, {
+        border: "1px solid var(--line)",
+        background: "#fff",
+        borderRadius: "8px",
+        fontSize: "12px",
+        padding: "2px 6px",
+        alignSelf: "start",
+        cursor: "pointer",
+        marginTop: "4px"
+      });
+      btn.textContent = "Expand ▾";
+      btn.setAttribute("aria-expanded", "false");
+      el.insertAdjacentElement("afterend", btn);
+
+      btn.addEventListener("click", () => {
+        const expanded = wrap.classList.toggle("expanded");
+        btn.textContent = expanded ? "Collapse ▴" : "Expand ▾";
+        btn.setAttribute("aria-expanded", expanded ? "true" : "false");
+
+        if (expanded) {
+          // FULLY EXPAND: remove height limits and allow content to grow naturally
+          el.style.maxHeight = "none";
+          el.style.overflow = "visible";
+          // for textareas, grow to full content height
+          if (el.tagName.toLowerCase() === "textarea") {
+            el.style.height = "auto";
+            el.style.height = (el.scrollHeight + 2) + "px";
+          } else {
+            el.style.height = "auto";
+          }
+        } else {
+          // COLLAPSE: restore compact view
+          el.style.maxHeight = "84px";
+          el.style.overflow = "hidden";
+          // keep a reasonable collapsed height for textareas
+          if (el.tagName.toLowerCase() === "textarea") {
+            el.style.height = "84px";
+          }
+        }
+      });
+    }
+
+    // Initial locked-state sizing (collapsed by default)
+    if (!wrap.classList.contains("expanded")) {
+      el.style.maxHeight = "84px";
+      el.style.overflow = "hidden";
+      if (el.tagName.toLowerCase() === "textarea") el.style.height = "84px";
     }
   });
 }
+function hideAgeInputsAndStatus() {
+  // Hide separate Age fields (years & months)
+  const fAgeYears = document.getElementById("fAgeYears");
+  const fAgeMonths = document.getElementById("fAgeMonths");
+  [fAgeYears, fAgeMonths].forEach(el => {
+    if (!el) return;
+    const field = el.closest(".field") || el.parentElement;
+    if (field) field.style.display = "none";
+    else el.style.display = "none";
+  });
+
+  // Hide status readout
+  const statusText = document.getElementById("statusText");
+  if (statusText) {
+    const wrap = statusText.closest(".status-readout") || statusText.parentElement;
+    if (wrap) wrap.style.display = "none";
+    else statusText.style.display = "none";
+  }
+}
+
 
 /* Reorder fields to requested sequence without changing HTML */
 function reorderFields() {
@@ -251,15 +308,61 @@ function hydrateFormFromDoc(doc) {
 }
 
 /* Primary button label + handler */
-function setPrimaryButton(label, onClick) {
-  if (saveDetailsBtn) saveDetailsBtn.hidden = true;           // hide legacy
-  if (newCaseActions) newCaseActions.classList.add("hidden"); // hide legacy
-  if (editDetailsBtn) {
-    editDetailsBtn.hidden = false;
-    editDetailsBtn.textContent = label;
-    editDetailsBtn.onclick = (e) => { e.preventDefault(); onClick?.(); };
-  }
+// Floating unified primary button (FAB) with icons
+let fabBtn;
+function ensureFloatingPrimaryButton() {
+  if (fabBtn) return fabBtn;
+  fabBtn = document.createElement("button");
+  fabBtn.id = "detailsFab";
+  // inline styles so no CSS file edits needed
+  Object.assign(fabBtn.style, {
+    position: "fixed",
+    right: "16px",
+    bottom: "16px",
+    width: "56px",
+    height: "56px",
+    borderRadius: "18px",
+    border: "0",
+    boxShadow: "var(--shadow)",
+    background: "linear-gradient(135deg, var(--brand), var(--accent))",
+    color: "var(--brand-ink)",
+    fontSize: "22px",
+    display: "grid",
+    placeItems: "center",
+    zIndex: "1001",
+    cursor: "pointer"
+  });
+  fabBtn.setAttribute("aria-label", "Action");
+  document.body.appendChild(fabBtn);
+  return fabBtn;
 }
+
+// labelMode: "edit" | "create" | "save"
+function setPrimaryButton(labelMode, onClick) {
+  // Hide legacy buttons/areas
+  const saveDetailsBtn = document.getElementById("saveDetailsBtn");
+  const newCaseActions = document.getElementById("newCaseActions");
+  const editDetailsBtn = document.getElementById("editDetailsBtn");
+  if (saveDetailsBtn) saveDetailsBtn.hidden = true;
+  if (newCaseActions) newCaseActions.classList.add("hidden");
+  if (editDetailsBtn) editDetailsBtn.hidden = true;
+
+  const btn = ensureFloatingPrimaryButton();
+
+  // icon & tooltip
+  let icon = "💾", tooltip = "Save";
+  if (labelMode === "edit") { icon = "✏️"; tooltip = "Edit"; }
+  if (labelMode === "create") { icon = "💾"; tooltip = "Create"; }
+  if (labelMode === "save") { icon = "💾"; tooltip = "Save"; }
+
+  btn.textContent = icon;
+  btn.title = tooltip;
+  btn.setAttribute("aria-label", tooltip);
+
+  // (re)bind
+  btn.onclick = (e) => { e.preventDefault(); onClick?.(); };
+}
+
 
 /* Finish banner + role rules */
 function lockUIFinished(isFinished) {
@@ -283,6 +386,7 @@ function syncDeadlineVisibility() {
 /* ---------- Public: loadCase ---------- */
 export async function loadCase() {
   showLoading();
+  hideAgeInputsAndStatus();
 
   // Always ensure field order and DOB age chip exist
   reorderFields();
