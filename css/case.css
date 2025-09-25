@@ -274,3 +274,24 @@
 
 /* Optional: make the inline age chip align nicely */
 #ageInline { vertical-align: middle; }
+/* --- FAB visibility guardrails (CSS-only) --- */
+#detailsFab,
+#goTopBtn,
+.fab-toggle { display: none; }
+
+/* Show ✏️/💾 only when Details tabpanel is active */
+body:has(#tab-details.is-active) #detailsFab { display: grid; }
+
+/* Go-to-top button: hidden by default; only show on DocView + mobile */
+#goTopBtn { display: none !important; }
+@media (max-width: 860px){
+  body:has(#tab-docview.is-active) #goTopBtn { display: grid !important; }
+}
+
+/* Manage tab’s toggle FAB: mobile only, and only on Manage tab */
+@media (max-width: 860px){
+  body:has(#tab-documents.is-active) .fab-toggle { display: inline-grid; }
+}
+
+/* Fix: your base style sets .go-top-btn to display:grid by default — override it */
+.go-top-btn { display: none !important; }

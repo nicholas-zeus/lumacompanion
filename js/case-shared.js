@@ -33,17 +33,14 @@ export function getHashId() {
   return h || "new";
 }
 export function setActiveTab(name) {
-  // toggle tab buttons and panels
   document.querySelectorAll(".tab").forEach(b =>
     b.classList.toggle("is-active", b.dataset.tab === name)
   );
   document.querySelectorAll(".tabpanel").forEach(el =>
     el.classList.toggle("is-active", el.id === `tab-${name}`)
   );
-
-  // ⬇️ central place to show/hide floating UI per tab
-  updateFloatingUI(name);
 }
+
 
 export function setHeaderUser(user, role) {
   if (!user) return;

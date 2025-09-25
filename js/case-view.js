@@ -11,9 +11,8 @@ const tagHitsWrap    = document.getElementById("tagHits");
 const tagFilterSelect= document.getElementById("tagFilterSelect");
 const tagFilterClear = document.getElementById("tagFilterClear");
 function buildStickySidebar() {
-  let btn = document.getElementById("goTopBtn");
-  if (!btn) {
-    btn = document.createElement("button");
+  if (!document.getElementById("goTopBtn")) {
+    const btn = document.createElement("button");
     btn.id = "goTopBtn";
     btn.className = "go-top-btn";
     btn.setAttribute("aria-label", "Go to top");
@@ -21,9 +20,8 @@ function buildStickySidebar() {
     btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
     document.body.appendChild(btn);
   }
-  // Default hidden; setActiveTab() will show it only on the DocView tab
-  btn.style.display = "none";
 }
+
 
 
 

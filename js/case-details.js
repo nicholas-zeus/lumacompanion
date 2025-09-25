@@ -311,8 +311,7 @@ function hydrateFormFromDoc(doc) {
 // Floating unified primary button (FAB) with icons
 let fabBtn;
 function ensureFloatingPrimaryButton() {
-  if (fabBtn && document.body.contains(fabBtn)) return fabBtn;
-
+  if (fabBtn) return fabBtn;
   fabBtn = document.createElement("button");
   fabBtn.id = "detailsFab";
   Object.assign(fabBtn.style, {
@@ -330,10 +329,9 @@ function ensureFloatingPrimaryButton() {
     display: "grid",
     placeItems: "center",
     zIndex: "1001",
-    cursor: "pointer",
+    cursor: "pointer"
   });
   fabBtn.setAttribute("aria-label", "Action");
-  fabBtn.hidden = false; // allow tab manager to toggle visibility
   document.body.appendChild(fabBtn);
   return fabBtn;
 }
@@ -341,9 +339,6 @@ function ensureFloatingPrimaryButton() {
 // labelMode: "edit" | "create" | "save"
 // labelMode: "edit" | "create" | "save" (case-insensitive)
 function setPrimaryButton(labelMode, onClick) {
-  const mode = String(labelMode || "").trim().toLowerCase();
-
-  // Hide legacy controls
   const saveDetailsBtn = document.getElementById("saveDetailsBtn");
   const newCaseActions = document.getElementById("newCaseActions");
   const editDetailsBtn = document.getElementById("editDetailsBtn");
@@ -353,21 +348,15 @@ function setPrimaryButton(labelMode, onClick) {
 
   const btn = ensureFloatingPrimaryButton();
 
-  // icon & tooltip
   let icon = "💾", tooltip = "Save";
-  if (mode === "edit")   { icon = "✏️"; tooltip = "Edit"; }
-  if (mode === "create") { icon = "💾"; tooltip = "Create"; }
-  if (mode === "save")   { icon = "💾"; tooltip = "Save"; }
+  if (labelMode === "edit")   { icon = "✏️"; tooltip = "Edit"; }
+  if (labelMode === "create") { icon = "💾"; tooltip = "Create"; }
+  if (labelMode === "save")   { icon = "💾"; tooltip = "Save"; }
 
   btn.textContent = icon;
   btn.title = tooltip;
   btn.setAttribute("aria-label", tooltip);
-
-  // (re)bind
   btn.onclick = (e) => { e.preventDefault(); onClick?.(); };
-
-  // IMPORTANT: do NOT toggle btn.hidden here.
-  // Visibility is managed centrally by setActiveTab()/updateFloatingUI.
 }
 
 
