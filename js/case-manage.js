@@ -460,31 +460,57 @@ function renderImage(url, fileKey, altKey) {
   state.pageIndex?.set?.(`${fileKey}:1`, wrapper);
 }
 
+// Create Firestore uploads doc and return its id
+async function writeUploadMetadata({ meta, caseId, batchNo = 1 }) {
+  const { db, auth } = await import("/js/firebase.js");
+  const { collection, addDoc, serverTimestamp } =
+    await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+
+  const upRef = await addDoc(collection(db, "uploads"), {
+    caseId,
+    batchNo,
+    fileName: meta.fileName,
+    fileType: meta.mimeType,
+    size: meta.size,
+    driveFileId: meta.fileId,   // the Google Drive file id returned by the function
+    fileHash: meta.md5,         // md5 for dedupe/reuse
+    uploadedBy: {
+      email: (auth.currentUser?.email || ""),
+      displayName: (auth.currentUser?.displayName || "")
+    },
+    uploadedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+
+  return upRef.id; // <-- Firestore document id (the real uploadId for tagging)
+}
 
 // --- Save flow ---
 async function saveAll() {
   savingOverlay.classList.remove("hidden");
 
-  // 1) Upload staged files + save their tags
+  // 1) Upload staged files + create Firestore metadata + save their tags
   for (const sf of stagedFiles) {
+    // 1a) Upload binary to Drive (Netlify function)
     const meta = await uploadFile({ file: sf.file, caseId: state.caseId, batchNo: 1 });
-    const newId = meta.fileId || meta.uploadId || meta.id;
 
-    // move staged key tags → real uploadId tags and write
+    // 1b) Write Firestore metadata row (get the *uploadId* we must use for tagging)
+    const newUploadId = await writeUploadMetadata({ meta, caseId: state.caseId, batchNo: 1 });
+
+    // 1c) Move any staged tag keys to the new Firestore upload id and write to pageTags
     for (const [k, v] of [...pageTags.entries()]) {
-      if (k.startsWith(`${sf.key}:`)) {
-        const pageNo = parseInt(k.split(":")[1], 10);
-        await setPageTag({ caseId: state.caseId, uploadId: newId, pageNumber: pageNo, tag: v });
-        pageTags.delete(k);
-        pageTags.set(`${newId}:${pageNo}`, v);
-      }
+      if (!k.startsWith(`${sf.key}:`)) continue;
+      const pageNo = parseInt(k.split(":")[1], 10);
+      await setPageTag({ caseId: state.caseId, uploadId: newUploadId, pageNumber: pageNo, tag: v });
+      pageTags.delete(k);
+      pageTags.set(`${newUploadId}:${pageNo}`, v);
     }
   }
 
-  // 2) Overwrite tags for all uploaded files we have edits for
+  // 2) Overwrite tags for previously uploaded files we edited
   for (const [k, v] of pageTags.entries()) {
     const [fid, pageNoStr] = k.split(":");
-    if (fid.startsWith("staged-")) continue;
+    if (fid.startsWith("staged-")) continue; // ignore any stale staged keys
     const pageNo = parseInt(pageNoStr, 10);
     await setPageTag({ caseId: state.caseId, uploadId: fid, pageNumber: pageNo, tag: v });
   }
@@ -498,6 +524,7 @@ async function saveAll() {
   markDirty(false);
   savingOverlay.classList.add("hidden");
 }
+
 
 saveBtn.addEventListener("click", saveAll);
 mobileSaveBtn.addEventListener("click", saveAll);
