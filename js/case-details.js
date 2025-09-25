@@ -8,15 +8,40 @@ import { toDate } from "/js/utils.js";
 const finishedLock   = document.getElementById("finishedLock");
 const detailsForm    = document.getElementById("detailsForm");
 
-/* Single, unified primary button: reuse existing edit button area */
+/* Unified primary button (reuse existing buttons area) */
 const editDetailsBtn = document.getElementById("editDetailsBtn");
-const saveDetailsBtn = document.getElementById("saveDetailsBtn");   // legacy (we'll hide)
-const newCaseActions = document.getElementById("newCaseActions");   // legacy (we'll hide)
+const saveDetailsBtn = document.getElementById("saveDetailsBtn");   // legacy (hidden)
+const newCaseActions = document.getElementById("newCaseActions");   // legacy (hidden)
 
 const statusText     = document.getElementById("statusText");
 const finishBtn      = document.getElementById("finishBtn");
 const undoBtn        = document.getElementById("undoBtn");
 const downloadPdfBtn = document.getElementById("downloadPdf");
+
+/* Loading overlay (created lazily) */
+let loadingOverlay;
+function ensureLoadingOverlay() {
+  if (loadingOverlay) return;
+  loadingOverlay = document.createElement("div");
+  loadingOverlay.id = "detailsLoadingOverlay";
+  loadingOverlay.style.position = "fixed";
+  loadingOverlay.style.inset = "0";
+  loadingOverlay.style.background = "rgba(255,255,255,0.75)";
+  loadingOverlay.style.display = "none";
+  loadingOverlay.style.alignItems = "center";
+  loadingOverlay.style.justifyContent = "center";
+  loadingOverlay.style.zIndex = "1000";
+  loadingOverlay.innerHTML = `
+    <div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);display:grid;gap:8px;justify-items:center">
+      <div style="width:28px;height:28px;border:4px solid #ccc;border-top-color:var(--brand);border-radius:50%;animation:spin 1s linear infinite"></div>
+      <div>Loading…</div>
+    </div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  `;
+  document.body.appendChild(loadingOverlay);
+}
+function showLoading() { ensureLoadingOverlay(); loadingOverlay.style.display = "flex"; }
+function hideLoading() { if (loadingOverlay) loadingOverlay.style.display = "none"; }
 
 /* Fields */
 const f = (id) => document.getElementById(id);
@@ -30,22 +55,130 @@ const fName=f("fName"), fMemberID=f("fMemberID"), fNationality=f("fNationality")
       fSummary=f("fSummary"), fTreatment=f("fTreatment"), fReasonAdm=f("fReasonAdm"),
       fReasonConsult=f("fReasonConsult"), fOtherRemark=f("fOtherRemark");
 
-/* ---------- Helpers ---------- */
+/* Inline Age (next to DOB) */
+let ageInline;
+function ensureAgeInline() {
+  if (ageInline) return;
+  if (!fDOB) return;
+  // place tiny age chip right after the DOB input
+  ageInline = document.createElement("span");
+  ageInline.id = "ageInline";
+  ageInline.style.marginLeft = "8px";
+  ageInline.style.fontSize = "12px";
+  ageInline.style.color = "var(--subtle)";
+  fDOB.insertAdjacentElement("afterend", ageInline);
+}
+function setAgeInline(dobVal, visitVal) {
+  ensureAgeInline();
+  const dob = dobVal ? toDate(dobVal) : null;
+  const ref = visitVal ? toDate(visitVal) : new Date();
+  if (!dob) { if (ageInline) ageInline.textContent = ""; return; }
+  const age = computeAge(dob, ref);
+  const y = age?.years ?? "";
+  const m = age?.months ?? "";
+  ageInline.textContent = (y === "" && m === "") ? "" : `${y}y ${m}m`;
+  // keep hidden fields updated (if present)
+  if (fAgeYears)  fAgeYears.value = y;
+  if (fAgeMonths) fAgeMonths.value = m;
+}
 
+/* Expand/Collapse for long fields (locked mode only) */
+const LONG_FIELD_IDS = [
+  "fChiefComplaint","fPresentIllness","fVitalSigns","fPhysicalFindings",
+  "fSummary","fTreatment","fReasonAdm","fReasonConsult","fOtherRemark","fDiagnosis"
+];
+function isTextarea(el) { return el && (el.tagName || "").toLowerCase() === "textarea"; }
+function buttonIcon(expanded) { return expanded ? "▴" : "▾"; }
+function applyOverflowToggles(isLocked) {
+  LONG_FIELD_IDS.forEach(id => {
+    const el = f(id);
+    if (!el) return;
+    // wrapper .field
+    const wrap = el.closest(".field") || el.parentElement;
+    if (!wrap) return;
+
+    // Ensure base collapsed style in CSS terms via inline class
+    wrap.classList.toggle("collapsible", !!isLocked);
+
+    // Add/remove button
+    let btn = wrap.querySelector(".expand-btn");
+    if (isLocked) {
+      if (!btn) {
+        btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "expand-btn";
+        btn.style.border = "1px solid var(--line)";
+        btn.style.background = "#fff";
+        btn.style.borderRadius = "8px";
+        btn.style.fontSize = "12px";
+        btn.style.padding = "2px 6px";
+        btn.style.alignSelf = "start";
+        btn.style.cursor = "pointer";
+        btn.style.marginTop = "4px";
+        btn.textContent = "Expand " + buttonIcon(false);
+        btn.setAttribute("aria-expanded", "false");
+        btn.addEventListener("click", () => {
+          const expanded = wrap.classList.toggle("expanded");
+          btn.textContent = (expanded ? "Collapse " : "Expand ") + buttonIcon(expanded);
+          btn.setAttribute("aria-expanded", expanded ? "true" : "false");
+        });
+        // insert after the field control
+        el.insertAdjacentElement("afterend", btn);
+      }
+    } else {
+      // editing: remove collapsed styling and the button
+      wrap.classList.remove("expanded");
+      if (btn) btn.remove();
+    }
+  });
+}
+
+/* Reorder fields to requested sequence without changing HTML */
+function reorderFields() {
+  if (!detailsForm) return;
+  const grid = detailsForm; // .form-grid
+  const order = [
+    // Row 1 grouping
+    "fName","fMemberID","fNationality","fDOB",
+    // Row 2
+    "fPolicyEff","fUWType","fExclusion",
+    // Row 3 and onwards
+    "fHospital","fAdmissionType","fVisitDate","fDischargeDate","fDiagnosis","fChiefComplaint",
+    "fPresentIllness","fVitalSigns","fPhysicalFindings","fSummary","fTreatment",
+    "fReasonAdm",
+    "fConsultType","fReasonConsult",
+    "fOtherRemark",
+    // urgent section last
+    "fUrgent","fDeadline"
+  ];
+  for (const id of order) {
+    const ctl = f(id);
+    if (!ctl) continue;
+    const field = ctl.closest(".field") || ctl.parentElement;
+    if (field && grid.contains(field)) {
+      grid.appendChild(field);
+    }
+  }
+}
+
+/* Tabs enable/disable */
 function setTabsEnabled(enabled) {
   document.querySelectorAll(".tab").forEach(btn => {
     const name = btn.dataset.tab;
-    if (name === "details") return;          // Details always enabled
+    if (name === "details") return;
     btn.setAttribute("aria-disabled", enabled ? "false" : "true");
     btn.style.pointerEvents = enabled ? "" : "none";
     btn.style.opacity = enabled ? "" : "0.5";
   });
 }
 
+/* Field lock */
 function lockFields(isLocked) {
   detailsForm.querySelectorAll(".input").forEach(i => { i.disabled = !!isLocked; });
+  applyOverflowToggles(!!isLocked);
 }
 
+/* Clear form */
 function clearDetailsForm() {
   [fName,fMemberID,fNationality,fDOB,fAgeYears,fAgeMonths,fPolicyEff,fUWType,fAdmissionType,
    fConsultType,fVisitDate,fHospital,fDiagnosis,fDischargeDate,fChiefComplaint,fPresentIllness,
@@ -53,8 +186,10 @@ function clearDetailsForm() {
   ].forEach(el => { if (el) el.value = ""; });
   if (fUrgent) fUrgent.checked = false;
   if (fDeadline) fDeadline.value = "";
+  setAgeInline("", "");
 }
 
+/* Gather form -> details */
 function gatherDetailsFromForm() {
   return {
     Name: fName.value.trim(),
@@ -82,15 +217,12 @@ function gatherDetailsFromForm() {
   };
 }
 
+/* Hydrate form from doc */
 function hydrateFormFromDoc(doc) {
   const d = doc.details || {};
   fName.value = d.Name || ""; fMemberID.value = d.MemberID || "";
   fNationality.value = d.Nationality || "";
   fDOB.value = toInputDate(d.DOB);
-
-  const age = computeAge(toDate(d.DOB), toDate(d.VisitDate));  // returns {years, months}
-  fAgeYears.value  = age?.years ?? "";
-  fAgeMonths.value = age?.months ?? "";
 
   fPolicyEff.value = toInputDate(d.PolicyEffectiveDate);
   fUWType.value = d.UnderwritingType || "";
@@ -112,13 +244,16 @@ function hydrateFormFromDoc(doc) {
   fOtherRemark.value = d.OtherRemark || "";
 
   statusText.textContent = statusLabel(doc.status || "—");
-  fUrgent.checked = !!doc.urgent;
-  fDeadline.value = toInputDateTimeLocal(doc.deadlineAt);
+  if (fUrgent) fUrgent.checked = !!doc.urgent;
+  if (fDeadline) fDeadline.value = toInputDateTimeLocal(doc.deadlineAt);
+
+  setAgeInline(d.DOB, d.VisitDate);
 }
 
+/* Primary button label + handler */
 function setPrimaryButton(label, onClick) {
-  if (saveDetailsBtn) saveDetailsBtn.hidden = true;                // hide legacy
-  if (newCaseActions) newCaseActions.classList.add("hidden");      // hide legacy
+  if (saveDetailsBtn) saveDetailsBtn.hidden = true;           // hide legacy
+  if (newCaseActions) newCaseActions.classList.add("hidden"); // hide legacy
   if (editDetailsBtn) {
     editDetailsBtn.hidden = false;
     editDetailsBtn.textContent = label;
@@ -126,7 +261,7 @@ function setPrimaryButton(label, onClick) {
   }
 }
 
-/* Finish lock banner + role-based finish/undo visibility */
+/* Finish banner + role rules */
 function lockUIFinished(isFinished) {
   finishedLock.classList.toggle("hidden", !isFinished);
   lockFields(isFinished || (!state.isNew && !state.isEditing));
@@ -134,13 +269,31 @@ function lockUIFinished(isFinished) {
   undoBtn.hidden   = !isFinished || !(state.role === "nurse" || state.role === "admin");
 }
 
+/* Urgent/Deadline visibility + requirement */
+function syncDeadlineVisibility() {
+  const urgent = !!(fUrgent && fUrgent.checked);
+  const wrapDeadline = fDeadline?.closest(".field") || fDeadline?.parentElement;
+  if (wrapDeadline) wrapDeadline.style.display = urgent ? "" : "none";
+  if (fDeadline) {
+    fDeadline.required = urgent;
+    if (!urgent) fDeadline.value = ""; // clear when not urgent
+  }
+}
+
 /* ---------- Public: loadCase ---------- */
 export async function loadCase() {
+  showLoading();
+
+  // Always ensure field order and DOB age chip exist
+  reorderFields();
+  ensureAgeInline();
+  syncDeadlineVisibility();
+
   const id = getHashId();
   state.caseId = id;
   state.isNew = (id === "new");
 
-  // Hide legacy buttons/areas always; we control one primary button
+  // Hide legacy button areas; we control a single button
   if (saveDetailsBtn) saveDetailsBtn.hidden = true;
   if (newCaseActions) newCaseActions.classList.add("hidden");
 
@@ -150,70 +303,72 @@ export async function loadCase() {
     statusText.textContent = "—";
     clearDetailsForm();
     lockFields(false);         // allow typing
-    setTabsEnabled(false);     // lock other tabs until created
+    setTabsEnabled(false);     // lock other tabs
     if (downloadPdfBtn) downloadPdfBtn.hidden = true;
 
     setPrimaryButton("Create", async () => {
-      const details = gatherDetailsFromForm();
+      showLoading();
+      try {
+        // Require deadline when urgent
+        syncDeadlineVisibility();
+        const details = gatherDetailsFromForm();
 
-      const initPayload = {
-        details,
-        status: "awaiting doctor",
-        urgent: !!(fUrgent && fUrgent.checked),
-        deadlineAt: fDeadline?.value ? new Date(fDeadline.value) : null,
-        assignedNurse: {
-          email: state.user.email,
-          displayName: state.user.displayName || state.user.email
-        }
-      };
+        const initPayload = {
+          details,
+          status: "awaiting doctor",
+          urgent: !!(fUrgent && fUrgent.checked),
+          deadlineAt: fDeadline?.value ? new Date(fDeadline.value) : null,
+          assignedNurse: {
+            email: state.user.email,
+            displayName: state.user.displayName || state.user.email
+          }
+        };
 
-      // Create in Firestore (adds created/updated & computes urgent)
-      const created = await createCase(initPayload, state.user);
+        const created = await createCase(initPayload, state.user);
 
-      // Switch URL to CaseID and enter existing-mode UX
-      location.hash = `#${created.id}`;
-      state.isNew = false;
+        location.hash = `#${created.id}`;
+        state.isNew = false;
 
-      // Fetch fresh and hydrate form
-      const fresh = await getCase(created.id);
-      state.caseDoc = fresh;
-      hydrateFormFromDoc(fresh);
+        const fresh = await getCase(created.id);
+        state.caseDoc = fresh;
+        hydrateFormFromDoc(fresh);
 
-      // Lock fields, enable tabs, show download
-      lockFields(true);
-      setTabsEnabled(true);
-      if (downloadPdfBtn) downloadPdfBtn.hidden = false;
+        lockFields(true);
+        setTabsEnabled(true);
+        if (downloadPdfBtn) downloadPdfBtn.hidden = false;
 
-      // Primary button becomes Edit (if nurse)
-      wirePrimaryButtonForExisting();
-
-      // Notify other modules
-      document.dispatchEvent(new Event("caseLoaded"));
+        wirePrimaryButtonForExisting();
+        document.dispatchEvent(new Event("caseLoaded"));
+      } finally {
+        hideLoading();
+      }
     });
 
-    // Fire once so other modules can react (they’ll see tabs disabled visually)
     document.dispatchEvent(new Event("caseLoaded"));
+    hideLoading();
     return;
   }
 
   // EXISTING MODE
-  const doc = await getCase(id);
-  if (!doc) {
-    bannerArea.innerHTML = `<div class="banner">Case not found: <span class="mono">#${id}</span></div>`;
+  try {
+    const doc = await getCase(id);
+    if (!doc) {
+      bannerArea.innerHTML = `<div class="banner">Case not found: <span class="mono">#${id}</span></div>`;
+      document.dispatchEvent(new Event("caseLoaded"));
+      return;
+    }
+    state.caseDoc = doc;
+
+    hydrateFormFromDoc(doc);
+    lockFields(true);
+    setTabsEnabled(true);
+    if (downloadPdfBtn) downloadPdfBtn.hidden = false;
+
+    wirePrimaryButtonForExisting();
     document.dispatchEvent(new Event("caseLoaded"));
-    return;
+  } finally {
+    hideLoading();
   }
-  state.caseDoc = doc;
-
-  hydrateFormFromDoc(doc);
-  lockFields(true);
-  setTabsEnabled(true);
-  if (downloadPdfBtn) downloadPdfBtn.hidden = false;
-
-  // Unified nurse-only editing
-  wirePrimaryButtonForExisting();
-
-  document.dispatchEvent(new Event("caseLoaded"));
 }
 
 /* Nurse-only editing logic for existing cases */
@@ -226,43 +381,67 @@ function wirePrimaryButtonForExisting() {
     return;
   }
 
-  // Start as "Edit" (view mode locked)
   setPrimaryButton("Edit", () => {
-    lockFields(false);              // unlock for editing
+    lockFields(false);              // unlock
     setPrimaryButton("Save", async () => {
-      const details = gatherDetailsFromForm();
-      await updateCase(state.caseId, { details }, state.user);
+      showLoading();
+      try {
+        syncDeadlineVisibility();
+        const details = gatherDetailsFromForm();
+        await updateCase(state.caseId, {
+          details,
+          urgent: !!(fUrgent && fUrgent.checked),
+          deadlineAt: fDeadline?.value ? new Date(fDeadline.value) : null
+        }, state.user);
 
-      // Back to view mode
-      lockFields(true);
-      setPrimaryButton("Edit", wirePrimaryButtonForExisting);
+        // back to locked
+        lockFields(true);
+        setPrimaryButton("Edit", wirePrimaryButtonForExisting);
+
+        // refresh status text from server (in case any server rule modifies fields)
+        const updated = await getCase(state.caseId);
+        state.caseDoc = updated;
+        statusText.textContent = statusLabel(updated.status || "—");
+      } finally {
+        hideLoading();
+      }
     });
   });
 }
 
-/* --- Finish / Undo --- */
+/* --- Finish / Undo (unchanged) --- */
 finishBtn?.addEventListener("click", async () => {
-  await finishCase(state.caseId, state.user);
-  const updated = await getCase(state.caseId);
-  state.caseDoc = updated;
-  lockUIFinished(true);
-  statusText.textContent = statusLabel(updated.status);
+  showLoading();
+  try {
+    await finishCase(state.caseId, state.user);
+    const updated = await getCase(state.caseId);
+    state.caseDoc = updated;
+    lockUIFinished(true);
+    statusText.textContent = statusLabel(updated.status);
+  } finally {
+    hideLoading();
+  }
 });
 
 undoBtn?.addEventListener("click", async () => {
-  await undoFinish(state.caseId, state.user);
-  const updated = await getCase(state.caseId);
-  state.caseDoc = updated;
-  lockUIFinished(false);
-  statusText.textContent = statusLabel(updated.status);
+  showLoading();
+  try {
+    await undoFinish(state.caseId, state.user);
+    const updated = await getCase(state.caseId);
+    state.caseDoc = updated;
+    lockUIFinished(false);
+    statusText.textContent = statusLabel(updated.status);
+  } finally {
+    hideLoading();
+  }
 });
 
-/* --- Live age recompute on date changes --- */
-function updateAgeFields() {
-  const age = computeAge(fDOB.value ? new Date(fDOB.value) : null,
-                         fVisitDate.value ? new Date(fVisitDate.value) : new Date());
-  fAgeYears.value  = age?.years ?? "";
-  fAgeMonths.value = age?.months ?? "";
+/* --- Live age recompute next to DOB --- */
+function updateAgeInline() {
+  setAgeInline(fDOB?.value, fVisitDate?.value);
 }
-document.getElementById("fDOB")?.addEventListener("change", updateAgeFields);
-document.getElementById("fVisitDate")?.addEventListener("change", updateAgeFields);
+document.getElementById("fDOB")?.addEventListener("change", updateAgeInline);
+document.getElementById("fVisitDate")?.addEventListener("change", updateAgeInline);
+
+/* --- Urgent/Deadline UI --- */
+fUrgent?.addEventListener("change", syncDeadlineVisibility);

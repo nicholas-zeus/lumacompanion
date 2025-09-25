@@ -261,3 +261,16 @@
 
 /* JS can force it on even if some class left it hidden */
 #saveSection.force-show { display: block !important; }
+/* Limit long fields in locked mode; show toggle button to expand */
+.field.collapsible textarea,
+.field.collapsible input[type="text"] {
+  max-height: 84px;
+  overflow: hidden;
+}
+.field.collapsible.expanded textarea,
+.field.collapsible.expanded input[type="text"] {
+  max-height: none;
+}
+
+/* Optional: make the inline age chip align nicely */
+#ageInline { vertical-align: middle; }
