@@ -21,10 +21,10 @@ function buildStickySidebar() {
     btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
     document.body.appendChild(btn);
   }
-  // Default hidden unless DocView tab is active (case-shared.js toggles it)
-  const activeTab = document.querySelector(".tab.is-active")?.dataset?.tab;
-  btn.style.display = (activeTab === "docview" ? "grid" : "none");
+  // Default hidden; setActiveTab() will show it only on the DocView tab
+  btn.style.display = "none";
 }
+
 
 
 function wireDocviewControls() {

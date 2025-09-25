@@ -33,12 +33,27 @@ export function getHashId() {
   return h || "new";
 }
 export function setActiveTab(name) {
+  // toggle tab buttons and panels
   document.querySelectorAll(".tab").forEach(b =>
     b.classList.toggle("is-active", b.dataset.tab === name)
   );
   document.querySelectorAll(".tabpanel").forEach(el =>
     el.classList.toggle("is-active", el.id === `tab-${name}`)
   );
+
+  // ⬇️ central place to show/hide floating UI per tab
+  updateFloatingUI(name);
+}
+function updateFloatingUI(tabName) {
+  // Details tab FAB (✏️ / 💾)
+  const detailsFab = document.getElementById("detailsFab");
+  if (detailsFab) detailsFab.hidden = (tabName !== "details");
+
+  // DocView tab “Go to top” button
+  const goTopBtn = document.getElementById("goTopBtn");
+  if (goTopBtn) goTopBtn.style.display = (tabName === "docview" ? "grid" : "none");
+
+  // Manage tab FABs live inside the manage tab panel; they hide with the panel automatically.
 }
 export function setHeaderUser(user, role) {
   if (!user) return;

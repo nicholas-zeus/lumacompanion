@@ -339,11 +339,11 @@ function ensureFloatingPrimaryButton() {
 }
 
 // labelMode: "edit" | "create" | "save"
+// labelMode: "edit" | "create" | "save" (case-insensitive)
 function setPrimaryButton(labelMode, onClick) {
-  // Normalize callers that pass "Edit"/"Create"/"Save"
   const mode = String(labelMode || "").trim().toLowerCase();
 
-  // Hide legacy buttons/areas
+  // Hide legacy controls
   const saveDetailsBtn = document.getElementById("saveDetailsBtn");
   const newCaseActions = document.getElementById("newCaseActions");
   const editDetailsBtn = document.getElementById("editDetailsBtn");
@@ -354,7 +354,6 @@ function setPrimaryButton(labelMode, onClick) {
   const btn = ensureFloatingPrimaryButton();
 
   // icon & tooltip
-  // create → 💾, edit (locked) → ✏️, save (editing) → 💾
   let icon = "💾", tooltip = "Save";
   if (mode === "edit")   { icon = "✏️"; tooltip = "Edit"; }
   if (mode === "create") { icon = "💾"; tooltip = "Create"; }
@@ -367,12 +366,10 @@ function setPrimaryButton(labelMode, onClick) {
   // (re)bind
   btn.onclick = (e) => { e.preventDefault(); onClick?.(); };
 
-  // Make sure it’s visible only when Details tab is active; case-shared.js will also enforce this on tab switches.
-  try {
-    const activeTab = document.querySelector(".tab.is-active")?.dataset?.tab;
-    btn.hidden = activeTab !== "details";
-  } catch (_) {}
+  // IMPORTANT: do NOT toggle btn.hidden here.
+  // Visibility is managed centrally by setActiveTab()/updateFloatingUI.
 }
+
 
 
 /* Finish banner + role rules */
