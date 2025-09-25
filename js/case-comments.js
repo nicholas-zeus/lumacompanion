@@ -67,24 +67,28 @@ function showMqModal(text) { ensureMqModal(); mqModalBody.textContent = text || 
 function hideMqModal() { if (mqModal) mqModal.style.display = "none"; }
 
 // --- Render newest → oldest; keep compose box on top ---
+// Guard against overlapping renders (latest run wins)
+let renderRun = 0;
 export async function renderComments() {
   if (!commentsList || !state.caseId) return;
+  const run = ++renderRun;
 
-  // IMPORTANT: only clear the list container so the compose form stays on top
-  commentsList.innerHTML = "";
-
-  // Firestore query is case-scoped already; we reverse for newest-first
+  // Load & sort
   const itemsAsc = await listComments(state.caseId);
-  const items = itemsAsc.slice().reverse();
+  if (run !== renderRun) return; // a newer render started
 
+  const items = itemsAsc.slice().reverse(); // newest first
   ensureMqModal();
+
+  // Build in fragment, then swap in one go (avoids flicker & race duplicates)
+  const frag = document.createDocumentFragment();
 
   for (const c of items) {
     const who = c.author?.displayName || c.author?.email || "—";
     const when = toDate(c.createdAt);
     const whenText = when ? when.toLocaleString() : "";
 
-    // Try to fetch MQ; if exists, show a button to open modal
+    // fetch MQ if present
     let mqText = "";
     try {
       const mq = await getCommentMQ(c.id);
@@ -105,10 +109,14 @@ export async function renderComments() {
       btn.addEventListener("click", () => showMqModal(mqText));
     }
 
-    commentsList.appendChild(el);
+    frag.appendChild(el);
   }
 
-  // keep compose anchored/focused after any refresh
+  if (run !== renderRun) return; // new render started while we built the list
+  commentsList.innerHTML = "";
+  commentsList.appendChild(frag);
+
+  // keep compose focused
   commentBody?.focus();
 }
 
@@ -118,7 +126,7 @@ async function postComment(confirmHandoff) {
   const mq = (commentMQ.value || "").trim();
   if (!body && !mq) return;
 
-  // 1) Save the comment (author is stored by addComment)
+  // 1) Save the comment
   const created = await addComment(state.caseId, body, state.user);
 
   // 2) Save MQ (if provided)
@@ -131,7 +139,7 @@ async function postComment(confirmHandoff) {
     });
   }
 
-  // 3) Auto-assign to commenter (respecting role) and optionally handoff
+  // 3) Auto-assign by role; confirm → handoff
   const role = (state.role || "").toLowerCase();
   const patch = {};
   if (role === "nurse") {
@@ -172,30 +180,6 @@ async function postComment(confirmHandoff) {
 saveCommentBtn?.addEventListener("click", (e) => { e.preventDefault(); postComment(false); });
 confirmBtn?.addEventListener("click", (e) => { e.preventDefault(); postComment(true); });
 
-// --- Auto-load when the Comments tab is opened (no edits needed elsewhere) ---
-const tabsNav = document.querySelector(".tabs");
-tabsNav?.addEventListener("click", async (e) => {
-  const btn = e.target.closest(".tab");
-  if (!btn) return;
-  if (btn.dataset.tab === "comments") {
-    try {
-      await renderComments();
-      commentBody?.focus();
-    } catch (err) {
-      console.error("comments init failed:", err);
-    }
-  }
-});
-
-// --- Also load if the page opens with the Comments tab already active ---
-document.addEventListener("caseLoaded", async () => {
-  const active = document.querySelector(".tabpanel.is-active");
-  if (active?.id === "tab-comments") {
-    try {
-      await renderComments();
-      commentBody?.focus();
-    } catch (err) {
-      console.error("initial comments load failed:", err);
-    }
-  }
-});
+// NOTE: Do NOT auto-wire tab/caseLoaded listeners here.
+// Keep a single source of truth: let case-shared.js call renderComments()
+// when the Comments tab is opened or when caseLoaded fires and the tab is active.
