@@ -162,6 +162,7 @@
     max-height: none;
   }
 }
+
 /* Floating go-to-top button (mobile only) */
 .go-top-btn{
   position: fixed;
@@ -173,7 +174,7 @@
   border-radius: 50%;
   background: var(--brand);
   color: var(--brand-ink);
-  display: grid;             /* hidden by default */
+  display: none;            /* hidden by default */
   place-items: center;
   box-shadow: var(--shadow);
   font-size: 20px;
@@ -181,8 +182,10 @@
   border: 0;
 }
 @media (max-width: 860px){
-  .go-top-btn{ display: grid; }   /* show only on mobile */
+  /* show only on mobile + DocView tab active */
+  body:has(#tab-docview.is-active) .go-top-btn { display: grid; }
 }
+
 /* /css/case.css  (append near the end) */
 
 /* Manage Documents */
@@ -223,16 +226,63 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Mobile floating buttons */
-.fab-toggle, .fab-save {
-  position: fixed; right: 16px; bottom: 16px;
-  width: 48px; height: 48px; border-radius: 50%;
-  box-shadow: var(--shadow);
-  border: none; cursor: pointer;
+/* =============== Mobile floating buttons (FABs) =============== */
+/* Base FAB styles — hidden by default, JS decides visibility */
+.fab,
+.fab-save,
+.fab-toggle{
+  position: fixed;
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: none;            /* KEY: default hidden */
+  place-items: center;
+  font-size: 22px;
+  z-index: 1001;
+  box-shadow: var(--shadow, 0 2px 6px rgba(0,0,0,0.3));
+  background: rgba(30, 136, 229, 0.92); /* translucent */
+  color: #fff;
+}
+
+/* Primary slot: Save FAB sits higher so both FABs aren't cramped */
+.fab-save{
+  bottom: 88px;             /* space above toggle; ~72px separation */
   font-size: 20px;
 }
-.fab-save { bottom: 72px; background: var(--brand); color: var(--brand-ink); }
-.fab-toggle { background: var(--accent); color: var(--accent-ink); }
+
+/* Secondary slot: Toggle FAB near bottom */
+.fab-toggle{
+  bottom: 16px;
+  font-size: 20px;
+}
+
+/* Generic FAB (e.g., details/doc top buttons) defaults to a primary-ish slot */
+.fab{ bottom: 72px; }
+
+/* Hover/active states */
+.fab:hover, .fab-save:hover, .fab-toggle:hover{
+  background: rgba(21, 101, 192, 0.95);
+}
+.fab:active, .fab-save:active, .fab-toggle:active{
+  transform: translateY(1px);
+}
+
+/* Mobile-only visibility helpers (non-Save) */
+@media (max-width: 860px){
+  /* Manage tab’s toggle FAB: show on Manage/Documents tab */
+  body:has(#tab-documents.is-active) .fab-toggle { display: inline-grid; }
+}
+
+/* --- Manage: ensure desktop Save section can be shown by JS --- */
+/* Baseline: visible on desktop, hidden on mobile */
+@media (min-width: 861px) {
+  #saveSection { display: block; }
+}
+/* JS can force it on even if some class left it hidden */
+#saveSection.force-show { display: block !important; }
 
 /* Sidebar mobile */
 #manageSidebar { transition: transform 0.3s ease; }
@@ -252,73 +302,11 @@
   #saveSection { display:none; }
   .preview-grid { grid-template-columns: 1fr; }
 }
-/* --- Manage: ensure desktop Save section can be shown by JS --- */
 
-/* Baseline: visible on desktop, hidden on mobile */
-@media (min-width: 861px) {
-  #saveSection { display: block; }
-}
-
-/* JS can force it on even if some class left it hidden */
-#saveSection.force-show { display: block !important; }
-/* Limit long fields in locked mode; show toggle button to expand */
-.field.collapsible textarea,
-.field.collapsible input[type="text"] {
-  max-height: 84px;
-  overflow: hidden;
-}
-.field.collapsible.expanded textarea,
-.field.collapsible.expanded input[type="text"] {
-  max-height: none;
-}
-
-/* Optional: make the inline age chip align nicely */
-#ageInline { vertical-align: middle; }
-/* --- FAB visibility guardrails (CSS-only) --- */
+/* --- Visibility guardrails for other floating UI --- */
+/* Hide by default; show contextually via @media + :has above */
 #detailsFab,
 #goTopBtn,
-.fab-toggle { display: none; }
-
-/* Show ✏️/💾 only when Details tabpanel is active */
-body:has(#tab-details.is-active) #detailsFab { display: grid; }
-
-/* Go-to-top button: hidden by default; only show on DocView + mobile */
-#goTopBtn { display: none !important; }
-@media (max-width: 860px){
-  body:has(#tab-docview.is-active) #goTopBtn { display: grid !important; }
-}
-
-/* Manage tab’s toggle FAB: mobile only, and only on Manage tab */
-@media (max-width: 860px){
-  body:has(#tab-documents.is-active) .fab-toggle { display: inline-grid; }
-}
-
-/* Fix: your base style sets .go-top-btn to display:grid by default — override it */
-.go-top-btn { display: none !important; }
-/* Generic FAB base */
-.fab{
-  position: fixed;
-  z-index: 1001;
-  width: 56px; height: 56px; border-radius: 18px;
-  border: 0; cursor: pointer; display: none; place-items: center;
-  font-size: 22px; box-shadow: var(--shadow);
-  background: linear-gradient(135deg, var(--brand), var(--accent));
-  color: var(--brand-ink);
-}
-/* Black 3D FAB */
-.fab{
-  background: linear-gradient(160deg, #151515, #000);
-  color: #f5f5f5;
-  border: 1px solid rgba(255,255,255,0.06);
-  box-shadow:
-    0 10px 24px rgba(0,0,0,0.55),
-    0 2px 0 rgba(255,255,255,0.04) inset,
-    0 -2px 10px rgba(255,255,255,0.02) inset;
-}
-.fab:active{
-  transform: translateY(1px);
-  box-shadow:
-    0 6px 18px rgba(0,0,0,0.6),
-    0 1px 0 rgba(255,255,255,0.03) inset,
-    0 -1px 6px rgba(255,255,255,0.02) inset;
+.fab-toggle { /* .fab-toggle will be enabled by the rule above on /documents tab */
+  /* intentional: keep defaults to none */
 }

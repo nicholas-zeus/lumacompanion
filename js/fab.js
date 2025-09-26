@@ -53,7 +53,6 @@ function ensure() {
       cursor: "pointer",
       userSelect: "none",
       WebkitTapHighlightColor: "transparent",
-      margin: "20px"
     });
   });
 
