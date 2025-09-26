@@ -526,8 +526,6 @@ window.addEventListener("resize", () => {
 document.addEventListener("caseLoaded", async () => {
   // ensure FABs are ready and set to Manage/Documents tab
   fab.init?.();
-  fab.setTab?.("documents");      // normalize to your Manage tab name
-
   applyManagePanelLayout();
 
   // Preload existing page tags so dropdowns preselect
