@@ -11,6 +11,7 @@
   <!-- Page-level wrapper for consistent max width across all tabs -->
   <style>
     .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
     /* viewer cards used by the new Document View tab */
     .docview-shell { display: grid; grid-template-columns: 280px 1fr; gap: 12px; }
     @media (max-width: 900px){ .docview-shell { grid-template-columns: 1fr; } }
@@ -23,9 +24,12 @@
     .doc-file { font-weight: 700; word-break: break-word; }
     .doc-sub { font-size: 12px; color: var(--muted); }
     .doc-actions a { font-size: 12px; }
+
     .viewer-section { display:flex; justify-content:space-between; align-items:center; margin: 4px 0 10px; }
     .viewer-section h3 { margin: 0; }
+
     .pdf-frame { width: 100%; height: 680px; border: 1px solid var(--line); border-radius: 8px; }
+
     .tag-hits { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
     .tag-hit { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 8px; }
     .tag-hit .hit-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted); }
@@ -35,8 +39,6 @@
   <!-- Header -->
   <header class="app-header">
     <div class="page-wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-
-
       <div class="header-actions">
         <a id="backBtn" href="/index.html" class="btn">← Back</a>
         <div id="roleBadge" class="role-badge" hidden></div>
@@ -234,69 +236,67 @@
   </section>
 
   <!-- MANAGE DOCUMENTS TAB -->
-  <!-- MANAGE DOCUMENTS TAB -->
-<section id="tab-documents" class="tabpanel" aria-labelledby="documents">
-  <div class="page-wrap">
-    <div class="docview-shell">
-      <!-- Sidebar / Panel -->
-      <aside class="list-card" id="managePanel">
-        <div class="sidebar-head mobile-only" style="display:none;position:sticky;top:0;background:#fff;padding:8px 6px;z-index:2;border-bottom:1px solid var(--line);">
-          <button id="manageCloseBtn" class="btn" style="margin-left:auto;">✕</button>
-        </div>
-
-        <!-- Upload Section -->
-        <div class="sidebar-section">
-          <h3>Upload</h3>
-          <div id="uploadDrop" class="upload-drop">
-            <p>Click or drag files here</p>
-            <input id="fileInput" type="file" multiple hidden />
+  <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
+    <div class="page-wrap">
+      <div class="docview-shell">
+        <!-- Sidebar / Panel -->
+        <aside class="list-card" id="managePanel">
+          <div class="sidebar-head mobile-only" style="display:none;position:sticky;top:0;background:#fff;padding:8px 6px;z-index:2;border-bottom:1px solid var(--line);">
+            <button id="manageCloseBtn" class="btn" style="margin-left:auto;">✕</button>
           </div>
-          <div id="stagedList" class="file-list"></div>
-        </div>
 
-        <!-- List Section -->
-        <div class="sidebar-section">
-          <h3>Existing</h3>
-          <div id="uploadedList" class="file-list"></div>
-        </div>
+          <!-- Upload Section -->
+          <div class="sidebar-section">
+            <h3>Upload</h3>
+            <div id="uploadDrop" class="upload-drop">
+              <p>Click or drag files here</p>
+              <input id="fileInput" type="file" multiple hidden />
+            </div>
+            <div id="stagedList" class="file-list"></div>
+          </div>
 
-        <!-- Save Section (desktop only) -->
-        <div class="sidebar-section" id="saveSection" hidden>
-          <button id="saveBtn" class="btn btn-primary">💾 Save</button>
-        </div>
-      </aside>
+          <!-- List Section -->
+          <div class="sidebar-section">
+            <h3>Existing</h3>
+            <div id="uploadedList" class="file-list"></div>
+          </div>
 
-      <!-- Right viewer -->
-      <section class="viewer-card">
-        <div id="previewArea" class="preview-grid"></div>
-      </section>
-    </div>
-  </div>
+          <!-- Save Section (desktop only) -->
+          <div class="sidebar-section" id="saveSection" hidden>
+            <button id="saveBtn" class="btn btn-primary">💾 Save</button>
+          </div>
+        </aside>
 
-  <!-- Overlay during save -->
-  <div id="savingOverlay" class="saving-overlay hidden">
-    <div class="saving-content">
-      <div class="spinner"></div>
-      <p>Saving…</p>
-    </div>
-  </div>
-
-  <!-- Confirm modal -->
-  <div id="confirmOverlay" class="modal hidden">
-    <div class="modal-card">
-      <p id="confirmMessage"></p>
-      <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
-        <button id="confirmNo" class="btn">Cancel</button>
-        <button id="confirmYes" class="btn btn-primary">Delete</button>
+        <!-- Right viewer -->
+        <section class="viewer-card">
+          <div id="previewArea" class="preview-grid"></div>
+        </section>
       </div>
     </div>
-  </div>
 
-  <!-- Floating buttons (mobile only) -->
-  <!--<button id="toggleSidebarBtn" class="fab fab-toggle">^</button>
-  <button id="mobileSaveBtn" class="fab fab-save" hidden>💾</button>-->
-</section>
+    <!-- Overlay during save -->
+    <div id="savingOverlay" class="saving-overlay hidden">
+      <div class="saving-content">
+        <div class="spinner"></div>
+        <p>Saving…</p>
+      </div>
+    </div>
 
+    <!-- Confirm modal -->
+    <div id="confirmOverlay" class="modal hidden">
+      <div class="modal-card">
+        <p id="confirmMessage"></p>
+        <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+          <button id="confirmNo" class="btn">Cancel</button>
+          <button id="confirmYes" class="btn btn-primary">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating buttons (mobile only) — removed from HTML; JS creates its own -->
+    <!-- <button id="toggleSidebarBtn" class="fab fab-toggle">^</button>
+    <button id="mobileSaveBtn" class="fab fab-save" hidden>💾</button> -->
+  </section>
 
   <!-- DOCUMENTS (VIEW) TAB -->
   <section id="tab-docview" class="tabpanel" aria-labelledby="docview">
@@ -350,67 +350,55 @@
 
   <!-- Minimal inline overrides for Manage Documents (mobile/desktop) -->
   <style>
-    /* Make Manage sidebar non-sticky by default (we toggle it on mobile via drawer) */
-    #manageSidebar { position: static !important; max-height: none !important; transform: none; }
+    /* (Fixed old id) Make manage sidebar non-sticky by default; we control via media rules below */
+    #managePanel { position: static; max-height: none; transform: none; }
 
-    /* Floating buttons visible only on mobile */
-    
-    @media (min-width: 861px) { .fab-toggle, .fab-save { display: none !important; } }
-
-/* old */
-  /* Modal confirm */
-  .modal{
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.35);
-    display: none;
-    align-items: center; justify-content: center;
-    z-index: 1001;
-  }
-  .modal.hidden{ display: none; }
-  .modal:not(.hidden){ display: flex; }
-  .modal-card{
-    background: #fff;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 16px;
-    box-shadow: var(--shadow);
-    width: 90%; max-width: 360px;
-  }
-/* old end */
-
-@media (min-width: 861px){
-    #managePanel{
-      position: sticky; top:12px; align-self:start;
-      max-height: calc(100vh - 24px); overflow:auto; transform:none; visibility:visible;
+    /* Modal (kept) */
+    .modal{
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.35);
+      display: none;
+      align-items: center; justify-content: center;
+      z-index: 1001;
     }
-    .mobile-only{ display:none !important; }
-    .fab-toggle, .fab-save{ display:none !important; }
-  }
-  @media (max-width: 860px){
-    /* Full-screen overlay panel */
-    #managePanel{
-      position: fixed; left:0; right:0; top:0; bottom:0;
-      background:#fff; border:0; overflow:auto; z-index:999;
-      transform: translateY(100%); transition: transform .25s ease, visibility 0s linear .25s;
-      visibility: hidden; pointer-events:none;
-      border-top-left-radius: 12px; border-top-right-radius: 12px;
+    .modal.hidden{ display: none; }
+    .modal:not(.hidden){ display: flex; }
+    .modal-card{
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      width: 90%; max-width: 360px;
     }
-    #managePanel.open{
-      transform: translateY(0); transition: transform .25s ease;
-      visibility: visible; pointer-events:auto;
-    }
-    body.dimmed::before{
-      content:""; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:998;
-    }
-    .mobile-only{ display:block !important; }
-  
-  }
-  /* Modal */
-  .modal{ position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; z-index:1001; }
-  .modal.hidden{ display:none; } .modal:not(.hidden){ display:flex; }
-  .modal-card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px; box-shadow:var(--shadow); width:90%; max-width:360px; }
 
+    /* Desktop manage panel becomes sticky */
+    @media (min-width: 861px){
+      #managePanel{
+        position: sticky; top:12px; align-self:start;
+        max-height: calc(100vh - 24px); overflow:auto; transform:none; visibility:visible;
+      }
+      .mobile-only{ display:none !important; }
+    }
 
+    /* Mobile: full-screen drawer behavior */
+    @media (max-width: 860px){
+      #managePanel{
+        position: fixed; left:0; right:0; top:0; bottom:0;
+        background:#fff; border:0; overflow:auto; z-index:999;
+        transform: translateY(100%); transition: transform .25s ease, visibility 0s linear .25s;
+        visibility: hidden; pointer-events:none;
+        border-top-left-radius: 12px; border-top-right-radius: 12px;
+      }
+      #managePanel.open{
+        transform: translateY(0); transition: transform .25s ease;
+        visibility: visible; pointer-events:auto;
+      }
+      body.dimmed::before{
+        content:""; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:998;
+      }
+      .mobile-only{ display:block !important; }
+    }
   </style>
 </body>
 </html>
