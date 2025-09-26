@@ -4,6 +4,10 @@ import { getCase, createCase, updateCase, finishCase, undoFinish, statusLabel } 
 import { computeAge } from "/js/utils.js";
 import { toDate } from "/js/utils.js";
 import { fab } from "/js/fab.js";
+document.addEventListener("caseLoaded", () => {
+  fab.init?.();
+  fab.setTab?.("details");
+});
 
 // NEW CASE flow (inside loadCase -> state.isNew branch)
 
