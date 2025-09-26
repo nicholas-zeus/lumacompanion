@@ -1,6 +1,7 @@
 // case-manage.js
 import { state } from "/js/case-shared.js";
 import { uploadFile, listUploads, setPageTag, streamFileUrl } from "/js/api.js";
+import { fab } from "/js/fab.js";
 
 // --- DOM ---
 const fileInput        = document.getElementById("fileInput");
@@ -164,24 +165,24 @@ function markDirty(flag = true) {
   dirty = !!flag;
 
   // Re-resolve elements in case DOM wasn’t ready at load
-  let _saveSection = saveSection || document.getElementById("saveSection");
-  let _mobileSaveBtn = mobileSaveBtn || document.getElementById("mobileSaveBtn");
-  let _saveBtn = saveBtn || document.getElementById("saveBtn");
+  let _saveSection   = saveSection || document.getElementById("saveSection");
+  let _saveBtn       = saveBtn || document.getElementById("saveBtn");
 
   const desktop = !isMobile();
 
   if (desktop) {
-    // Desktop: Show the inline save section when dirty; hide mobile FAB
+    // Desktop: inline save bar when dirty
     if (_saveSection) _saveSection.style.display = dirty ? "" : "none";
-    if (_mobileSaveBtn) _mobileSaveBtn.style.display = "none";
     if (_saveBtn) _saveBtn.disabled = !dirty;
-    return;
+  } else {
+    // Mobile: never show inline save section
+    if (_saveSection) _saveSection.style.display = "none";
   }
 
-  // Mobile: never show the inline save section; use floating FAB
-  if (_saveSection) _saveSection.style.display = "none";
-  if (_mobileSaveBtn) _mobileSaveBtn.style.display = dirty ? "inline-grid" : "none";
+  // Tell the shared FAB whether to show the mobile 💾
+  fab.setManageDirty(dirty);
 }
+
 
 
 function clearPreview() {
@@ -605,6 +606,7 @@ manageCloseBtn.addEventListener("click", () => closeManageOverlay());
 window.addEventListener("resize", () => {
   applyManagePanelLayout();
   markDirty(dirty); // keep save controls correct
+   fab.setManageDirty(dirty);
 });
 
 
@@ -624,6 +626,18 @@ document.addEventListener("caseLoaded", async () => {
   await refreshUploadedList();
   renderStagedList();
   markDirty(false);  // 💾 FAB only when there are changes
+  // Shared FABs (mobile-only) for Manage tab
+fab.setManageToggle(() => {
+  if (!isMobile()) return; // desktop: no-op
+  if (sidebar.classList.contains("open")) closeManageOverlay();
+  else openManageOverlay();
+});
+
+fab.setManageSave(() => saveAll());
+
+// Reflect current dirty state in FAB visibility
+fab.setManageDirty(dirty);
+
 });
 // Close overlay if user taps outside the panel (mobile only)
 document.addEventListener("click", (e) => {
