@@ -271,10 +271,6 @@
 }
 
 /* Mobile-only visibility helpers (non-Save) */
-@media (max-width: 860px){
-  /* Manage tab’s toggle FAB: show on Manage/Documents tab */
-  body:has(#tab-documents.is-active) .fab-toggle { display: inline-grid; }
-}
 
 /* --- Manage: ensure desktop Save section can be shown by JS --- */
 /* Baseline: visible on desktop, hidden on mobile */
