@@ -304,3 +304,9 @@
 #detailsFab, #goTopBtn, .fab-toggle { /* .fab-toggle will be enabled by the rule above on /documents tab */
   /* intentional: keep defaults to none */
 }
+/* Hard-guard: any FAB with [hidden] stays hidden no matter what */
+.fab[hidden],
+.fab-toggle[hidden],
+.fab-save[hidden]{
+  display: none !important;
+}
