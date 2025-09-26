@@ -40,7 +40,7 @@ function setPos(el, slot) {
 const els = {};
 function ensure() {
   // create (or get) all FABs once
-  els.details = mk("fab-details",       "💾", "Save");
+  els.details = mk("fab-details",       "✏", "Edit");
   els.docTop  = mk("fab-docview-top",   "↑",  "Go to top");
   els.mToggle = mk("fab-manage-toggle", "≡",  "Open drawer");
   els.mSave   = mk("fab-manage-save",   "💾", "Save changes");
@@ -90,10 +90,10 @@ export const fab = {
   setDetails(mode, handler){
     ensure();
     const map = {
-      create: { icon:"💾", label:"Create" },
-      save:   { icon:"💾", label:"Save"   },
-      edit:   { icon:"✏️", label:"Edit"   },
-    };
+  create: { icon:"✓",  label:"Create" },
+  save:   { icon:"✓",  label:"Save"   },
+  edit:   { icon:"✏",  label:"Edit"   },
+};
     const key = String(mode || "").toLowerCase();
     const cfg = map[key] || map.save;
 

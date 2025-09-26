@@ -523,19 +523,24 @@ window.addEventListener("resize", () => {
 });
 
 // --- Init: wait until caseId is known ---
+
 document.addEventListener("caseLoaded", async () => {
-  // ensure FABs are ready and set to Manage/Documents tab
+  // Ensure FABs exist; do NOT change the active FAB tab here.
   fab.init?.();
+
   applyManagePanelLayout();
 
   // Preload existing page tags so dropdowns preselect
   try { await loadExistingTags(); } catch (e) { console.warn("loadExistingTags failed:", e); }
 
+  // Sync lists
   await refreshUploadedList();
   renderStagedList();
-  markDirty(false);  // 💾 FAB only when there are changes
 
-  // Wire Manage FABs
+  // Reset dirty state (Manage save FAB should appear only when there are changes)
+  markDirty(false);
+
+  // Wire Manage FAB actions (no tab switch)
   fab.setManageToggle(() => {
     if (!isMobile()) return; // desktop: no-op
     if (sidebar.classList.contains("open")) closeManageOverlay();
@@ -543,10 +548,9 @@ document.addEventListener("caseLoaded", async () => {
   });
   fab.setManageSave(() => saveAll());
 
-  // Reflect current dirty state in FAB visibility
+  // Reflect current dirty state in Manage FAB (safe even if another tab is active)
   fab.setManageDirty(!!dirty);
 });
-
 // Close overlay if user taps outside the panel (mobile only)
 document.addEventListener("click", (e) => {
   if (!isMobile()) return;
