@@ -347,16 +347,19 @@ async function renderPdf(source, fileKey, altKey) {
 }*/
 
 // --- Preview ---
+// --- Preview (drop-in) ---
 async function renderPreview(fileOrMeta, fileKey) {
   showPreviewOverlay();
   try {
     clearPreview();
 
-    // Staged: File object
-    if (fileOrMeta instanceof File) {
+    // STAGED file
+    if (fileOrMeta instanceof File || fileOrMeta instanceof Blob) {
+      const name = (fileOrMeta.name || "").toLowerCase();
       const type = (fileOrMeta.type || "").toLowerCase();
-      if (type.includes("pdf") || fileOrMeta.name?.toLowerCase().endsWith(".pdf")) {
-        await renderPdf(fileOrMeta, fileKey, null);   // pass the File; renderPdf will convert to bytes
+
+      if (type.includes("pdf") || name.endsWith(".pdf")) {
+        await renderPdf(fileOrMeta, fileKey, null);  // pass File/Blob
       } else if (type.startsWith("image/")) {
         const url = URL.createObjectURL(fileOrMeta);
         renderImage(url, fileKey, null);
@@ -366,11 +369,11 @@ async function renderPreview(fileOrMeta, fileKey) {
       return;
     }
 
-    // Existing uploaded: meta object
-    const altKey = fileOrMeta.driveFileId || null; // fallback if tags used driveFileId
+    // EXISTING uploaded meta
+    const altKey = fileOrMeta.driveFileId || null;
     if (isPdfMeta(fileOrMeta)) {
       const url = streamFileUrl(fileOrMeta.driveFileId);
-      await renderPdf(url, fileKey, altKey);        // pass URL string
+      await renderPdf(url, fileKey, altKey);         // pass URL string
     } else if (isImageMeta(fileOrMeta)) {
       const url = streamFileUrl(fileOrMeta.driveFileId);
       renderImage(url, fileKey, altKey);
@@ -382,29 +385,66 @@ async function renderPreview(fileOrMeta, fileKey) {
   }
 }
 
+// --- PDF renderer with resilient staged-file support (drop-in) ---
 async function renderPdf(source, fileKey, altKey) {
   await loadPdfJsIfNeeded();
 
-  // Build a loadingTask that works for both staged (File/Blob) and existing (URL) sources
+  // ensure worker src is set (some builds race this)
+  try {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc ||
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
+  } catch (_) {}
+
+  // Build loading task:
   let loadingTask;
+
+  // 1) Existing files: we pass a string URL
   if (typeof source === "string") {
-    // URL (existing uploaded file)
     loadingTask = window.pdfjsLib.getDocument({ url: source });
-  } else if (source instanceof File || source instanceof Blob) {
-    // Staged file: read bytes
-    const buf = await source.arrayBuffer();
-    loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(buf) });
-  } else if (source instanceof ArrayBuffer) {
+  }
+
+  // 2) Staged: File/Blob
+  if (!loadingTask && (source instanceof File || source instanceof Blob)) {
+    try {
+      // First try raw bytes (fastest)
+      const buf = await source.arrayBuffer();
+      loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(buf) });
+    } catch (e) {
+      console.warn("pdf.js bytes path failed, will try blob URL fallback:", e);
+    }
+
+    if (!loadingTask) {
+      // Fallback: blob URL
+      const blobUrl = URL.createObjectURL(source);
+      loadingTask = window.pdfjsLib.getDocument({ url: blobUrl });
+      // (Optional) revoke later after rendering completes
+      loadingTask._revokeUrl = () => URL.revokeObjectURL(blobUrl);
+    }
+  }
+
+  // 3) Raw ArrayBuffer (very rare)
+  if (!loadingTask && (source instanceof ArrayBuffer)) {
     loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(source) });
-  } else {
+  }
+
+  if (!loadingTask) {
     throw new Error("Unsupported PDF source for renderPdf");
   }
 
-  const pdf = await loadingTask.promise;
+  let pdf;
+  try {
+    pdf = await loadingTask.promise;
+  } catch (err) {
+    console.error("pdf.js getDocument failed:", err);
+    previewArea.innerHTML = `<div class="muted">Unable to open PDF (staged). Try again or reselect the file.</div>`;
+    try { loadingTask._revokeUrl?.(); } catch(_) {}
+    return;
+  }
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 0.5 }); // smaller than view tab
+    const viewport = page.getViewport({ scale: 0.5 }); // smaller than View tab
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     canvas.width = viewport.width;
@@ -423,7 +463,7 @@ async function renderPdf(source, fileKey, altKey) {
       <option>lab tests</option>
       <option>medical questionnaire</option>`;
 
-    // preselect: prefer `${fileKey}:${p}`; fallback `${altKey}:${p}` if provided
+    // preselect using fileKey/altKey
     const k1 = `${fileKey}:${p}`;
     const k2 = altKey ? `${altKey}:${p}` : null;
     sel.value = (pageTags.get(k1) ?? (k2 ? pageTags.get(k2) : "")) || "";
@@ -437,6 +477,8 @@ async function renderPdf(source, fileKey, altKey) {
     previewArea.appendChild(wrapper);
     state.pageIndex?.set?.(`${fileKey}:${p}`, wrapper);
   }
+
+  try { loadingTask._revokeUrl?.(); } catch(_) {}
 }
 
 function renderImage(url, fileKey, altKey) {
