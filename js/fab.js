@@ -5,37 +5,35 @@ function mk(id, text, title) {
   let b = document.getElementById(id);
   if (!b) {
     b = document.createElement("button");
-    b.id = id; 
+    b.id = id;
     b.className = "fab";
     b.type = "button";
-    b.setAttribute("aria-label", title || text || "");
+    // start hidden; JS controls visibility
     b.style.display = "none";
-    // 🔑 default look: black translucent
+    // default look: black translucent
     b.style.background = "rgba(0,0,0,0.85)";
     b.style.color = "#fff";
-    b.style.marginBottom = "20px";   // 🔑 ensures breathing room if stacked
     document.body.appendChild(b);
   }
   b.textContent = text || "";
-  b.title = title || "";
+  b.title = title || text || "";
+  b.setAttribute("aria-label", title || text || "");
   return b;
 }
+
 
 // ---- layout helpers ----
 function isMobile(){ return window.matchMedia("(max-width: 860px)").matches; }
 
 function setPos(el, slot) {
   if (!el) return;
-  const primary = { right: "16px", bottom: "72px" };
+  const primary   = { right: "16px", bottom: "72px" };
   const secondary = { right: "16px", bottom: "16px" };
-  const p = slot === "secondary" ? secondary : primary;
-  Object.assign(el.style, p);
-  // 🔑 if this is a primary FAB, enforce spacing margin
-  if (slot !== "secondary") {
-    el.style.marginBottom = "20px";
-  } else {
-    el.style.marginBottom = "0px";
-  }
+  const pos = (slot === "secondary") ? secondary : primary;
+  Object.assign(el.style, pos);
+
+  // Breathing room when stacked: add margin to primary, none to secondary
+  el.style.marginBottom = (slot === "secondary") ? "0px" : "20px";
 }
 
 // ---- singleton refs ----
@@ -54,21 +52,22 @@ function ensure() {
       zIndex: 1001,
       width: "56px",
       height: "56px",
-      display: "none",   // visibility controlled by apply()
-      displayMode: "grid",
-      // ensure content centers even if a site-wide CSS resets button layout
-      display: "grid",
+      // IMPORTANT: keep hidden by default; do NOT override with "grid" here
+      display: "none",
+      // center contents
+      displayMode: "grid",         // harmless property; won’t change visibility
       placeItems: "center",
       border: "0",
       borderRadius: "18px",
       cursor: "pointer",
       userSelect: "none",
       WebkitTapHighlightColor: "transparent",
+      // keep the black translucent background if CSS tries to restyle
+      background: el.style.background || "rgba(0,0,0,0.85)",
+      color: el.style.color || "#fff",
     });
   });
-
-  // set default slots now; apply() will re-assert each time
-  setPos(els.details, "primary");
+    setPos(els.details, "primary");
   setPos(els.docTop,  "primary");
   setPos(els.mToggle, "secondary");
   setPos(els.mSave,   "primary");
