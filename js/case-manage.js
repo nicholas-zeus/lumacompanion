@@ -275,7 +275,7 @@ function renderUploadedList() {
 }
 
 // --- Preview ---
-async function renderPreview(fileOrMeta, fileKey) {
+/*async function renderPreview(fileOrMeta, fileKey) {
   showPreviewOverlay();
   try {
     clearPreview();
@@ -331,6 +331,99 @@ async function renderPdf(source, fileKey, altKey) {
       <option>lab tests</option>
       <option>medical questionnaire</option>`;
 
+    const k1 = `${fileKey}:${p}`;
+    const k2 = altKey ? `${altKey}:${p}` : null;
+    sel.value = (pageTags.get(k1) ?? (k2 ? pageTags.get(k2) : "")) || "";
+
+    sel.addEventListener("change", () => {
+      pageTags.set(`${fileKey}:${p}`, sel.value);
+      markDirty(true);
+    });
+
+    wrapper.appendChild(sel);
+    previewArea.appendChild(wrapper);
+    state.pageIndex?.set?.(`${fileKey}:${p}`, wrapper);
+  }
+}*/
+
+// --- Preview ---
+async function renderPreview(fileOrMeta, fileKey) {
+  showPreviewOverlay();
+  try {
+    clearPreview();
+
+    // Staged: File object
+    if (fileOrMeta instanceof File) {
+      const type = (fileOrMeta.type || "").toLowerCase();
+      if (type.includes("pdf") || fileOrMeta.name?.toLowerCase().endsWith(".pdf")) {
+        await renderPdf(fileOrMeta, fileKey, null);   // pass the File; renderPdf will convert to bytes
+      } else if (type.startsWith("image/")) {
+        const url = URL.createObjectURL(fileOrMeta);
+        renderImage(url, fileKey, null);
+      } else {
+        previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
+      }
+      return;
+    }
+
+    // Existing uploaded: meta object
+    const altKey = fileOrMeta.driveFileId || null; // fallback if tags used driveFileId
+    if (isPdfMeta(fileOrMeta)) {
+      const url = streamFileUrl(fileOrMeta.driveFileId);
+      await renderPdf(url, fileKey, altKey);        // pass URL string
+    } else if (isImageMeta(fileOrMeta)) {
+      const url = streamFileUrl(fileOrMeta.driveFileId);
+      renderImage(url, fileKey, altKey);
+    } else {
+      previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
+    }
+  } finally {
+    hidePreviewOverlay();
+  }
+}
+
+async function renderPdf(source, fileKey, altKey) {
+  await loadPdfJsIfNeeded();
+
+  // Build a loadingTask that works for both staged (File/Blob) and existing (URL) sources
+  let loadingTask;
+  if (typeof source === "string") {
+    // URL (existing uploaded file)
+    loadingTask = window.pdfjsLib.getDocument({ url: source });
+  } else if (source instanceof File || source instanceof Blob) {
+    // Staged file: read bytes
+    const buf = await source.arrayBuffer();
+    loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(buf) });
+  } else if (source instanceof ArrayBuffer) {
+    loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(source) });
+  } else {
+    throw new Error("Unsupported PDF source for renderPdf");
+  }
+
+  const pdf = await loadingTask.promise;
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const viewport = page.getViewport({ scale: 0.5 }); // smaller than view tab
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "thumb-card";
+    wrapper.appendChild(canvas);
+
+    const sel = document.createElement("select");
+    sel.innerHTML = `<option value="">— tag —</option>
+      <option>progress note</option>
+      <option>vital chart</option>
+      <option>doctor order</option>
+      <option>lab tests</option>
+      <option>medical questionnaire</option>`;
+
+    // preselect: prefer `${fileKey}:${p}`; fallback `${altKey}:${p}` if provided
     const k1 = `${fileKey}:${p}`;
     const k2 = altKey ? `${altKey}:${p}` : null;
     sel.value = (pageTags.get(k1) ?? (k2 ? pageTags.get(k2) : "")) || "";
