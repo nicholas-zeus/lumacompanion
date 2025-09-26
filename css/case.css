@@ -323,3 +323,6 @@ body:has(#tab-details.is-active) #detailsFab { display: grid; }
     0 -1px 6px rgba(255,255,255,0.02) inset;
 }
 
+.mobileSaveBtn{
+  margin-bottom: 20px;
+}
