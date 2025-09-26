@@ -22,7 +22,7 @@ function isMobile(){ return window.matchMedia("(max-width: 860px)").matches; }
 
 function setPos(el, slot) {
   if (!el) return;
-  const primary   = { right: "16px", bottom: "72px" };
+  const primary   = { right: "16px", bottom: "88px" };
   const secondary = { right: "16px", bottom: "16px" };
   Object.assign(el.style, slot === "secondary" ? secondary : primary);
 }
