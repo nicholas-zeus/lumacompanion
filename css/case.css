@@ -4,7 +4,9 @@
   border-bottom:1px solid var(--line);
   background: linear-gradient(180deg, #fff, #fff0);
 }
-
+/* Tab panels default hidden; only the active one shows */
+.tabpanel{ display:none; }
+.tabpanel.is-active{ display:block; }
 /* Make the 4 tabs share width equally */
 .tabs .page-wrap{
   display:grid;
