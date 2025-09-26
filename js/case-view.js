@@ -3,14 +3,16 @@ import { state } from "/js/case-shared.js";
 import { listUploads, streamFileUrl } from "/js/api.js";
 import { collection, query, where, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "/js/firebase.js";
-
+import { fab } from "/js/fab.js";
+// during docview init:
+fab.useDocTop(() => window.scrollTo({ top: 0, behavior: "smooth" }));
 const docList        = document.getElementById("docList");
 const docCount       = document.getElementById("docCount");
 const pdfStack       = document.getElementById("pdfStack");
 const tagHitsWrap    = document.getElementById("tagHits");
 const tagFilterSelect= document.getElementById("tagFilterSelect");
 const tagFilterClear = document.getElementById("tagFilterClear");
-function buildStickySidebar() {
+/*function buildStickySidebar() {
   if (!document.getElementById("goTopBtn")) {
     const btn = document.createElement("button");
     btn.id = "goTopBtn";
@@ -20,7 +22,7 @@ function buildStickySidebar() {
     btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
     document.body.appendChild(btn);
   }
-}
+}*/
 
 
 
@@ -134,11 +136,12 @@ function applyDocTagFilter(tag) {
 
 export async function ensureDocviewLoaded() {
   if (!state.caseId || state.isNew) return;
+
   if (!state.docviewLoaded) {
     await loadPdfJsIfNeeded();
     await loadDocviewData();
     wireDocviewControls();
-    buildStickySidebar();   // <--- re-add
+    // DO NOT call buildStickySidebar(); we use FAB ↑ instead
     await renderCanvasStack();
     state.docviewLoaded = true;
   } else {
@@ -146,6 +149,7 @@ export async function ensureDocviewLoaded() {
     await renderCanvasStack();
   }
 }
+
 
 
 async function renderCanvasStack() {

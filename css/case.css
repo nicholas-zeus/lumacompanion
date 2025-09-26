@@ -295,3 +295,13 @@ body:has(#tab-details.is-active) #detailsFab { display: grid; }
 
 /* Fix: your base style sets .go-top-btn to display:grid by default — override it */
 .go-top-btn { display: none !important; }
+/* Generic FAB base */
+.fab{
+  position: fixed;
+  z-index: 1001;
+  width: 56px; height: 56px; border-radius: 18px;
+  border: 0; cursor: pointer; display: none; place-items: center;
+  font-size: 22px; box-shadow: var(--shadow);
+  background: linear-gradient(135deg, var(--brand), var(--accent));
+  color: var(--brand-ink);
+}

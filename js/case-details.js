@@ -3,6 +3,9 @@ import { state, getHashId, bannerArea, toInputDate, toInputDateTimeLocal } from 
 import { getCase, createCase, updateCase, finishCase, undoFinish, statusLabel } from "/js/api.js";
 import { computeAge } from "/js/utils.js";
 import { toDate } from "/js/utils.js";
+import { fab } from "/js/fab.js";
+
+// NEW CASE flow (inside loadCase -> state.isNew branch)
 
 /* --- DOM --- */
 const finishedLock   = document.getElementById("finishedLock");
@@ -310,7 +313,7 @@ function hydrateFormFromDoc(doc) {
 /* Primary button label + handler */
 // Floating unified primary button (FAB) with icons
 let fabBtn;
-function ensureFloatingPrimaryButton() {
+/*function ensureFloatingPrimaryButton() {
   if (fabBtn) return fabBtn;
   fabBtn = document.createElement("button");
   fabBtn.id = "detailsFab";
@@ -334,11 +337,11 @@ function ensureFloatingPrimaryButton() {
   fabBtn.setAttribute("aria-label", "Action");
   document.body.appendChild(fabBtn);
   return fabBtn;
-}
+}*/
 
 // labelMode: "edit" | "create" | "save"
 // labelMode: "edit" | "create" | "save" (case-insensitive)
-function setPrimaryButton(labelMode, onClick) {
+/*function setPrimaryButton(labelMode, onClick) {
   const saveDetailsBtn = document.getElementById("saveDetailsBtn");
   const newCaseActions = document.getElementById("newCaseActions");
   const editDetailsBtn = document.getElementById("editDetailsBtn");
@@ -357,7 +360,7 @@ function setPrimaryButton(labelMode, onClick) {
   btn.title = tooltip;
   btn.setAttribute("aria-label", tooltip);
   btn.onclick = (e) => { e.preventDefault(); onClick?.(); };
-}
+}*/
 
 
 
@@ -394,7 +397,7 @@ export async function loadCase() {
   state.caseId = id;
   state.isNew = (id === "new");
 
-  // Hide legacy button areas; we control a single button
+  // Hide legacy button areas; we control a single FAB
   if (saveDetailsBtn) saveDetailsBtn.hidden = true;
   if (newCaseActions) newCaseActions.classList.add("hidden");
 
@@ -407,11 +410,11 @@ export async function loadCase() {
     setTabsEnabled(false);     // lock other tabs
     if (downloadPdfBtn) downloadPdfBtn.hidden = true;
 
-    setPrimaryButton("Create", async () => {
+    // Use the FAB for "Create"
+    fab.setDetails("create", async () => {
       showLoading();
       try {
-        // Require deadline when urgent
-        syncDeadlineVisibility();
+        syncDeadlineVisibility(); // enforce deadline requirement if urgent
         const details = gatherDetailsFromForm();
 
         const initPayload = {
@@ -427,6 +430,7 @@ export async function loadCase() {
 
         const created = await createCase(initPayload, state.user);
 
+        // switch URL to created id and reload record
         location.hash = `#${created.id}`;
         state.isNew = false;
 
@@ -438,6 +442,7 @@ export async function loadCase() {
         setTabsEnabled(true);
         if (downloadPdfBtn) downloadPdfBtn.hidden = false;
 
+        // Now wire Edit↔Save for existing case
         wirePrimaryButtonForExisting();
         document.dispatchEvent(new Event("caseLoaded"));
       } finally {
@@ -472,43 +477,58 @@ export async function loadCase() {
   }
 }
 
+
 /* Nurse-only editing logic for existing cases */
+// Existing case: toggle Edit ↔ Save on the Details FAB
+// Existing case: toggle Edit ↔ Save on the Details FAB
 function wirePrimaryButtonForExisting() {
   const role = (state.role || "").toLowerCase();
-  if (!editDetailsBtn) return;
 
+  // Non-nurse roles: keep fields locked and hide actionable FAB
   if (role !== "nurse") {
-    editDetailsBtn.hidden = true;   // non-nurse: no edit
+    try { lockFields?.(true); } catch {}
+    fab.setDetails("edit", null); // shows ✏️ label but no handler (hidden by tab logic)
     return;
   }
 
-  setPrimaryButton("Edit", () => {
-    lockFields(false);              // unlock
-    setPrimaryButton("Save", async () => {
-      showLoading();
-      try {
-        syncDeadlineVisibility();
-        const details = gatherDetailsFromForm();
-        await updateCase(state.caseId, {
-          details,
-          urgent: !!(fUrgent && fUrgent.checked),
-          deadlineAt: fDeadline?.value ? new Date(fDeadline.value) : null
-        }, state.user);
+  let saving = false;
 
-        // back to locked
-        lockFields(true);
-        setPrimaryButton("Edit", wirePrimaryButtonForExisting);
+  const enterEdit = () => {
+    lockFields(false);
+    fab.setDetails("save", onSave);
+  };
 
-        // refresh status text from server (in case any server rule modifies fields)
-        const updated = await getCase(state.caseId);
-        state.caseDoc = updated;
-        statusText.textContent = statusLabel(updated.status || "—");
-      } finally {
-        hideLoading();
-      }
-    });
-  });
+  const onSave = async () => {
+    if (saving) return;
+    saving = true;
+    try {
+      // Build a proper patch like createCase uses
+      const details = gatherDetailsFromForm();
+      const patch = {
+        details,
+        urgent: !!(fUrgent && fUrgent.checked),
+        deadlineAt: fDeadline?.value ? new Date(fDeadline.value) : null
+      };
+
+      await updateCase(state.caseId, patch, state.user);
+
+      lockFields(true);
+      fab.setDetails("edit", enterEdit);
+    } catch (err) {
+      console.error("Save failed:", err);
+      alert("Failed to save changes. Please try again.");
+      fab.setDetails("save", onSave); // stay in Save state
+    } finally {
+      saving = false;
+    }
+  };
+
+  // Start locked with "Edit"
+  lockFields(true);
+  fab.setDetails("edit", enterEdit);
 }
+
+
 
 /* --- Finish / Undo (unchanged) --- */
 finishBtn?.addEventListener("click", async () => {
@@ -546,3 +566,7 @@ document.getElementById("fVisitDate")?.addEventListener("change", updateAgeInlin
 
 /* --- Urgent/Deadline UI --- */
 fUrgent?.addEventListener("change", syncDeadlineVisibility);
+// Called by case-shared.js when starting a NEW case
+export function updateAgeFields() {
+  setAgeInline(fDOB?.value, fVisitDate?.value);
+}

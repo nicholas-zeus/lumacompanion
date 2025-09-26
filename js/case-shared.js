@@ -2,6 +2,10 @@
 import { initFirebase, onAuth, signOutNow } from "/js/firebase.js";
 import { loadRole, getCase, updateCase, finishCase, undoFinish } from "/js/api.js";
 import { toDate } from "/js/utils.js";
+// /js/case-shared.js (top-level imports)
+import { fab } from "/js/fab.js";
+fab.init();
+
 
 export const state = {
   caseId: null,
@@ -90,7 +94,7 @@ tabsNav.addEventListener("click", async (e) => {
   }
 });
 
-function updateFloatingUI(tabName) {
+/*function updateFloatingUI(tabName) {
   // Details FAB
   const detailsFab = document.getElementById("detailsFab");
   if (detailsFab) detailsFab.hidden = (tabName !== "details");
@@ -100,7 +104,14 @@ function updateFloatingUI(tabName) {
   if (goTopBtn) goTopBtn.style.display = (tabName === "docview" ? "grid" : "none");
 
   // Manage tab FABs live inside #tab-documents, so they hide with the panel automatically.
+}*/
+
+// inside setActiveTab flow you already have
+function updateFloatingUI(tabName) {
+  fab.setTab(tabName); // <-- single source of truth
+  // remove the old element-specific toggles here (detailsFab/goTopBtn), fab handles it
 }
+
 document.addEventListener("caseLoaded", () => {
   const activeTab = document.querySelector(".tab.is-active")?.dataset?.tab || "details";
   updateFloatingUI(activeTab);
