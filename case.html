@@ -400,5 +400,15 @@
       .mobile-only{ display:block !important; }
     }
   </style>
+  
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const map = { documents: "Manage Docs", docview: "View Docs" };
+      document.querySelectorAll(".tabs .tab").forEach(btn => {
+        const key = btn.dataset.tab;
+        if (map[key]) btn.textContent = map[key];
+      });
+    });
+  </script>
 </body>
 </html>
