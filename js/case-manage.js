@@ -4,99 +4,18 @@ import { uploadFile, listUploads, setPageTag, streamFileUrl } from "/js/api.js";
 import { fab } from "/js/fab.js";
 
 // --- DOM ---
-const fileInput        = document.getElementById("fileInput");
-const uploadDrop       = document.getElementById("uploadDrop");
-const stagedList       = document.getElementById("stagedList");
-const uploadedList     = document.getElementById("uploadedList");
-const previewArea      = document.getElementById("previewArea");
-const saveSection      = document.getElementById("saveSection");
-const saveBtn          = document.getElementById("saveBtn");
-const savingOverlay    = document.getElementById("savingOverlay");
-const toggleSidebarBtn = document.getElementById("toggleSidebarBtn");
-const mobileSaveBtn    = document.getElementById("mobileSaveBtn");
-// Use whichever id your HTML currently has
-const sidebar = document.getElementById("managePanel");
+const fileInput     = document.getElementById("fileInput");
+const uploadDrop    = document.getElementById("uploadDrop");
+const stagedList    = document.getElementById("stagedList");
+const uploadedList  = document.getElementById("uploadedList");
+const previewArea   = document.getElementById("previewArea");
+const saveSection   = document.getElementById("saveSection");
+const saveBtn       = document.getElementById("saveBtn");
+const savingOverlay = document.getElementById("savingOverlay");
+
+// Use whichever id your HTML currently has for the Manage panel
+const sidebar       = document.getElementById("managePanel");
 const manageCloseBtn = document.getElementById("manageCloseBtn");
-
-// Inline-style the Manage sidebar for mobile/desktop (no CSS dependency)
-function applySidebarInlineStyles(forceClose = false) {
-  if (!sidebar) return;
-
-  const mobile = isMobile();
-  if (mobile) {
-    // Start closed unless explicitly opened
-    const opened = !forceClose && sidebar.dataset.open === "1";
-
-    sidebar.style.position = "fixed";
-    sidebar.style.left = "0";
-    sidebar.style.right = "0";
-    sidebar.style.bottom = "0";
-    sidebar.style.background = "#fff";
-    sidebar.style.borderTop = "1px solid var(--line)";
-    sidebar.style.maxHeight = "60%";
-    sidebar.style.overflow = "auto";
-    sidebar.style.transition = "transform .25s ease, visibility 0s linear .25s";
-    sidebar.style.zIndex = "999";
-
-    sidebar.style.transform = opened ? "translateY(0)" : "translateY(100%)";
-    sidebar.style.visibility = opened ? "visible" : "hidden";
-    sidebar.style.pointerEvents = opened ? "auto" : "none";
-
-    // Dim background when opened
-    document.body.classList.toggle("dimmed", opened);
-  } else {
-    // Desktop: classic sticky visible sidebar
-    sidebar.removeAttribute("data-open");
-    sidebar.style.position = "sticky";
-    sidebar.style.top = "12px";
-    sidebar.style.alignSelf = "start";
-    sidebar.style.maxHeight = "calc(100vh - 24px)";
-    sidebar.style.overflow = "auto";
-    sidebar.style.transform = "none";
-    sidebar.style.visibility = "visible";
-    sidebar.style.pointerEvents = "auto";
-    sidebar.style.zIndex = ""; // reset
-    document.body.classList.remove("dimmed");
-  }
-}
-
-
-function openManageOverlay(){
-  if (!sidebar) return;
-  sidebar.classList.add("open");
-  document.body.classList.add("dimmed");
-  // show the mobile header (✕) if present
-  const hdr = sidebar.querySelector(".sidebar-head");
-  if (hdr) hdr.style.display = "block";
-}
-function closeManageOverlay(){
-  if (!sidebar) return;
-  sidebar.classList.remove("open");
-  document.body.classList.remove("dimmed");
-}
-
-function applyManagePanelLayout(){
-  if (!sidebar) return;
-  if (isMobile()){
-    // start hidden as overlay
-    sidebar.classList.remove("open");
-    document.body.classList.remove("dimmed");
-    const hdr = sidebar.querySelector(".sidebar-head");
-    if (hdr) hdr.style.display = "block";
-  } else {
-    // desktop sticky, ensure visible and header hidden
-    const hdr = sidebar.querySelector(".sidebar-head");
-    if (hdr) hdr.style.display = "none";
-    document.body.classList.remove("dimmed");
-  }
-}
-
-
-// Modal confirm
-const confirmOverlay   = document.getElementById("confirmOverlay");
-const confirmMessage   = document.getElementById("confirmMessage");
-const confirmYes       = document.getElementById("confirmYes");
-const confirmNo        = document.getElementById("confirmNo");
 
 // --- State ---
 let stagedFiles = [];       // [{ file, key }]
@@ -104,6 +23,7 @@ let uploadedFiles = [];     // [{ id, fileName, driveFileId, mimeType }]
 let pageTags = new Map();   // key: `${fileKey}:${pageNo}` → tag
 let dirty = false;
 let stagedCounter = 0;      // stable keys for staged items
+
 // --- Preview loading overlay (Manage tab only) ---
 let previewOverlay;
 function ensurePreviewOverlay() {
@@ -139,7 +59,6 @@ function ensurePreviewOverlay() {
   const text = document.createElement("div");
   text.textContent = "Loading preview…";
 
-  // minimal keyframes (scoped)
   const style = document.createElement("style");
   style.textContent = "@keyframes spin { to { transform: rotate(360deg); } }";
   document.head.appendChild(style);
@@ -149,13 +68,8 @@ function ensurePreviewOverlay() {
   previewOverlay.appendChild(card);
   document.body.appendChild(previewOverlay);
 }
-function showPreviewOverlay() {
-  ensurePreviewOverlay();
-  previewOverlay.style.display = "flex";
-}
-function hidePreviewOverlay() {
-  if (previewOverlay) previewOverlay.style.display = "none";
-}
+function showPreviewOverlay() { ensurePreviewOverlay(); previewOverlay.style.display = "flex"; }
+function hidePreviewOverlay() { if (previewOverlay) previewOverlay.style.display = "none"; }
 
 // --- Utils ---
 function isMobile() {
@@ -179,9 +93,6 @@ function markDirty(flag = true) {
   // Tell the shared FAB about dirty state (controls mobile Save FAB visibility)
   fab.setManageDirty(dirty);
 }
-
-
-
 
 function clearPreview() {
   previewArea.innerHTML = "";
@@ -216,8 +127,6 @@ async function loadExistingTags() {
   }
 }
 
-
-
 function isPdfMeta(meta) {
   const mt = (meta?.mimeType || meta?.fileType || "").toLowerCase();
   const ex = extFromName(meta?.fileName);
@@ -229,6 +138,12 @@ function isImageMeta(meta) {
   return mt.startsWith("image/") || ["jpg","jpeg","png","gif","webp"].includes(ex);
 }
 function confirmUI(msg) {
+  // Modal confirm
+  const confirmOverlay   = document.getElementById("confirmOverlay");
+  const confirmMessage   = document.getElementById("confirmMessage");
+  const confirmYes       = document.getElementById("confirmYes");
+  const confirmNo        = document.getElementById("confirmNo");
+
   return new Promise((resolve) => {
     confirmMessage.textContent = msg;
     confirmOverlay.classList.remove("hidden");
@@ -292,10 +207,10 @@ function renderStagedList() {
     div.innerHTML = `
       <span class="file-name">${sf.file.name}</span>
       <button class="trash" title="Remove">🗑</button>`;
-div.querySelector(".file-name").addEventListener("click", () => {
-  if (isMobile()) closeManageOverlay();   // <-- close overlay on selection
-  renderPreview(sf.file, sf.key);
-});
+    div.querySelector(".file-name").addEventListener("click", () => {
+      if (isMobile()) closeManageOverlay();   // close overlay on selection
+      renderPreview(sf.file, sf.key);
+    });
 
     div.querySelector(".trash").addEventListener("click", async () => {
       const ok = await confirmUI(`Remove ${sf.file.name} from staging?`);
@@ -329,42 +244,36 @@ function renderUploadedList() {
       <span class="file-name">${uf.fileName || uf.name || "(untitled)"}</span>
       <button class="trash" title="Delete from Drive">🗑</button>`;
     div.querySelector(".file-name").addEventListener("click", () => {
-         if (isMobile()) closeManageOverlay();
-      // prefer stable id for tag keys; fall back to driveFileId
+      if (isMobile()) closeManageOverlay();
       const key = uf.id || uf.uploadId || uf.driveFileId;
       renderPreview(
         {
           ...uf,
-          // normalize props read by isPdfMeta/isImageMeta
           mimeType: uf.mimeType || uf.type || "",
           fileName: uf.fileName || uf.name || "",
         },
         key
       );
     });
-div.querySelector(".trash").addEventListener("click", async () => {
-  const name = uf.fileName || uf.name || "(untitled)";
-  const ok = await confirmUI(`Delete ${name}? This cannot be undone.`);
-  if (ok) {
-    await hardDeleteFile(uf); // <-- pass the full object
-    // clear any tag edits we were tracking for that file
-    const fid = (uf.id || uf.uploadId || uf.driveFileId);
-    for (const k of [...pageTags.keys()]) {
-      if (k.startsWith(`${fid}:`)) pageTags.delete(k);
-    }
-    await refreshUploadedList();
-    markDirty(true);
-    clearPreview();
-  }
-});
+    div.querySelector(".trash").addEventListener("click", async () => {
+      const name = uf.fileName || uf.name || "(untitled)";
+      const ok = await confirmUI(`Delete ${name}? This cannot be undone.`);
+      if (ok) {
+        await hardDeleteFile(uf); // pass the full object
+        const fid = (uf.id || uf.uploadId || uf.driveFileId);
+        for (const k of [...pageTags.keys()]) {
+          if (k.startsWith(`${fid}:`)) pageTags.delete(k);
+        }
+        await refreshUploadedList();
+        markDirty(true);
+        clearPreview();
+      }
+    });
 
     uploadedList.appendChild(div);
   });
 }
 
-
-// --- Preview ---
-// --- Preview ---
 // --- Preview ---
 async function renderPreview(fileOrMeta, fileKey) {
   showPreviewOverlay();
@@ -381,8 +290,7 @@ async function renderPreview(fileOrMeta, fileKey) {
         previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
       }
     } else {
-      // uploaded meta
-      const altKey = fileOrMeta.driveFileId || null; // fallback if pageTags use driveFileId
+      const altKey = fileOrMeta.driveFileId || null; // fallback if pageTags used driveFileId
       if (isPdfMeta(fileOrMeta)) {
         const url = streamFileUrl(fileOrMeta.driveFileId);
         await renderPdf(url, fileKey, altKey);
@@ -404,7 +312,7 @@ async function renderPdf(source, fileKey, altKey) {
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 0.5 }); // smaller than view tab
+    const viewport = page.getViewport({ scale: 0.5 });
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     canvas.width = viewport.width;
@@ -423,13 +331,12 @@ async function renderPdf(source, fileKey, altKey) {
       <option>lab tests</option>
       <option>medical questionnaire</option>`;
 
-    // preselect: prefer `${fileKey}:${p}`; fallback `${altKey}:${p}` if provided
     const k1 = `${fileKey}:${p}`;
     const k2 = altKey ? `${altKey}:${p}` : null;
     sel.value = (pageTags.get(k1) ?? (k2 ? pageTags.get(k2) : "")) || "";
 
     sel.addEventListener("change", () => {
-      pageTags.set(`${fileKey}:${p}`, sel.value); // always normalize to the main fileKey
+      pageTags.set(`${fileKey}:${p}`, sel.value);
       markDirty(true);
     });
 
@@ -459,7 +366,7 @@ function renderImage(url, fileKey, altKey) {
   sel.value = (pageTags.get(k1) ?? (k2 ? pageTags.get(k2) : "")) || "";
 
   sel.addEventListener("change", () => {
-    pageTags.set(`${fileKey}:1`, sel.value); // normalize to main key
+    pageTags.set(`${fileKey}:1`, sel.value);
     markDirty(true);
   });
   wrapper.appendChild(sel);
@@ -480,8 +387,8 @@ async function writeUploadMetadata({ meta, caseId, batchNo = 1 }) {
     fileName: meta.fileName,
     fileType: meta.mimeType,
     size: meta.size,
-    driveFileId: meta.fileId,   // the Google Drive file id returned by the function
-    fileHash: meta.md5,         // md5 for dedupe/reuse
+    driveFileId: meta.fileId,
+    fileHash: meta.md5,
     uploadedBy: {
       email: (auth.currentUser?.email || ""),
       displayName: (auth.currentUser?.displayName || "")
@@ -490,7 +397,7 @@ async function writeUploadMetadata({ meta, caseId, batchNo = 1 }) {
     updatedAt: serverTimestamp()
   });
 
-  return upRef.id; // <-- Firestore document id (the real uploadId for tagging)
+  return upRef.id; // Firestore document id (uploadId for tagging)
 }
 
 // --- Save flow ---
@@ -499,13 +406,10 @@ async function saveAll() {
 
   // 1) Upload staged files + create Firestore metadata + save their tags
   for (const sf of stagedFiles) {
-    // 1a) Upload binary to Drive (Netlify function)
     const meta = await uploadFile({ file: sf.file, caseId: state.caseId, batchNo: 1 });
-
-    // 1b) Write Firestore metadata row (get the *uploadId* we must use for tagging)
     const newUploadId = await writeUploadMetadata({ meta, caseId: state.caseId, batchNo: 1 });
 
-    // 1c) Move any staged tag keys to the new Firestore upload id and write to pageTags
+    // move staged tag keys to the new upload id
     for (const [k, v] of [...pageTags.entries()]) {
       if (!k.startsWith(`${sf.key}:`)) continue;
       const pageNo = parseInt(k.split(":")[1], 10);
@@ -518,7 +422,7 @@ async function saveAll() {
   // 2) Overwrite tags for previously uploaded files we edited
   for (const [k, v] of pageTags.entries()) {
     const [fid, pageNoStr] = k.split(":");
-    if (fid.startsWith("staged-")) continue; // ignore any stale staged keys
+    if (fid.startsWith("staged-")) continue;
     const pageNo = parseInt(pageNoStr, 10);
     await setPageTag({ caseId: state.caseId, uploadId: fid, pageNumber: pageNo, tag: v });
   }
@@ -533,11 +437,9 @@ async function saveAll() {
   savingOverlay.classList.add("hidden");
 }
 
+// Desktop save button
+saveBtn?.addEventListener("click", saveAll);
 
-saveBtn.addEventListener("click", saveAll);
-// mobileSaveBtn.addEventListener("click", saveAll);
-
-// --- Uploaded list refresh ---
 // --- Uploaded list refresh ---
 async function refreshUploadedList() {
   if (!state.caseId || state.isNew) {
@@ -547,7 +449,6 @@ async function refreshUploadedList() {
   }
   try {
     const data = await listUploads(state.caseId);
-    // normalize to array defensively
     uploadedFiles = Array.isArray(data)
       ? data
       : Array.isArray(data?.items)
@@ -562,16 +463,15 @@ async function refreshUploadedList() {
   renderUploadedList();
 }
 
-// --- Hard delete (Drive) ---
 // --- Hard delete (Drive + Firestore metadata) ---
 async function hardDeleteFile(uf) {
-  // 1) Delete the binary from Google Drive via Netlify function
+  // 1) Delete binary from Google Drive (Netlify function)
   const driveId = uf.driveFileId;
   if (!driveId) throw new Error("Missing driveFileId for deletion");
   const res = await fetch(`/.netlify/functions/file/${encodeURIComponent(driveId)}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Delete failed");
 
-  // 2) Delete the Firestore metadata row (uploads/{id})
+  // 2) Delete Firestore metadata row (uploads/{id}) — best-effort
   try {
     const uploadId = uf.id || uf.uploadId;
     if (uploadId) {
@@ -585,67 +485,78 @@ async function hardDeleteFile(uf) {
   }
 }
 
-
-// --- Sidebar toggle (mobile) ---
-// --- Sidebar toggle (mobile) ---
-// Floating ^ button toggles overlay on mobile (no-op on desktop)
-toggleSidebarBtn.addEventListener("click", () => {
-  if (!isMobile()) return;            // desktop: ignore
-  if (sidebar.classList.contains("open")) closeManageOverlay();
-  else openManageOverlay();
-});
+// --- Overlay helpers (mobile) ---
+function openManageOverlay(){
+  if (!sidebar) return;
+  sidebar.classList.add("open");
+  document.body.classList.add("dimmed");
+  const hdr = sidebar.querySelector(".sidebar-head");
+  if (hdr) hdr.style.display = "block";
+}
+function closeManageOverlay(){
+  if (!sidebar) return;
+  sidebar.classList.remove("open");
+  document.body.classList.remove("dimmed");
+}
+function applyManagePanelLayout(){
+  if (!sidebar) return;
+  if (isMobile()){
+    sidebar.classList.remove("open");
+    document.body.classList.remove("dimmed");
+    const hdr = sidebar.querySelector(".sidebar-head");
+    if (hdr) hdr.style.display = "block";
+  } else {
+    const hdr = sidebar.querySelector(".sidebar-head");
+    if (hdr) hdr.style.display = "none";
+    document.body.classList.remove("dimmed");
+  }
+}
 
 // Inside overlay ✕ button
-manageCloseBtn.addEventListener("click", () => closeManageOverlay());
+manageCloseBtn?.addEventListener("click", () => closeManageOverlay());
 
-
-// Re-evaluate which save control is visible on resize
-// Re-evaluate layout on resize; close drawer when switching to mobile
+// Re-evaluate layout & save controls on resize
 window.addEventListener("resize", () => {
   applyManagePanelLayout();
-  markDirty(dirty); // keep save controls correct
-   fab.setManageDirty(dirty);
+  markDirty(dirty);
+  fab.setManageDirty(dirty);
 });
-
-
 
 // --- Init: wait until caseId is known ---
 document.addEventListener("caseLoaded", async () => {
-  // set correct starting layout (desktop sticky / mobile overlay closed)
+  // ensure FABs are ready and set to Manage/Documents tab
+  fab.init?.();
+  fab.setTab?.("documents");      // normalize to your Manage tab name
+
   applyManagePanelLayout();
 
   // Preload existing page tags so dropdowns preselect
-  try {
-    await loadExistingTags();
-  } catch (e) {
-    console.warn("loadExistingTags failed (non-fatal):", e);
-  }
+  try { await loadExistingTags(); } catch (e) { console.warn("loadExistingTags failed:", e); }
 
   await refreshUploadedList();
   renderStagedList();
   markDirty(false);  // 💾 FAB only when there are changes
-  // Shared FABs (mobile-only) for Manage tab
-fab.setManageToggle(() => {
-  if (!isMobile()) return; // desktop: no-op
-  if (sidebar.classList.contains("open")) closeManageOverlay();
-  else openManageOverlay();
+
+  // Wire Manage FABs
+  fab.setManageToggle(() => {
+    if (!isMobile()) return; // desktop: no-op
+    if (sidebar.classList.contains("open")) closeManageOverlay();
+    else openManageOverlay();
+  });
+  fab.setManageSave(() => saveAll());
+
+  // Reflect current dirty state in FAB visibility
+  fab.setManageDirty(!!dirty);
 });
 
-fab.setManageSave(() => saveAll());
-
-// Reflect current dirty state in FAB visibility
-fab.setManageDirty(!!dirty);
-
-});
 // Close overlay if user taps outside the panel (mobile only)
 document.addEventListener("click", (e) => {
   if (!isMobile()) return;
   if (!sidebar) return;
   if (!sidebar.classList.contains("open")) return;
 
-  const clickedInside = sidebar.contains(e.target) || e.target === toggleSidebarBtn || e.target === mobileSaveBtn;
-  if (!clickedInside) closeManageOverlay();
-}, true); // capture phase so it runs before internal handlers if needed
-
-
-
+  // ignore clicks inside the panel or on FABs
+  const clickedInsidePanel = sidebar.contains(e.target);
+  const clickedOnFAB = !!e.target.closest?.("#fab-manage-toggle, #fab-manage-save");
+  if (!clickedInsidePanel && !clickedOnFAB) closeManageOverlay();
+}, true);
