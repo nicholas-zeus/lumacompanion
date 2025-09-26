@@ -5,15 +5,19 @@ function mk(id, text, title) {
   let b = document.getElementById(id);
   if (!b) {
     b = document.createElement("button");
-    b.id = id;
+    b.id = id; 
     b.className = "fab";
     b.type = "button";
+    b.setAttribute("aria-label", title || text || "");
     b.style.display = "none";
+    // 🔑 default look: black translucent
+    b.style.background = "rgba(0,0,0,0.85)";
+    b.style.color = "#fff";
+    b.style.marginBottom = "20px";   // 🔑 ensures breathing room if stacked
     document.body.appendChild(b);
   }
   b.textContent = text || "";
-  b.title = title || text || "";
-  b.setAttribute("aria-label", title || text || "");
+  b.title = title || "";
   return b;
 }
 
@@ -22,9 +26,16 @@ function isMobile(){ return window.matchMedia("(max-width: 860px)").matches; }
 
 function setPos(el, slot) {
   if (!el) return;
-  const primary   = { right: "16px", bottom: "88px" };
+  const primary = { right: "16px", bottom: "72px" };
   const secondary = { right: "16px", bottom: "16px" };
-  Object.assign(el.style, slot === "secondary" ? secondary : primary);
+  const p = slot === "secondary" ? secondary : primary;
+  Object.assign(el.style, p);
+  // 🔑 if this is a primary FAB, enforce spacing margin
+  if (slot !== "secondary") {
+    el.style.marginBottom = "20px";
+  } else {
+    el.style.marginBottom = "0px";
+  }
 }
 
 // ---- singleton refs ----

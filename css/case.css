@@ -305,8 +305,6 @@
 
 /* --- Visibility guardrails for other floating UI --- */
 /* Hide by default; show contextually via @media + :has above */
-#detailsFab,
-#goTopBtn,
-.fab-toggle { /* .fab-toggle will be enabled by the rule above on /documents tab */
+#detailsFab, #goTopBtn, .fab-toggle { /* .fab-toggle will be enabled by the rule above on /documents tab */
   /* intentional: keep defaults to none */
 }
