@@ -164,24 +164,22 @@ function isMobile() {
 function markDirty(flag = true) {
   dirty = !!flag;
 
-  // Re-resolve elements in case DOM wasn’t ready at load
-  let _saveSection   = saveSection || document.getElementById("saveSection");
-  let _saveBtn       = saveBtn || document.getElementById("saveBtn");
-
+  // Desktop inline bar
   const desktop = !isMobile();
+  const _saveSection = saveSection || document.getElementById("saveSection");
+  const _saveBtn = saveBtn || document.getElementById("saveBtn");
 
   if (desktop) {
-    // Desktop: inline save bar when dirty
     if (_saveSection) _saveSection.style.display = dirty ? "" : "none";
     if (_saveBtn) _saveBtn.disabled = !dirty;
   } else {
-    // Mobile: never show inline save section
-    if (_saveSection) _saveSection.style.display = "none";
+    if (_saveSection) _saveSection.style.display = "none"; // never show inline on mobile
   }
 
-  // Tell the shared FAB whether to show the mobile 💾
+  // Tell the shared FAB about dirty state (controls mobile Save FAB visibility)
   fab.setManageDirty(dirty);
 }
+
 
 
 
@@ -636,7 +634,7 @@ fab.setManageToggle(() => {
 fab.setManageSave(() => saveAll());
 
 // Reflect current dirty state in FAB visibility
-fab.setManageDirty(dirty);
+fab.setManageDirty(!!dirty);
 
 });
 // Close overlay if user taps outside the panel (mobile only)
