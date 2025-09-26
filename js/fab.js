@@ -136,36 +136,33 @@ export const fab = {
 
   // ----- visibility + consistent positions -----
   apply(){
-    ensure();
-    const mobile = isMobile();
-    const tab = String(activeTab || "").toLowerCase();
+  ensure();
+  const mobile = isMobile();
+  const tab = String(activeTab || "").toLowerCase();
 
-    // hide all by default
-    els.details.style.display = "none";
-    els.docTop.style.display  = "none";
-    els.mToggle.style.display = "none";
-    els.mSave.style.display   = "none";
+  // Always start hidden (belt & suspenders against CSS)
+  els.details.style.display = "none";
+  els.docTop.style.display  = "none";
+  els.mToggle.style.display = "none";
+  els.mSave.style.display   = "none";
 
-    // re-assert slot positions for consistency across tabs
-    setPos(els.details, "primary");   // main action slot
-    setPos(els.docTop,  "primary");   // main action slot
-    setPos(els.mToggle, "secondary"); // burger always secondary
-    setPos(els.mSave,   "primary");   // save always primary
+  // Reassert slots every time
+  setPos(els.details, "primary");
+  setPos(els.docTop,  "primary");
+  setPos(els.mToggle, "secondary");
+  setPos(els.mSave,   "primary");
 
-    if (tab === "details") {
-      // Single main FAB at PRIMARY slot
-      els.details.style.display = "grid";
-    } else if (tab === "docview") {
-      // Go-to-top at PRIMARY slot
-      els.docTop.style.display = "grid";
-    } else if (tab === "documents") {
-      // Manage tab — FABs only on mobile
-      if (mobile) {
-        els.mToggle.style.display = "grid";               // burger always visible
-        if (manageDirty) els.mSave.style.display = "grid"; // save only when dirty
-      }
+  if (tab === "details") {
+    els.details.style.display = "grid";
+  } else if (tab === "docview") {
+    els.docTop.style.display = "grid";
+  } else if (tab === "documents" || tab === "manage") {
+    if (mobile) {
+      els.mToggle.style.display = "grid";          // burger on Manage only
+      if (manageDirty) els.mSave.style.display = "grid";
     }
   }
+}
 };
 
 // keep layout correct on viewport changes
