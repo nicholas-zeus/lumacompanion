@@ -535,7 +535,7 @@ async function saveAll() {
 
 
 saveBtn.addEventListener("click", saveAll);
-mobileSaveBtn.addEventListener("click", saveAll);
+// mobileSaveBtn.addEventListener("click", saveAll);
 
 // --- Uploaded list refresh ---
 // --- Uploaded list refresh ---
