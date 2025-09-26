@@ -52,7 +52,8 @@ function ensure() {
       borderRadius: "18px",
       cursor: "pointer",
       userSelect: "none",
-      WebkitTapHighlightColor: "transparent"
+      WebkitTapHighlightColor: "transparent",
+      margin: "20px"
     });
   });
 
