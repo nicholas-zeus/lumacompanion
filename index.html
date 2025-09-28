@@ -18,24 +18,44 @@
 <body>
   <!-- App header -->
   <header class="app-header">
-    <div class="brand">
-      <div class="brand-mark">E</div>
-      <div class="brand-text">
-        <strong>Escalation</strong>
-        <span class="brand-sub">Clinical Review</span>
-      </div>
-    </div>
+    <!-- Left side: nothing on index.html -->
+    <div class="header-left"></div>
 
+    <!-- Center title -->
+    <div class="header-title">Escalation</div>
+
+    <!-- Right side: gear icon -->
     <div class="header-actions">
-      <div id="roleBadge" class="role-badge" hidden></div>
-      <button id="signInBtn" class="btn btn-primary" data-action="signin">Sign in</button>
-      <button id="signOutBtn" class="btn btn-ghost" data-action="signout" hidden>Sign out</button>
-      <img id="avatar" class="avatar" alt="" hidden />
+      <button id="gearBtn" class="btn" aria-label="Settings">⚙️</button>
     </div>
   </header>
 
+  <!-- Settings drawer -->
+  <aside id="settingsDrawer" class="drawer hidden">
+    <div class="drawer-content">
+      <div class="drawer-pill" id="rolePill" hidden>NURSE</div>
+      <div class="drawer-item expandable" id="themesToggle">
+        Themes &gt;
+      </div>
+      <div id="themesList" class="drawer-sub hidden">
+        <div class="drawer-sub-item" data-theme="light">Light <span class="checkmark" hidden>✔</span></div>
+        <div class="drawer-sub-item" data-theme="sunset">Sunset <span class="checkmark" hidden>✔</span></div>
+      </div>
+      <button id="signOutBtn" class="btn btn-ghost" data-action="signout">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- Sign-in box -->
+  <main id="signinBox" class="signin-box hidden">
+    <div class="signin-card">
+      <h2>Escalation</h2>
+      <p>Click below to sign in using your Microsoft account.</p>
+      <button id="signInBtn" class="btn btn-primary" data-action="signin">Sign in with Microsoft</button>
+    </div>
+  </main>
+
   <!-- Filters + search -->
-  <section class="controls">
+  <section class="controls" id="controlsSection">
     <div class="filters">
       <div class="segmented" role="tablist" aria-label="Case filters">
         <button class="segmented-btn is-active" data-filter="my-queue">My queue</button>
@@ -53,7 +73,7 @@
     </div>
   </section>
 
-  <!-- Persistent banners (e.g., cross-case duplicate MD5 info when returned by API) -->
+  <!-- Persistent banners -->
   <div id="bannerArea" class="banner-area" aria-live="polite"></div>
 
   <!-- Case list -->
@@ -61,7 +81,7 @@
     <!-- Cards injected by JS -->
   </main>
 
-  <!-- Empty state (shown when no results) -->
+  <!-- Empty state -->
   <template id="tpl-empty">
     <div class="empty">
       <div class="empty-icon">🗂️</div>
@@ -102,7 +122,7 @@
     </article>
   </template>
 
-  <!-- New Case (nurse/admin only; hidden otherwise) -->
+  <!-- New Case FAB -->
   <a id="newCaseBtn" class="fab" href="/case.html#new" hidden aria-label="Create new case">＋</a>
 
   <!-- Scripts -->
@@ -110,57 +130,58 @@
     import { initFirebase, onAuth, signInWithMicrosoft, signOutNow } from '/js/firebase.js';
     import { loadRole, queryCases, statusLabel, waitingLabel, sortCasesForDashboard } from '/js/api.js';
     import { formatDeadline, formatUpdatedAt } from '/js/utils.js';
+    import '/js/theme.js';
 
     // Boot
     initFirebase();
 
-    const signInBtn  = document.getElementById('signInBtn');
-    const signOutBtn = document.getElementById('signOutBtn');
-    const avatar     = document.getElementById('avatar');
-    const roleBadge  = document.getElementById('roleBadge');
-    const newCaseBtn = document.getElementById('newCaseBtn');
-
-    const caseListEl   = document.getElementById('caseList');
-    const searchInput  = document.getElementById('searchInput');
-    const segmented    = document.querySelector('.segmented');
+    const signInBtn   = document.getElementById('signInBtn');
+    const signOutBtn  = document.getElementById('signOutBtn');
+    const rolePill    = document.getElementById('rolePill');
+    const newCaseBtn  = document.getElementById('newCaseBtn');
+    const caseListEl  = document.getElementById('caseList');
+    const searchInput = document.getElementById('searchInput');
+    const segmented   = document.querySelector('.segmented');
+    const signinBox   = document.getElementById('signinBox');
+    const controlsSec = document.getElementById('controlsSection');
 
     let state = {
       user: null,
-      role: null,      // 'nurse' | 'doctor' | 'admin'
+      role: null,
       filter: 'my-queue',
       q: ''
     };
 
     function setSignedOutUI() {
-      roleBadge.hidden = true;
-      avatar.hidden = true;
-      signOutBtn.hidden = true;
-      signInBtn.hidden = false;
-      newCaseBtn.hidden = true;
+      signinBox.classList.remove('hidden');
+      controlsSec.style.display = 'none';
       caseListEl.innerHTML = '';
       caseListEl.setAttribute('aria-busy', 'false');
-      renderEmpty();
     }
 
     function setSignedInUI(user, role) {
-      // Header
-      signInBtn.hidden = true;
-      signOutBtn.hidden = false;
-      avatar.hidden = false;
-      avatar.src = user.photoURL || '';
-      avatar.alt = user.displayName || user.email || 'User';
-
-      // Role badge + new case FAB (nurse/admin)
-      roleBadge.hidden = false;
-      roleBadge.textContent = role.toUpperCase();
+      signinBox.classList.add('hidden');
+      controlsSec.style.display = '';
       newCaseBtn.hidden = !(role === 'nurse' || role === 'admin');
+      rolePill.hidden = false;
+      rolePill.textContent = role.toUpperCase();
     }
 
+    // Auth lifecycle
+    onAuth(async (user) => {
+      state.user = user;
+      if (!user) return setSignedOutUI();
+
+      state.role = await loadRole();
+      setSignedInUI(user, state.role);
+      await fetchAndRender();
+    });
+
     // Sign-in/out buttons
-    signInBtn.addEventListener('click', async () => {
+    signInBtn?.addEventListener('click', async () => {
       await signInWithMicrosoft();
     });
-    signOutBtn.addEventListener('click', async () => {
+    signOutBtn?.addEventListener('click', async () => {
       await signOutNow();
     });
 
@@ -196,7 +217,6 @@
       const tpl = document.getElementById('tpl-card');
       for (const c of cases) {
         const node = tpl.content.cloneNode(true);
-        const el = node.querySelector('.case-card');
 
         // Title + link
         const title = `${c.details?.Name || 'Unknown'} — ${c.details?.TypeOfConsultation || ''}`.trim();
@@ -219,9 +239,7 @@
         // Urgent + deadline
         const urgentPill = node.querySelector('.urgent-pill');
         const deadlineEl = node.querySelector('.deadline');
-        if (c.urgent) {
-          urgentPill.hidden = false;
-        }
+        if (c.urgent) urgentPill.hidden = false;
         if (c.deadlineAt) {
           deadlineEl.hidden = false;
           deadlineEl.textContent = formatDeadline(c.deadlineAt);
@@ -249,18 +267,6 @@
       renderCases(sorted);
       caseListEl.setAttribute('aria-busy', 'false');
     }
-
-    // Auth lifecycle
-    onAuth(async (user) => {
-      state.user = user;
-      if (!user) return setSignedOutUI();
-
-      // Fetch role via Netlify function (server reads private allowlist)
-      state.role = await loadRole();
-
-      setSignedInUI(user, state.role);
-      await fetchAndRender();
-    });
   </script>
 </body>
 </html>

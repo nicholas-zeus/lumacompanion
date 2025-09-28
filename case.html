@@ -37,19 +37,46 @@
 </head>
 <body>
   <!-- Header -->
-  <header class="app-header">
-    <div class="page-wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-      <div class="header-actions">
-        <a id="backBtn" href="/index.html" class="btn">← Back</a>
-        <div id="roleBadge" class="role-badge" hidden></div>
-        <button id="finishBtn"   class="btn btn-primary" hidden>Mark Finished</button>
-        <button id="undoBtn"     class="btn" hidden>Undo Finished</button>
-        <button id="downloadPdf" class="btn" hidden>Download Transcript</button>
-        <button id="signOutBtn"  class="btn btn-ghost" hidden>Sign out</button>
-        <img id="avatar" class="avatar" alt="" hidden />
-      </div>
+<!-- Header -->
+<header class="app-header">
+  <div class="page-wrap" style="display:flex;align-items:center;gap:12px;">
+    <!-- Left: back button -->
+    <div class="header-left" style="flex:1 0 0;">
+      <a id="backBtn" href="/index.html" class="btn">← Back</a>
     </div>
-  </header>
+
+    <!-- Center title -->
+    <div class="header-title" style="flex:0 0 auto;font-weight:800;color:#000;text-align:center;">
+      Escalation
+    </div>
+
+    <!-- Right: gear button -->
+    <div class="header-actions" style="flex:1 0 0;display:flex;justify-content:flex-end;align-items:center;gap:10px;">
+      <button id="gearBtn" class="btn" aria-label="Settings">⚙️</button>
+    </div>
+  </div>
+</header>
+<!-- Settings drawer (hidden by default) -->
+<aside id="settingsDrawer" class="drawer hidden">
+  <div class="drawer-content">
+    <div class="drawer-pill" id="rolePill" hidden>NURSE</div>
+    <div class="drawer-item expandable" id="themesToggle">Themes &gt;</div>
+    <div id="themesList" class="drawer-sub hidden">
+      <div class="drawer-sub-item" data-theme="light">Light <span class="checkmark" hidden>✔</span></div>
+      <div class="drawer-sub-item" data-theme="sunset">Sunset <span class="checkmark" hidden>✔</span></div>
+    </div>
+    <button id="signOutBtn" class="btn btn-ghost" data-action="signout">Sign out</button>
+  </div>
+</aside>
+
+<!-- Sign-in box (hidden by default) -->
+<main id="signinBox" class="signin-box hidden">
+  <div class="signin-card">
+    <h2>Escalation</h2>
+    <p>Click below to sign in using your Microsoft account.</p>
+    <button id="signInBtn" class="btn btn-primary" data-action="signin">Sign in with Microsoft</button>
+  </div>
+</main>
 
   <!-- Banners -->
   <div class="banner-area">
@@ -400,7 +427,7 @@
       .mobile-only{ display:block !important; }
     }
   </style>
-  
+  <script type="module" src="/js/theme.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const map = { documents: "Manage Docs", docview: "View Docs" };
