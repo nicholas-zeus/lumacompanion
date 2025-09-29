@@ -39,28 +39,25 @@
   <!-- Header -->
 <!-- Header -->
 <header class="app-header">
-  <div class="page-wrap" style="display:flex;align-items:center;gap:12px;">
+  <div class="page-wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
     <!-- Left: back button -->
-<!-- Left: back button -->
-<div class="header-left">
-  <a id="backBtn" href="/index.html" class="btn back-btn">
-    <span class="label-full">&lt; Back</span>
-    <span class="label-short">&lt;</span>
-  </a>
-</div>
-
-
-    <!-- Center title -->
-    <div class="header-title" style="flex:0 0 auto;font-weight:800;color:#000;text-align:center;">
-      Escalation
+    <div class="header-left">
+      <a id="backBtn" href="/index.html" class="btn back-btn">
+        <span class="label-full">&lt; Back</span>
+        <span class="label-short">&lt;</span>
+      </a>
     </div>
 
+    <!-- Center title -->
+    <div class="header-title">Escalation</div>
+
     <!-- Right: gear button -->
-    <div class="header-actions" style="flex:1 0 0;display:flex;justify-content:flex-end;align-items:center;gap:10px;">
+    <div class="header-actions">
       <button id="gearBtn" class="btn" aria-label="Settings">⚙️</button>
     </div>
   </div>
 </header>
+
 <!-- Settings drawer (hidden by default) -->
 <aside id="settingsDrawer" class="drawer hidden">
   <div class="drawer-content">

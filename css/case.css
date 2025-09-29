@@ -452,3 +452,21 @@
   margin-bottom: 16px;
   color: var(--muted);
 }
+/* Back button text decoration */
+.back-btn { text-decoration: none; }
+
+/* Responsive labels */
+.back-btn .label-short { display: none; }
+@media (max-width: 600px) {
+  .back-btn .label-full { display: none; }
+  .back-btn .label-short { display: inline; }
+}
+
+/* Spread buttons within margins */
+.app-header .page-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-left { flex: 0 0 auto; }
+.header-actions { flex: 0 0 auto; margin-left: auto; }
