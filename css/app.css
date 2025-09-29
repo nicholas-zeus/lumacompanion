@@ -283,3 +283,33 @@ body{
   margin-bottom: 16px;
   color: var(--muted);
 }
+/* Mobile-friendly, horizontally scrollable segmented tabs */
+.segmented{
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  padding-bottom: 6px;                 /* room for thumb */
+  /* soft edge fade */
+  mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
+}
+
+/* Tabs don’t shrink; snap nicely */
+.segmented-btn{ flex: 0 0 auto; scroll-snap-align: start; }
+
+/* Pretty, theme-following scrollbar */
+.segmented::-webkit-scrollbar{ height: 6px; }
+.segmented::-webkit-scrollbar-track{ background: transparent; }
+.segmented::-webkit-scrollbar-thumb{
+  background: var(--line);
+  border-radius: 999px;
+}
+.segmented{ scrollbar-width: thin; scrollbar-color: var(--line) transparent; } /* Firefox */
+
+/* Remove mask on wide screens */
+@media (min-width: 860px){
+  .segmented{ mask-image: none; -webkit-mask-image: none; }
+}
