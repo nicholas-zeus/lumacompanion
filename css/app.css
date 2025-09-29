@@ -118,7 +118,7 @@ input, button, textarea, select { font: inherit; }
   --input-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent);
   --input-readonly-bg: color-mix(in srgb, var(--panel) 92%, black 8%);
   --input-disabled-bg: color-mix(in srgb, var(--panel) 85%, black 15%);
-  --input-disabled-ink: var(--muted);
+  --input-disabled-ink: var(--bg);
 
   /* FAB */
   --fab-bg: linear-gradient(135deg, var(--brand), var(--accent));
