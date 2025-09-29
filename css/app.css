@@ -313,3 +313,11 @@ body{
 @media (min-width: 860px){
   .segmented{ mask-image: none; -webkit-mask-image: none; }
 }
+/* let the segmented bar shrink inside the grid */
+.controls .filters { min-width: 0; }
+
+/* prevent wrapping; force horizontal overflow to appear */
+.segmented {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
