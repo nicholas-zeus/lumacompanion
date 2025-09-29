@@ -41,9 +41,14 @@
 <header class="app-header">
   <div class="page-wrap" style="display:flex;align-items:center;gap:12px;">
     <!-- Left: back button -->
-    <div class="header-left" style="flex:1 0 0;">
-      <a id="backBtn" href="/index.html" class="btn">← Back</a>
-    </div>
+<!-- Left: back button -->
+<div class="header-left">
+  <a id="backBtn" href="/index.html" class="btn back-btn">
+    <span class="label-full">&lt; Back</span>
+    <span class="label-short">&lt;</span>
+  </a>
+</div>
+
 
     <!-- Center title -->
     <div class="header-title" style="flex:0 0 auto;font-weight:800;color:#000;text-align:center;">
@@ -426,6 +431,33 @@
       }
       .mobile-only{ display:block !important; }
     }
+    /* Force left/right alignment */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+}
+
+.header-left {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+.header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin-left: auto; /* pushes gear all the way right */
+}
+
+/* Back button text control */
+.back-btn .label-short { display: none; }
+@media (max-width: 600px) {
+  .back-btn .label-full { display: none; }
+  .back-btn .label-short { display: inline; }
+}
+
   </style>
   <script type="module" src="/js/theme.js"></script>
   <script>
