@@ -294,7 +294,7 @@
 
 /* =============== Mobile floating buttons (FABs) =============== */
 /* Base FAB styles — hidden by default, JS decides visibility */
-.fab,
+/*.fab,
 .fab-save,
 .fab-toggle{
   position: fixed;
@@ -304,14 +304,14 @@
   border-radius: 50%;
   border: none;
   cursor: pointer;
-  display: none;            /* KEY: default hidden */
+  display: none;   
   place-items: center;
   font-size: 22px;
   z-index: 1001;
   box-shadow: var(--shadow, 0 2px 6px rgba(0,0,0,0.3));
-  background: rgba(30, 136, 229, 0.92); /* translucent */
+  background: rgba(30, 136, 229, 0.92);
   color: #fff;
-}
+}*/
 
 /* Primary slot: Save FAB sits higher so both FABs aren't cramped */
 .fab-save{
@@ -489,12 +489,45 @@
   text-decoration: none;
 }
 /* THEME — make case FABs match app variables */
-.fab, .fab-save, .fab-toggle{
+/*.fab, .fab-save, .fab-toggle{
   background: linear-gradient(135deg, var(--brand), var(--accent)) !important;
   color: var(--brand-ink) !important;
   box-shadow: var(--shadow) !important;
   border: 1px solid transparent;
-}
+}*/
 .fab:hover, .fab-save:hover, .fab-toggle:hover{ filter: brightness(.97); }
 .fab:active, .fab-save:active, .fab-toggle:active{ transform: translateY(1px); filter: brightness(.93); }
 .fab svg, .fab-save svg, .fab-toggle svg{ fill: currentColor; }
+/**/
+/* =============== Mobile floating buttons (FABs) — CLEAN THEME VERSION =============== */
+/* Base positioning/visibility — no hard-coded colors */
+.fab,
+.fab-save,
+.fab-toggle{
+  position: fixed;
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--fab-border, transparent);
+  cursor: pointer;
+  display: none;            /* shown via JS */
+  place-items: center;
+  font-size: 22px;
+  z-index: 1001;
+  box-shadow: var(--shadow), var(--fab-shadow-extra, none);
+  background: var(--fab-bg);
+  color: var(--fab-text);
+}
+
+/* Individual vertical positions */
+.fab       { bottom: 72px; }
+.fab-save  { bottom: 88px; font-size: 20px; }
+.fab-toggle{ bottom: 16px; font-size: 20px; }
+
+/* Hover/active */
+.fab:hover, .fab-save:hover, .fab-toggle:hover { filter: brightness(1.05); }
+.fab:active, .fab-save:active, .fab-toggle:active { transform: translateY(1px); filter: brightness(.95); }
+
+/* Icons */
+.fab svg, .fab-save svg, .fab-toggle svg { fill: currentColor; }
