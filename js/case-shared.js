@@ -27,9 +27,9 @@ export const state = {
 };
 
 // --- DOM ---
-export const roleBadge = document.getElementById("roleBadge");
+/*export const roleBadge = document.getElementById("roleBadge");
 export const avatar = document.getElementById("avatar");
-export const signOutBtn = document.getElementById("signOutBtn");
+export const signOutBtn = document.getElementById("signOutBtn");*/
 export const bannerArea = document.getElementById("bannerArea");
 
 export function getHashId() {
@@ -46,14 +46,44 @@ export function setActiveTab(name) {
 }
 
 
+// --- DROP-IN: replace your existing setHeaderUser in /js/case-shared.js ---
 export function setHeaderUser(user, role) {
-  if (!user) return;
-  roleBadge.hidden = false;
-  roleBadge.textContent = (role || "").toUpperCase();
-  signOutBtn.hidden = false;
-  avatar.hidden = false;
-  avatar.alt = user.displayName || user.email || "User";
+  // Map old -> new IDs and guard every DOM access
+  const $ = (id) => document.getElementById(id);
+
+  const rolePill   = $('rolePill') || $('roleBadge');  // new first, fallback old
+  const signOutBtn = $('signOutBtn');
+  const gearBtn    = $('gearBtn');                     // gear always visible
+  const avatar     = $('avatar');                      // legacy (may not exist)
+
+  // Role pill
+  if (rolePill) {
+    if (role) { rolePill.hidden = false; rolePill.textContent = String(role).toUpperCase(); }
+    else { rolePill.hidden = true; rolePill.textContent = ''; }
+  }
+
+  // Sign out button (show only when signed in)
+  if (signOutBtn) {
+    signOutBtn.hidden = !user;
+    if (user && !signOutBtn._wired) {
+      signOutBtn._wired = true;
+      signOutBtn.addEventListener('click', async () => {
+        const { signOutNow } = await import('/js/firebase.js');
+        await signOutNow();
+      });
+    }
+  }
+
+  // Optional/legacy avatar support (no-op if missing)
+  if (avatar) {
+    if (user?.photoURL) { avatar.src = user.photoURL; avatar.hidden = false; }
+    else { avatar.hidden = true; avatar.removeAttribute('src'); }
+  }
+
+  // Gear button – just ensure it’s not hidden accidentally
+  if (gearBtn) gearBtn.hidden = false;
 }
+
 export function toInputDate(d) {
   const dt = toDate(d); if (!dt) return "";
   return new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -63,7 +93,9 @@ export function toInputDateTimeLocal(d) {
   return new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16);
 }
 
-signOutBtn.addEventListener("click", () => signOutNow());
+/*document.getElementById("signOutBtn")
+  ?.addEventListener("click", () => signOutNow());*/
+
 // Tab switching
 // Tab switching
 const tabsNav = document.querySelector(".tabs");
