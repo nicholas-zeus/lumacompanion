@@ -89,7 +89,52 @@ input, button, textarea, select { font: inherit; }
   --input-disabled-bg: color-mix(in srgb, var(--panel) 72%, black 28%);
 
 }
+:root[data-theme="sunrise"] {
+  --bg: #1F2E2F;        /* deep teal background */
+  --panel: #F3EDDF;     /* pale sand panels */
+  --ink: #1F2E2F;       /* dark ink for readability */
+  --subtle: #6CA6A3;    /* soft aqua subtle accents */
+  --muted: #EFB383;     /* warm peach muted text */
+  --line: #F7E18C;      /* golden borders */
 
+  /* Brand & accent */
+  --brand: #FE9870;     /* coral sunrise */
+  --brand-ink: #1F2E2F; /* dark text on coral */
+  --accent: #F7E18C;    /* golden highlight */
+  --accent-ink: #1F2E2F;
+
+  /* Status colors */
+  --success: #6CA6A3;   /* aqua for success */
+  --warn: #F7E18C;      /* golden for warn */
+  --danger: #FE9870;    /* coral for danger */
+
+  --shadow: 0 8px 24px rgba(0,0,0,0.25);
+
+  /* Inputs */
+  --input-bg: var(--panel);
+  --input-ink: var(--ink);
+  --input-border: var(--line);
+  --input-placeholder: var(--muted);
+  --input-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent);
+  --input-readonly-bg: color-mix(in srgb, var(--panel) 92%, black 8%);
+  --input-disabled-bg: color-mix(in srgb, var(--panel) 85%, black 15%);
+  --input-disabled-ink: var(--muted);
+
+  /* FAB */
+  --fab-bg: linear-gradient(135deg, var(--brand), var(--accent));
+  --fab-text: var(--brand-ink);
+  --fab-border: transparent;
+  --fab-shadow-extra: none;
+
+  /* Tabs */
+  --tab-bg: var(--panel);
+  --tab-ink: var(--ink);
+  --tab-border: var(--line);
+  --tab-hover-bg: var(--accent);
+  --tab-active-bg: var(--brand);
+  --tab-active-ink: var(--brand-ink);
+  --tab-active-border: var(--brand);
+}
 /* Sunset theme */
 :root[data-theme="sunset"]{
   --fab-bg: linear-gradient(135deg, var(--brand), var(--accent));

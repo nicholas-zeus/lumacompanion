@@ -2,7 +2,7 @@
 (function () {
   const KEY = "theme";
   const root = document.documentElement;
-  const THEMES = ["light", "sunset", "dark"];
+  const THEMES = ["light", "sunrise", "sunset", "dark"];
   const DEFAULT = "light";
 
   function normalize(t) { return THEMES.includes(t) ? t : DEFAULT; }
