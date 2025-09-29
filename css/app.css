@@ -35,6 +35,16 @@ input, button, textarea, select { font: inherit; }
   --fab-text: #fff;
   --fab-border: #000;
   --fab-shadow-extra: inset 0 1px 1px rgba(255,255,255,0.2);
+    --input-bg: var(--panel);
+  --input-ink: var(--ink);
+  --input-border: var(--line);
+  --input-placeholder: var(--muted);
+
+  /* states */
+  --input-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent);
+  --input-readonly-bg: color-mix(in srgb, var(--panel) 88%, black 12%);
+  --input-disabled-bg: color-mix(in srgb, var(--panel) 82%, black 18%);
+  --input-disabled-ink: var(--muted);
 }
 
 /* Light theme */
@@ -75,6 +85,9 @@ input, button, textarea, select { font: inherit; }
 
   /* Hover surface */
   --hover: #232A40; /* slightly brighter panel hover */
+    --input-readonly-bg: color-mix(in srgb, var(--panel) 80%, black 20%);
+  --input-disabled-bg: color-mix(in srgb, var(--panel) 72%, black 28%);
+
 }
 
 /* Sunset theme */
@@ -103,6 +116,9 @@ input, button, textarea, select { font: inherit; }
 
   --shadow: 0 8px 24px rgba(0,0,0,0.45);
     --hover: #A26FA6; /* slightly lighter plum */
+      --input-readonly-bg: color-mix(in srgb, var(--panel) 88%, black 12%);
+  --input-disabled-bg: color-mix(in srgb, var(--panel) 80%, black 20%);
+
 }
 
 /* ===== Base layout ===== */

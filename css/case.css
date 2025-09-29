@@ -96,11 +96,56 @@ color: var(--tab-ink);
 .field label{ font-weight:700; font-size:13px; }
 .field .hint{ color:var(--muted); font-size:12px; }
 .span-2{ grid-column: span 2; }
-.input{
-  border:1px solid var(--line); background: var(--panel); border-radius:10px; padding:10px 12px; outline:none;
+/**/
+/* THEME-AWARE INPUTS (applies to both locked/readonly and unlocked) */
+.input,
+select.input,
+textarea.input,
+.form-grid .input {
+  background: var(--input-bg);
+  color: var(--input-ink);
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
 }
-.input:focus{ border-color: var(--accent); box-shadow: 0 0 0 4px rgba(163,213,255,0.35); }
-.input:disabled { background:#f6f7f9; color:#666; cursor:not-allowed; }
+
+/* placeholders */
+.input::placeholder,
+textarea.input::placeholder {
+  color: var(--input-placeholder);
+}
+
+/* focus */
+.input:focus,
+textarea.input:focus,
+select.input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--input-focus-ring);
+}
+
+/* readonly = “locked” (non-editable but selectable) */
+.input[readonly],
+textarea.input[readonly] {
+  background: var(--input-readonly-bg);
+  color: var(--input-ink);
+  cursor: default;
+}
+
+/* disabled = greyed & not interactive */
+.input:disabled,
+textarea.input:disabled,
+select.input:disabled {
+  background: var(--input-disabled-bg);
+  color: var(--input-disabled-ink);
+  border-color: var(--input-border);
+  opacity: 1;               /* avoid native dimming */
+  cursor: not-allowed;
+}
+
+/* keep selects legible in dark/sunset */
+select.input option { color: var(--ink); background: var(--panel); }
+/**/
 
 .split{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; }
 .right-actions{ display:flex; gap:8px; }
