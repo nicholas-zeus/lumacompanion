@@ -32,7 +32,7 @@
 
   /* Opaque, button-like */
   border-radius:12px;
-  border:1px solid #e5e7eb;
+  border:1px solid var(--line);
   background: linear-gradient(180deg, #ffffff 0%, #f5f6f7 100%);
   color:#111;
 
@@ -81,7 +81,7 @@
 /* =============== Details Form =============== */
 .form-grid{
   display:grid; gap:12px; grid-template-columns: 1fr 1fr;
-  background:#fff; border:1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel); border:1px solid var(--line); border-radius: var(--radius);
   padding:16px; box-shadow: var(--shadow);
 }
 .field{ display:flex; flex-direction:column; gap:6px; }
@@ -89,7 +89,7 @@
 .field .hint{ color:var(--muted); font-size:12px; }
 .span-2{ grid-column: span 2; }
 .input{
-  border:1px solid var(--line); background:#fff; border-radius:10px; padding:10px 12px; outline:none;
+  border:1px solid var(--line); background: var(--panel); border-radius:10px; padding:10px 12px; outline:none;
 }
 .input:focus{ border-color: var(--accent); box-shadow: 0 0 0 4px rgba(163,213,255,0.35); }
 .input:disabled { background:#f6f7f9; color:#666; cursor:not-allowed; }
@@ -98,7 +98,7 @@
 .right-actions{ display:flex; gap:8px; }
 .status-readout{
   display:inline-flex; align-items:center; gap:8px; font-weight:800; color:var(--brand);
-  background:#eef2ff; border:1px solid #e5e7eb; padding:6px 10px; border-radius:999px;
+  background:#eef2ff; border:1px solid var(--line); padding:6px 10px; border-radius:999px;
 }
 
 /* Finished lock banner */
@@ -109,7 +109,7 @@
   display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;
 }
 .tag-filter select{
-  border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:#fff;
+  border:1px solid var(--line); border-radius:8px; padding:6px 8px; background: var(--panel);
 }
 .uploads{
   display:grid; gap:12px; grid-template-columns: 280px 1fr;
@@ -117,15 +117,15 @@
 .uploads h3{ margin-bottom:6px; }
 .uploads .list{ display:grid; gap:8px; }
 .upload-row{
-  display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--line); background:#fff; border-radius:10px;
+  display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--line); background: var(--panel); border-radius:10px;
 }
 .upload-row .meta{ color:var(--muted); font-size:12px; }
 .viewer{
-  min-height:300px; background:#fff; border:1px solid var(--line); border-radius: var(--radius); padding:10px; box-shadow: var(--shadow);
+  min-height:300px; background: var(--panel); border:1px solid var(--line); border-radius: var(--radius); padding:10px; box-shadow: var(--shadow);
 }
 .pdf-grid-empty{ color:var(--muted); display:grid; place-items:center; height:200px; }
 .pdf-grid{ display:grid; grid-template-columns: 1fr; gap:16px; }
-.pdf-page{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; box-shadow: var(--shadow); }
+.pdf-page{ background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px; box-shadow: var(--shadow); }
 .pdf-footer{ display:flex; align-items:center; justify-content:space-between; padding:6px 4px 0; }
 .pdf-pg { opacity:0.7; }
 .tag-select{ border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
@@ -141,7 +141,7 @@
 
 /* LEFT: floating/sticky file list */
 .list-card{
-  background:#fff; border:1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel); border:1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); padding:10px;
 
   /* Sticky so it "floats" while scrolling pages */
@@ -152,17 +152,20 @@
   overflow: auto;
 }
 .doc-list-item{
-  padding:8px; border:1px solid var(--line); border-radius:10px; background:#fff;
+  padding:8px; border:1px solid var(--line); border-radius:10px; background: var(--panel);
   display:grid; gap:4px; margin-bottom:8px; cursor:pointer;
 }
-.doc-list-item:hover{ background:#f9fafb; }
+/* Keep hover subtle but theme-safe */
+.doc-list-item:hover{ background: var(--panel); }
+
+/* RIGHT meta */
 .doc-file{ font-weight:700; word-break:break-word; }
 .doc-sub{ font-size:12px; color:var(--muted); }
 .doc-actions a{ font-size:12px; }
 
 /* RIGHT: viewer card with natural height (fix) */
 .viewer-card{
-  background:#fff; border:1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel); border:1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); padding:10px;
   /* remove fixed scroll; let card expand */
   overflow: visible;
@@ -180,7 +183,7 @@
 
 /* Canvas-first page card (PDF) or image card (JPG/PNG) */
 .page-card{
-  background:#fff; border:1px solid var(--line); border-radius:12px;
+  background: var(--panel); border:1px solid var(--line); border-radius:12px;
   padding:8px; box-shadow: var(--shadow); margin-bottom:12px;
 }
 .page-card canvas{ width:100%; height:auto; display:block; }
@@ -194,7 +197,7 @@
 
 /* Tag-hits grid when filtering to a specific tag */
 .tag-hits{ display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
-.tag-hit{ border:1px solid var(--line); border-radius:10px; background:#fff; padding:8px; }
+.tag-hit{ border:1px solid var(--line); border-radius:10px; background: var(--panel); padding:8px; }
 .tag-hit .hit-meta{
   display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted);
 }
@@ -207,7 +210,7 @@
 .comments{ display:grid; gap:12px; }
 .comments-list{ display:grid; gap:10px; }
 .comment{
-  background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px; box-shadow: var(--shadow);
+  background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px; box-shadow: var(--shadow);
 }
 .comment .who{ font-weight:700; }
 .comment .when{ color:var(--muted); font-size:12px; }
@@ -215,7 +218,7 @@
   background:#f1f5f9; border:1px dashed #cbd5e1; border-radius:8px; padding:8px; margin-top:6px;
 }
 .comment-form{
-  background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px; display:grid; gap:8px; box-shadow: var(--shadow);
+  background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px; display:grid; gap:8px; box-shadow: var(--shadow);
 }
 .comment-form textarea{ width:100%; }
 
@@ -267,7 +270,7 @@
 .upload-drop.dragging { background: #f0f9ff; }
 
 .file-list { display: grid; gap: 6px; }
-.file-row { display: flex; justify-content: space-between; align-items: center; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background:#fff; }
+.file-row { display: flex; justify-content: space-between; align-items: center; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .file-row .file-name { cursor: pointer; flex: 1; }
 .file-row .trash { background:none; border:none; cursor:pointer; }
 
@@ -276,7 +279,7 @@
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
 }
-.thumb-card { border:1px solid var(--line); border-radius:8px; padding:8px; background:#fff; }
+.thumb-card { border:1px solid var(--line); border-radius:8px; padding:8px; background: var(--panel); }
 .thumb-card img, .thumb-card canvas { width:100%; height:auto; display:block; }
 
 .saving-overlay {
