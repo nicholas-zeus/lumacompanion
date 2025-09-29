@@ -6,13 +6,11 @@ function mk(id, text, title) {
   if (!b) {
     b = document.createElement("button");
     b.id = id;
-    b.className = "fab";
     b.type = "button";
+    // base class; specific variants will be added in ensure()
+    b.className = "fab";
     // start hidden; JS controls visibility
     b.style.display = "none";
-    // default look: black translucent
-    b.style.background = "rgba(0,0,0,0.85)";
-    b.style.color = "#fff";
     document.body.appendChild(b);
   }
   b.textContent = text || "";
@@ -20,7 +18,6 @@ function mk(id, text, title) {
   b.setAttribute("aria-label", title || text || "");
   return b;
 }
-
 
 // ---- layout helpers ----
 function isMobile(){ return window.matchMedia("(max-width: 860px)").matches; }
@@ -45,29 +42,32 @@ function ensure() {
   els.mToggle = mk("fab-manage-toggle", "≡",  "Open drawer");
   els.mSave   = mk("fab-manage-save",   "💾", "Save changes");
 
-  // normalize base style (size, positioning layer)
+  // apply variant classes so CSS can style/position by theme
+  els.details.className = "fab";              // primary slot (details tab)
+  els.docTop.className  = "fab";              // primary slot (docview)
+  els.mToggle.className = "fab fab-toggle";   // secondary slot (manage)
+  els.mSave.className   = "fab fab-save";     // higher primary slot (manage dirty)
+
+  // normalize base style (size, positioning layer) WITHOUT colors/borders
   [els.details, els.docTop, els.mToggle, els.mSave].forEach(el => {
     Object.assign(el.style, {
       position: "fixed",
       zIndex: 1001,
       width: "56px",
       height: "56px",
-      // IMPORTANT: keep hidden by default; do NOT override with "grid" here
+      // keep hidden by default; do NOT override with "grid" here
       display: "none",
-      // center contents
-      displayMode: "grid",         // harmless property; won’t change visibility
+      // center contents (CSS uses display:grid; this is safe if CSS not loaded yet)
       placeItems: "center",
-      border: "0",
-      borderRadius: "18px",
+      borderRadius: "50%",
       cursor: "pointer",
       userSelect: "none",
-      WebkitTapHighlightColor: "transparent",
-      // keep the black translucent background if CSS tries to restyle
-      background: el.style.background || "rgba(0,0,0,0.85)",
-      color: el.style.color || "#fff",
+      WebkitTapHighlightColor: "transparent"
+      // NOTE: no background/color/border here — theme CSS owns those
     });
   });
-    setPos(els.details, "primary");
+
+  setPos(els.details, "primary");
   setPos(els.docTop,  "primary");
   setPos(els.mToggle, "secondary");
   setPos(els.mSave,   "primary");
@@ -90,10 +90,10 @@ export const fab = {
   setDetails(mode, handler){
     ensure();
     const map = {
-  create: { icon:"✓",  label:"Create" },
-  save:   { icon:"✓",  label:"Save"   },
-  edit:   { icon:"✏",  label:"Edit"   },
-};
+      create: { icon:"✓",  label:"Create" },
+      save:   { icon:"✓",  label:"Save"   },
+      edit:   { icon:"✏",  label:"Edit"   },
+    };
     const key = String(mode || "").toLowerCase();
     const cfg = map[key] || map.save;
 
@@ -136,33 +136,33 @@ export const fab = {
 
   // ----- visibility + consistent positions -----
   apply(){
-  ensure();
-  const mobile = isMobile();
-  const tab = String(activeTab || "").toLowerCase();
+    ensure();
+    const mobile = isMobile();
+    const tab = String(activeTab || "").toLowerCase();
 
-  // Always start hidden (belt & suspenders against CSS)
-  els.details.style.display = "none";
-  els.docTop.style.display  = "none";
-  els.mToggle.style.display = "none";
-  els.mSave.style.display   = "none";
+    // Always start hidden
+    els.details.style.display = "none";
+    els.docTop.style.display  = "none";
+    els.mToggle.style.display = "none";
+    els.mSave.style.display   = "none";
 
-  // Reassert slots every time
-  setPos(els.details, "primary");
-  setPos(els.docTop,  "primary");
-  setPos(els.mToggle, "secondary");
-  setPos(els.mSave,   "primary");
+    // Reassert slots every time
+    setPos(els.details, "primary");
+    setPos(els.docTop,  "primary");
+    setPos(els.mToggle, "secondary");
+    setPos(els.mSave,   "primary");
 
-  if (tab === "details") {
-    els.details.style.display = "grid";
-  } else if (tab === "docview") {
-    els.docTop.style.display = "grid";
-  } else if (tab === "documents" || tab === "manage") {
-    if (mobile) {
-      els.mToggle.style.display = "grid";          // burger on Manage only
-      if (manageDirty) els.mSave.style.display = "grid";
+    if (tab === "details") {
+      els.details.style.display = "grid";
+    } else if (tab === "docview") {
+      els.docTop.style.display = "grid";
+    } else if (tab === "documents" || tab === "manage") {
+      if (mobile) {
+        els.mToggle.style.display = "grid";          // burger on Manage only
+        if (manageDirty) els.mSave.style.display = "grid";
+      }
     }
   }
-}
 };
 
 // keep layout correct on viewport changes
