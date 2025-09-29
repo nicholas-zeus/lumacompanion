@@ -47,32 +47,34 @@ input, button, textarea, select { font: inherit; }
 }
 /* Dark theme (using provided palette) */
 :root[data-theme="dark"] {
-  --bg: #31364C;        /* deep navy background */
-  --panel: #1C5998;     /* strong blue for cards/panels */
-  --ink: #F3EDDF;       /* warm off-white text */
-  --subtle: #78D7DD;    /* teal accent for subtle text/icons */
-  --muted: #A0A7C0;     /* soft gray-blue muted text */
-  --line: #3F4560;      /* lighter navy-gray for borders */
+  --bg: #0C0F1A;        /* near-black navy background */
+  --panel: #1A1F2E;     /* slightly lighter panels */
+  --ink: #E6F1FF;       /* soft white-blue text */
+  --subtle: #64D2FF;    /* neon cyan subtle text/icons */
+  --muted: #8891B0;     /* desaturated bluish gray */
+  --line: #2B3145;      /* dark slate border */
 
   /* Brand & accent */
-  --brand: #FE9870;     /* coral/orange highlight */
-  --brand-ink: #31364C; /* dark ink on brand */
-  --accent: #78D7DD;    /* teal for secondary accent */
-  --accent-ink: #31364C;
+  --brand: #FF3CAC;     /* neon magenta */
+  --brand-ink: #0C0F1A; /* dark ink on brand */
+  --accent: #29E6FF;    /* bright cyan accent */
+  --accent-ink: #0C0F1A;
 
-  /* Status colors adapted for contrast */
-  --success: #50d890;   /* bright green pop */
-  --warn: #f6d743;      /* yellow highlight */
-  --danger: #ff6b6b;    /* coral red alert */
+  /* Status colors (glowy neon variants) */
+  --success: #3DFF9F;   /* neon green */
+  --warn: #FFD43D;      /* vivid yellow */
+  --danger: #FF4B5C;    /* neon red */
 
-  --shadow: 0 8px 24px rgba(0,0,0,0.6);
+  --shadow: 0 8px 24px rgba(0, 255, 255, 0.3);
 
   /* FAB theme */
-  --fab-bg: linear-gradient(180deg, #222, #000);
+  --fab-bg: linear-gradient(135deg, #29E6FF, #FF3CAC); /* cyan → magenta gradient */
   --fab-text: #fff;
-  --fab-border: #000;
-  --fab-shadow-extra: inset 0 1px 1px rgba(255,255,255,0.2);
-  --hover: #3F4560; /* lighter navy-gray */
+  --fab-border: transparent;
+  --fab-shadow-extra: 0 0 8px rgba(41, 230, 255, 0.6), 0 0 12px rgba(255, 60, 172, 0.6);
+
+  /* Hover surface */
+  --hover: #232A40; /* slightly brighter panel hover */
 }
 
 /* Sunset theme */
