@@ -490,7 +490,9 @@
 }
 /* THEME — make case FABs match app variables */
 .fab, .fab-save, .fab-toggle{
-  background: linear-gradient(135deg, var(--brand), var(--accent)) !important;
+  background: var (--fab-bg)
+  
+  /*linear-gradient(135deg, var(--brand), var(--accent)) */!important;
   color: var(--brand-ink) !important;
   box-shadow: var(--shadow) !important;
   border: 1px solid transparent;
