@@ -38,13 +38,13 @@ input, button, textarea, select { font: inherit; }
     --input-bg: var(--panel);
   --input-ink: var(--ink);
   --input-border: var(--line);
-  --input-placeholder: var(--accent-ink);
+  --input-placeholder: var(--muted);
 
   /* states */
   --input-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent);
   --input-readonly-bg: color-mix(in srgb, var(--panel) 88%, black 12%);
   --input-disabled-bg: color-mix(in srgb, var(--panel) 82%, black 18%);
-  --input-disabled-ink: var(--muted);
+  --input-disabled-ink: var(--accent-ink);
 }
 
 /* Light theme */
