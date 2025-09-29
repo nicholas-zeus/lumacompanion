@@ -29,10 +29,28 @@ input, button, textarea, select { font: inherit; }
 
   --radius: 14px;
   --shadow: 0 8px 24px rgba(0,0,0,0.08);
+
+/* Base (fallbacks if no theme set) */
+  --fab-bg: linear-gradient(180deg, #222, #000); /* 3D black */
+  --fab-text: #fff;
+  --fab-border: #000;
+  --fab-shadow-extra: inset 0 1px 1px rgba(255,255,255,0.2);
 }
 
-/* Sunset theme overrides */
-:root[data-theme="sunset"] {
+/* Light theme */
+:root[data-theme="light"]{
+  --fab-bg: linear-gradient(180deg, #222, #000); /* 3D black */
+  --fab-text: #fff;
+  --fab-border: #000;
+  --fab-shadow-extra: inset 0 1px 1px rgba(255,255,255,0.2);
+}
+
+/* Sunset theme */
+:root[data-theme="sunset"]{
+  --fab-bg: linear-gradient(135deg, var(--brand), var(--accent));
+  --fab-text: var(--brand-ink);
+  --fab-border: transparent;
+  --fab-shadow-extra: none;
   --bg: #3D3C75;        /* deep indigo background */
   --panel: #8B589B;     /* plum panels */
   --ink: #FDE3A7;       /* warm sand text for contrast */
@@ -186,13 +204,25 @@ body{
 }
 
 /* FAB */
-.fab{
-  position: fixed; right: 16px; bottom: 16px; z-index: 50;
-  display: inline-grid; place-items:center; text-decoration: none;
-  width: 56px; height: 56px; border-radius: 18px;
-  background: linear-gradient(135deg, var(--brand), var(--accent)); color: var(--brand-ink);
-  box-shadow: var(--shadow); font-size: 28px; line-height: 1;
+.fab, .fab-save, .fab-toggle {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--fab-bg);
+  color: var(--fab-text);
+  border: 1px solid var(--fab-border);
+  box-shadow: var(--shadow), var(--fab-shadow-extra);
+  font-size: 28px;
+  line-height: 1;
 }
+
 
 /* Banner area */
 .banner-area{ position: sticky; top: 54px; z-index: 30; padding: 8px 16px; }
