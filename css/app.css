@@ -38,7 +38,7 @@ input, button, textarea, select { font: inherit; }
     --input-bg: var(--panel);
   --input-ink: var(--ink);
   --input-border: var(--line);
-  --input-placeholder: var(--muted);
+  --input-placeholder: var(--accent-ink);
 
   /* states */
   --input-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent);
