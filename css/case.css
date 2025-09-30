@@ -507,3 +507,99 @@ select.input option { color: var(--ink); background: var(--panel); }
 .back-btn:focus {
   text-decoration: none;
 }
+/* ===== Overflow (3-dots) menu for tabs (reusable) ===== */
+
+/* Theme hooks */
+:root{
+  --menu-bg: var(--panel);
+  --menu-ink: var(--ink);
+  --menu-border: var(--line);
+  --menu-hover-bg: var(--hover, var(--panel));
+  --menu-shadow: 0 10px 24px rgba(0,0,0,.18);
+}
+
+/* Wrapper you can place inside .tabs .page-wrap (keeps current flex layout) */
+.tabs-overflow {
+  margin-left: auto;               /* pushes to the right within the flex row */
+  position: relative;              /* anchor for the absolute menu */
+  display: flex;
+  align-items: center;
+}
+
+/* Kebab button — visually consistent with tabs but lighter */
+.tab-overflow-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--tab-border);
+  background: var(--tab-bg);
+  color: var(--tab-ink);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.65) inset,
+    0 1.5px 3px rgba(0,0,0,0.06);
+  cursor: pointer;
+  user-select: none;
+}
+.tab-overflow-btn:hover{ background: var(--tab-hover-bg); }
+.tab-overflow-btn:focus-visible{
+  outline: 2px solid var(--ring, rgba(90,167,255,.5));
+  outline-offset: 2px;
+}
+
+/* Popover menu */
+.tab-menu{
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid var(--menu-border);
+  border-radius: 12px;
+  background: var(--menu-bg);
+  color: var(--menu-ink);
+  box-shadow: var(--menu-shadow);
+  display: none;                   /* toggled with .is-open */
+  z-index: 30;                     /* above tabs, below drawers */
+}
+.tab-menu.is-open{ display: block; }
+
+/* Menu items */
+.tab-menu .menu-item{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.tab-menu .menu-item:hover{
+  background: var(--menu-hover-bg);
+  border-color: var(--menu-border);
+}
+.tab-menu .menu-item:focus-visible{
+  outline: 2px solid var(--ring, rgba(90,167,255,.5));
+  outline-offset: 2px;
+}
+
+/* Optional: subtle group header (if ever needed) */
+.tab-menu .menu-label{
+  font-size: 12px;
+  opacity: .7;
+  padding: 6px 8px 4px;
+}
+
+/* Mobile nits: ensure menu stays inside viewport */
+@media (max-width: 520px){
+  .tab-menu{
+    right: 8px;
+    min-width: 70vw;
+  }
+}
