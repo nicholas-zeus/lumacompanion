@@ -1,94 +1,165 @@
 // /js/pdf-export.js
 import { toDate } from "/js/utils.js";
 
+/* Load jsPDF (UMD) without bare imports */
+async function loadJsPDF() {
+  // If already loaded, reuse
+  if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
+
+  // Load UMD build (no @babel/runtime)
+  await new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Failed to load jsPDF"));
+    document.head.appendChild(s);
+  });
+
+  if (!window.jspdf?.jsPDF) throw new Error("jsPDF not available after load");
+  return window.jspdf.jsPDF;
+}
+
 /**
- * Build a simple transcript PDF (client-side) using jsPDF loaded on demand.
- * Includes MQ as requested.
- *
- * Usage:
- *   const blob = await buildTranscriptPDF({ caseDoc, comments, mqMap });
- *   downloadBlob(blob, `Case-${caseDoc.id}.pdf`);
+ * Build a transcript PDF (Details + Comments with MQ expanded).
+ * Returns a Blob.
  */
 export async function buildTranscriptPDF({ caseDoc, comments, mqMap }) {
-  // Load jsPDF from CDN on demand
-  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.es.min.js");
+  const jsPDFCtor = await loadJsPDF();
+  const doc = new jsPDFCtor({ unit: "pt", format: "a4" });
 
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const line = (x1, y1, x2, y2) => doc.line(x1, y1, x2, y2);
+  // helpers
+  const addHRule = (x1, y1, x2) => doc.line(x1, y1, x2, y1);
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 56;
+  const contentW = pageW - margin * 2;
 
-  let y = 56;
+  let y = margin;
+
+  // Title
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("Escalation — Clinical Review Transcript", 56, y);
+  doc.text("Clinical Review Transcript", margin, y);
+  y += 8; addHRule(margin, y, margin + contentW); y += 18;
+
+  // Case meta
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  const id = caseDoc?.id || "—";
+  const status = (caseDoc?.status || "—").toUpperCase();
+  const created = caseDoc?.createdAt ? toDate(caseDoc.createdAt)?.toLocaleString() : "—";
+  const finished = caseDoc?.finishedAt ? toDate(caseDoc.finishedAt)?.toLocaleString() : "—";
+
+  const metaLines = [
+    `Case ID: ${id}`,
+    `Status: ${status}`,
+    `Created: ${created}`,
+    ...(caseDoc?.finishedAt ? [`Finished: ${finished}`] : []),
+  ];
+  metaLines.forEach(line => { doc.text(line, margin, y); y += 16; });
   y += 8;
-  line(56, y, 539, y); y += 20;
+
+  // Details
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("Details", margin, y); y += 14;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+
+  const details = caseDoc?.details || {};
+  const detailLines = Object.entries(details)
+    .filter(([_, v]) => v != null && String(v).trim() !== "")
+    .map(([k, v]) => `• ${k}: ${String(v).trim()}`);
+
+  for (const line of detailLines) {
+    y = writeMultiline(doc, line, margin, y, contentW);
+    y += 6;
+    y = pageBreakIfNeeded(doc, y, margin);
+  }
+
+  y += 6;
+  doc.setLineWidth(0.5);
+  addHRule(margin, y, margin + contentW); y += 20;
+
+  // Comments + MQ
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("Comments (with Medical Questionnaire)", margin, y); y += 16;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
 
-  // Header table
-  const H = caseDoc.details || {};
-  const rows = [
-    ["Case ID", caseDoc.id || ""],
-    ["Name", H.Name || ""],
-    ["MemberID", H.MemberID || ""],
-    ["Hospital", H.Hospital || ""],
-    ["Diagnosis", H.Diagnosis || ""],
-    ["Status", caseDoc.status || ""],
-    ["Urgent", caseDoc.urgent ? "Yes" : "No"],
-    ["Deadline", H.deadlineAt ? toDate(caseDoc.deadlineAt).toLocaleString() : ""],
-    ["Assigned Nurse", caseDoc.assignedNurse?.displayName || caseDoc.assignedNurse?.email || ""],
-    ["Assigned Doctor", caseDoc.assignedDoctor?.displayName || caseDoc.assignedDoctor?.email || ""],
-  ];
-  rows.forEach(([k, v]) => {
-    y += 16;
-    doc.setFont("helvetica", "bold"); doc.text(`${k}:`, 56, y);
-    doc.setFont("helvetica", "normal"); doc.text(String(v || ""), 160, y, { maxWidth: 360 });
-  });
-  y += 16; line(56, y, 539, y); y += 24;
+  if (!comments || !comments.length) {
+    doc.text("No comments.", margin, y); y += 16;
+  } else {
+    for (const c of comments) {
+      const who = c?.author?.displayName || c?.author?.email || "Unknown";
+      const when = c?.createdAt || c?.updatedAt;
+      const whenStr = when ? toDate(when)?.toLocaleString() : "—";
 
-  // Comments + MQ
-  doc.setFont("helvetica", "bold"); doc.setFontSize(13);
-  doc.text("Comments", 56, y); y += 18;
-  doc.setFont("helvetica", "normal"); doc.setFontSize(11);
-
-  const pageBreakIfNeeded = (increment) => {
-    if (y + increment > 770) { doc.addPage(); y = 56; }
-  };
-
-  for (const c of comments) {
-    const who = c.author?.displayName || c.author?.email || "Unknown";
-    const when = c.createdAt ? toDate(c.createdAt).toLocaleString() : "";
-    const header = `${who} — ${when}`;
-    pageBreakIfNeeded(32);
-    doc.setFont("helvetica", "bold"); doc.text(header, 56, y); y += 16;
-    doc.setFont("helvetica", "normal");
-    const bodyLines = doc.splitTextToSize(c.body || "", 460);
-    bodyLines.forEach(lineText => {
-      pageBreakIfNeeded(16);
-      doc.text(lineText, 56, y); y += 16;
-    });
-
-    // MQ (always included per your spec)
-    const mq = mqMap.get(c.id)?.text || "";
-    if (mq) {
-      pageBreakIfNeeded(22);
-      doc.setFont("helvetica", "bold"); doc.text("Medical Questionnaire:", 56, y); y += 16;
+      // Header
+      doc.setFont("helvetica", "bold");
+      y = writeMultiline(doc, `${who} — ${whenStr}`, margin, y, contentW);
       doc.setFont("helvetica", "normal");
-      const mqLines = doc.splitTextToSize(mq, 460);
-      mqLines.forEach(t => { pageBreakIfNeeded(16); doc.text(t, 56, y); y += 16; });
-    }
+      y += 6;
 
-    y += 8;
+      // Body
+      if (c?.body) {
+        y = writeMultiline(doc, String(c.body).trim(), margin, y, contentW);
+        y += 8;
+      }
+
+      // MQ
+      const mq = mqMap?.[c.id] || {};
+      const keys = Object.keys(mq).filter(k => mq[k] != null && String(mq[k]).trim() !== "");
+      if (keys.length) {
+        doc.setFont("helvetica", "bold");
+        y = writeMultiline(doc, "Medical Questionnaire:", margin + 8, y, contentW - 8);
+        doc.setFont("helvetica", "normal");
+        y += 6;
+        for (const k of keys) {
+          const line = `- ${k}: ${String(mq[k]).trim()}`;
+          y = writeMultiline(doc, line, margin + 12, y, contentW - 12);
+          y += 4;
+          y = pageBreakIfNeeded(doc, y, margin);
+        }
+      }
+
+      y += 10;
+      y = pageBreakIfNeeded(doc, y, margin);
+    }
   }
 
   return doc.output("blob");
 }
 
+/* Write wrapped text within a given width, return new y */
+function writeMultiline(doc, text, x, y, maxWidth) {
+  const lines = doc.splitTextToSize(text, maxWidth);
+  for (const ln of lines) {
+    doc.text(ln, x, y);
+    y += 14;
+  }
+  return y;
+}
+
+/* Add a new page if close to bottom */
+function pageBreakIfNeeded(doc, y, margin) {
+  const pageH = doc.internal.pageSize.getHeight();
+  if (y > pageH - margin - 40) {
+    doc.addPage();
+    return margin;
+  }
+  return y;
+}
+
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename || "transcript.pdf";
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  a.href = url;
+  a.download = filename || "transcript.pdf";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 800);
 }
