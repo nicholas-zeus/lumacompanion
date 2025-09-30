@@ -68,7 +68,7 @@ input, button, textarea, select { font: inherit; }
   --brand: #FF3CAC;     /* neon magenta */
   --brand-ink: #0C0F1A; /* dark ink on brand */
   --accent: #29E6FF;    /* bright cyan accent */
-  --accent-ink: #0C0F1A;
+  --accent-ink: #8891B0;
 
   /* Status colors (glowy neon variants) */
   --success: #3DFF9F;   /* neon green */
