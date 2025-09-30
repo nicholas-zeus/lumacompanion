@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -10,36 +11,103 @@
 
   <!-- Page-level wrapper for consistent max width across all tabs -->
   <style>
-    .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    .page-wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
 
     /* viewer cards used by the new Document View tab */
-    .docview-shell { display: grid; grid-template-columns: 280px 1fr; gap: 12px; }
-    @media (max-width: 900px){ .docview-shell { grid-template-columns: 1fr; } }
+    .docview-shell {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .docview-shell {
+        grid-template-columns: 1fr;
+      }
+    }
 
     .doc-list-item {
-      padding: 8px; border: 1px solid var(--line); border-radius: 10px; background:var(--panel); /*here*/
-      display: grid; gap: 4px; margin-bottom: 8px; cursor: pointer;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      /*here*/
+      display: grid;
+      gap: 4px;
+      margin-bottom: 8px;
+      cursor: pointer;
     }
-    .doc-list-item:hover { background: var(--panel); }
-    .doc-file { font-weight: 700; word-break: break-word; }
-    .doc-sub { font-size: 12px; color: var(--muted); }
-    .doc-actions a { font-size: 12px; }
 
-    .viewer-section { display:flex; justify-content:space-between; align-items:center; margin: 4px 0 10px; }
-    .viewer-section h3 { margin: 0; }
+    .doc-list-item:hover {
+      background: var(--panel);
+    }
 
-    .pdf-frame { width: 100%; height: 680px; border: 1px solid var(--line); border-radius: 8px; }
+    .doc-file {
+      font-weight: 700;
+      word-break: break-word;
+    }
 
-    .tag-hits { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-    .tag-hit { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 8px; }
-    .tag-hit .hit-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted); }
+    .doc-sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .doc-actions a {
+      font-size: 12px;
+    }
+
+    .viewer-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 4px 0 10px;
+    }
+
+    .viewer-section h3 {
+      margin: 0;
+    }
+
+    .pdf-frame {
+      width: 100%;
+      height: 680px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .tag-hits {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    .tag-hit {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      padding: 8px;
+    }
+
+    .tag-hit .hit-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
   </style>
 </head>
+
 <body>
   <!-- Header -->
-<!-- Header -->
-<header class="app-header">
-  <!--<div class="page-wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">-->
+  <!-- Header -->
+  <header class="app-header">
+    <!--<div class="page-wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">-->
     <!-- Left: back button -->
     <div class="header-left">
       <a id="backBtn" href="/index.html" class="btn back-btn">
@@ -55,32 +123,32 @@
     <div class="header-actions">
       <button id="gearBtn" class="btn" aria-label="Settings">⚙️</button>
     </div>
-  <!--</div>-->
-</header>
+    <!--</div>-->
+  </header>
 
-<!-- Settings drawer (hidden by default) -->
-<aside id="settingsDrawer" class="drawer hidden">
-  <div class="drawer-content">
-    <div class="drawer-pill" id="rolePill" hidden>NURSE</div>
-    <div class="drawer-item expandable" id="themesToggle">Themes &gt;</div>
-    <div id="themesList" class="drawer-sub hidden">
-      <div class="drawer-sub-item" data-theme="light">Light <span class="checkmark" hidden>✔</span></div>
-       <div class="drawer-sub-item" data-theme="sunrise">Sunrise <span class="checkmark" hidden>✔</span></div>
-      <div class="drawer-sub-item" data-theme="sunset">Sunset <span class="checkmark" hidden>✔</span></div>
-              <div class="drawer-sub-item" data-theme="dark">Dark <span class="checkmark" hidden>✔</span></div>
+  <!-- Settings drawer (hidden by default) -->
+  <aside id="settingsDrawer" class="drawer hidden">
+    <div class="drawer-content">
+      <div class="drawer-pill" id="rolePill" hidden>NURSE</div>
+      <div class="drawer-item expandable" id="themesToggle">Themes &gt;</div>
+      <div id="themesList" class="drawer-sub hidden">
+        <div class="drawer-sub-item" data-theme="light">Light <span class="checkmark" hidden>✔</span></div>
+        <div class="drawer-sub-item" data-theme="sunrise">Sunrise <span class="checkmark" hidden>✔</span></div>
+        <div class="drawer-sub-item" data-theme="sunset">Sunset <span class="checkmark" hidden>✔</span></div>
+        <div class="drawer-sub-item" data-theme="dark">Dark <span class="checkmark" hidden>✔</span></div>
+      </div>
+      <button id="signOutBtn" class="btn btn-ghost" data-action="signout">Sign out</button>
     </div>
-    <button id="signOutBtn" class="btn btn-ghost" data-action="signout">Sign out</button>
-  </div>
-</aside>
+  </aside>
 
-<!-- Sign-in box (hidden by default) -->
-<main id="signinBox" class="signin-box hidden">
-  <div class="signin-card">
-    <h2>Escalation</h2>
-    <p>Click below to sign in using your Microsoft account.</p>
-    <button id="signInBtn" class="btn btn-primary" data-action="signin">Sign in with Microsoft</button>
-  </div>
-</main>
+  <!-- Sign-in box (hidden by default) -->
+  <main id="signinBox" class="signin-box hidden">
+    <div class="signin-card">
+      <h2>Escalation</h2>
+      <p>Click below to sign in using your Microsoft account.</p>
+      <button id="signInBtn" class="btn btn-primary" data-action="signin">Sign in with Microsoft</button>
+    </div>
+  </main>
 
   <!-- Banners -->
   <div class="banner-area">
@@ -199,7 +267,8 @@
           <label class="checkbox">
             <input id="fUrgent" type="checkbox" /> Urgent
           </label>
-          <small class="hint">If checked, a Deadline is required. Note: items beyond 24h are not considered urgent.</small>
+          <small class="hint">If checked, a Deadline is required. Note: items beyond 24h are not considered
+            urgent.</small>
         </div>
         <div class="field">
           <label>Deadline (local)</label>
@@ -220,7 +289,8 @@
         <!-- Row 9 -->
         <div class="field span-2">
           <label>Summary</label>
-          <textarea id="fSummary" class="input" rows="3" placeholder="You can paste tables; formatting will be preserved in transcript."></textarea>
+          <textarea id="fSummary" class="input" rows="3"
+            placeholder="You can paste tables; formatting will be preserved in transcript."></textarea>
         </div>
         <div class="field span-2">
           <label>Treatment</label>
@@ -246,11 +316,11 @@
 
         <div class="split">
           <div>
-           <!-- <div class="muted">Status</div>-->
+            <!-- <div class="muted">Status</div>-->
             <div id="statusText" class="status-readout">—</div>
           </div>
           <div class="right-actions">
-           <!--<button id="editDetailsBtn" class="btn">Edit</button>-->
+            <!--<button id="editDetailsBtn" class="btn">Edit</button>-->
             <button id="saveDetailsBtn" class="btn btn-primary" hidden>Save</button>
             <button id="assignNurseBtn" class="btn" hidden>Assign me (Nurse)</button>
             <button id="assignDoctorBtn" class="btn" hidden>Assign me (Doctor)</button>
@@ -272,7 +342,8 @@
       <div class="docview-shell">
         <!-- Sidebar / Panel -->
         <aside class="list-card" id="managePanel">
-          <div class="sidebar-head mobile-only" style="display:none;position:sticky;top:0;background:var(--panel);padding:8px 6px;z-index:2;border-bottom:1px solid var(--line);">
+          <div class="sidebar-head mobile-only"
+            style="display:none;position:sticky;top:0;background:var(--panel);padding:8px 6px;z-index:2;border-bottom:1px solid var(--line);">
             <button id="manageCloseBtn" class="btn" style="margin-left:auto;">✕</button>
           </div>
 
@@ -359,12 +430,14 @@
 
         <form id="commentForm" class="comment-form">
           <textarea id="commentBody" class="input" rows="3" placeholder="Add a comment…" required></textarea>
-          <textarea id="commentMQ" class="input" rows="3" placeholder="Medical Questionnaire (optional, will be in transcript)"></textarea>
+          <textarea id="commentMQ" class="input" rows="3"
+            placeholder="Medical Questionnaire (optional, will be in transcript)"></textarea>
           <div class="split">
-            <div class="muted">Use <strong>Confirm</strong> to handoff; <strong>Save</strong> to keep status unchanged.</div>
+            <div class="muted">Use <strong>Confirm</strong> to handoff; <strong>Save</strong> to keep status unchanged.
+            </div>
             <div>
-              <button id="saveCommentBtn"  class="btn">Save</button>
-              <button id="confirmBtn"      class="btn btn-primary">Confirm</button>
+              <button id="saveCommentBtn" class="btn">Save</button>
+              <button id="confirmBtn" class="btn btn-primary">Confirm</button>
             </div>
           </div>
         </form>
@@ -380,87 +453,143 @@
   <script type="module" src="/js/case-comments.js"></script>
   <script type="module" src="/js/case-menu.js"></script>
   <script type="module" src="/js/case-finish-guards.js"></script>
+  <script type="module" src="/js/case-role-guards.js"></script>
 
 
 
   <!-- Minimal inline overrides for Manage Documents (mobile/desktop) -->
   <style>
     /* (Fixed old id) Make manage sidebar non-sticky by default; we control via media rules below */
-    #managePanel { position: static; max-height: none; transform: none; }
+    #managePanel {
+      position: static;
+      max-height: none;
+      transform: none;
+    }
 
     /* Modal (kept) */
-    .modal{
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.35);
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
       display: none;
-      align-items: center; justify-content: center;
+      align-items: center;
+      justify-content: center;
       z-index: 1001;
     }
-    .modal.hidden{ display: none; }
-    .modal:not(.hidden){ display: flex; }
-    .modal-card{
-      background: var(--panel); /*here*/
+
+    .modal.hidden {
+      display: none;
+    }
+
+    .modal:not(.hidden) {
+      display: flex;
+    }
+
+    .modal-card {
+      background: var(--panel);
+      /*here*/
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 16px;
       box-shadow: var(--shadow);
-      width: 90%; max-width: 360px;
+      width: 90%;
+      max-width: 360px;
     }
 
     /* Desktop manage panel becomes sticky */
-    @media (min-width: 861px){
-      #managePanel{
-        position: sticky; top:12px; align-self:start;
-        max-height: calc(100vh - 24px); overflow:auto; transform:none; visibility:visible;
+    @media (min-width: 861px) {
+      #managePanel {
+        position: sticky;
+        top: 12px;
+        align-self: start;
+        max-height: calc(100vh - 24px);
+        overflow: auto;
+        transform: none;
+        visibility: visible;
       }
-      .mobile-only{ display:none !important; }
+
+      .mobile-only {
+        display: none !important;
+      }
     }
 
     /* Mobile: full-screen drawer behavior */
-    @media (max-width: 860px){
-      #managePanel{
-        position: fixed; left:0; right:0; top:0; bottom:0;
-        background:var(--panel); border:0;/*here*/ overflow:auto; z-index:999;
-        transform: translateY(100%); transition: transform .25s ease, visibility 0s linear .25s;
-        visibility: hidden; pointer-events:none;
-        border-top-left-radius: 12px; border-top-right-radius: 12px;
+    @media (max-width: 860px) {
+      #managePanel {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        background: var(--panel);
+        border: 0;
+        /*here*/
+        overflow: auto;
+        z-index: 999;
+        transform: translateY(100%);
+        transition: transform .25s ease, visibility 0s linear .25s;
+        visibility: hidden;
+        pointer-events: none;
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
       }
-      #managePanel.open{
-        transform: translateY(0); transition: transform .25s ease;
-        visibility: visible; pointer-events:auto;
+
+      #managePanel.open {
+        transform: translateY(0);
+        transition: transform .25s ease;
+        visibility: visible;
+        pointer-events: auto;
       }
-      body.dimmed::before{
-        content:""; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:998;
+
+      body.dimmed::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        z-index: 998;
       }
-      .mobile-only{ display:block !important; }
+
+      .mobile-only {
+        display: block !important;
+      }
     }
+
     /* Force left/right alignment */
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-}
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+    }
 
-.header-left {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-}
-.header-actions {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  margin-left: auto; /* pushes gear all the way right */
-}
+    .header-left {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+    }
 
-/* Back button text control */
-.back-btn .label-short { display: none; }
-@media (max-width: 600px) {
-  .back-btn .label-full { display: none; }
-  .back-btn .label-short { display: inline; }
-}
+    .header-actions {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      margin-left: auto;
+      /* pushes gear all the way right */
+    }
 
+    /* Back button text control */
+    .back-btn .label-short {
+      display: none;
+    }
+
+    @media (max-width: 600px) {
+      .back-btn .label-full {
+        display: none;
+      }
+
+      .back-btn .label-short {
+        display: inline;
+      }
+    }
   </style>
   <script type="module" src="/js/theme.js"></script>
   <script>
@@ -473,4 +602,5 @@
     });
   </script>
 </body>
+
 </html>
