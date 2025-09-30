@@ -100,21 +100,32 @@
     <article class="case-card">
       <div class="case-head">
         <div class="left">
+          <!--urgent and time-->
+          <span class="urgent-pill" hidden>URGENT</span>
+          <time class="deadline" hidden></time>
+
+          <!-- line 1 open and close-->
+           <div class="line1"></div>
+
+          <!-- line 2-->
+           <div class="line2">
           <span class="status-pill"></span>
           <a class="case-title" href="#" data-link>—</a>
+          <!-- line 2 end-->
+           </div>
         </div>
-<div class="right">
-  <button class="star-btn" title="Star case" aria-pressed="false" aria-label="Star case">☆</button>
-  <div class="line1"></div>
-  <div class="line2">
-    <span class="urgent-pill" hidden>URGENT</span>
-  </div>
-  <div class="line3">
-    <time class="deadline" hidden></time>
-  </div>
-</div>
+        <div class="right">
+          <button class="star-btn" title="Star case" aria-pressed="false" aria-label="Star case">☆</button>
+          <!--<div class="line1"></div>
+          <div class="line2">
+            <span class="urgent-pill" hidden>URGENT</span>
+          </div>
+          <div class="line3">
+            <time class="deadline" hidden></time>
+          </div>-->
+        </div>
 
-      </div>
+    </div>
 
       <div class="case-meta">
         <span class="meta"><strong>MemberID:</strong> <span data-member>—</span></span>
