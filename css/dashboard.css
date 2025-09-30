@@ -107,3 +107,22 @@
   margin-bottom: 16px;
   color: var(--muted);
 }
+/* ========== Starred case button ========== */
+.star-btn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--muted);
+  transition: transform 0.15s ease, color 0.2s ease;
+}
+.star-btn:hover {
+  background: var(--hover, rgba(0,0,0,0.05));
+}
+.star-btn[aria-pressed="true"] {
+  color: var(--accent);
+  transform: scale(1.1);
+}

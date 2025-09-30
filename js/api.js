@@ -4,9 +4,71 @@ import { functionsBase, COLLECTIONS, PAGE_SIZE } from "/js/config.js";
 import { contains, toDate } from "/js/utils.js";
 
 import {
-  collection, doc, getDoc, getDocs, query, where, orderBy, limit,
+  collection, doc, getDoc, getDocs, query, where, orderBy, limit, onSnapshot, arrayUnion, arrayRemove,
   addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// ==== ⭐ Starred Cases (per-user) ====
+// deps
+
+
+/** Internal: doc ref for current user's stars */
+function _starsRef() {
+  const email = auth.currentUser?.email;
+  if (!email) throw new Error("Not signed in");
+  return doc(db, COLLECTIONS.userStars, email);
+}
+
+/** Ensure stars doc exists { ids: [] } */
+async function _ensureStarsDoc() {
+  const ref = _starsRef();
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, { ids: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  }
+  return ref;
+}
+
+/** Load current user's starred case IDs as a Set<string> */
+export async function loadStarredIds() {
+  const ref = await _ensureStarsDoc();
+  const snap = await getDoc(ref);
+  const ids = Array.isArray(snap.data()?.ids) ? snap.data().ids : [];
+  return new Set(ids);
+}
+
+/** Realtime subscription to starred IDs; returns unsubscribe() */
+export function watchStarredIds(callback) {
+  // callback receives Set<string>
+  return onSnapshot(_starsRef(), (snap) => {
+    const ids = Array.isArray(snap.data()?.ids) ? snap.data().ids : [];
+    callback(new Set(ids));
+  });
+}
+
+/** Add a caseId to stars */
+export async function starCase(caseId) {
+  const ref = await _ensureStarsDoc();
+  await updateDoc(ref, { ids: arrayUnion(caseId), updatedAt: serverTimestamp() });
+}
+
+/** Remove a caseId from stars */
+export async function unstarCase(caseId) {
+  const ref = await _ensureStarsDoc();
+  await updateDoc(ref, { ids: arrayRemove(caseId), updatedAt: serverTimestamp() });
+}
+
+/** Toggle star for a caseId; returns {starred:boolean} AFTER the write */
+export async function toggleStarCase(caseId) {
+  const ref = await _ensureStarsDoc();
+  const snap = await getDoc(ref);
+  const ids = new Set(Array.isArray(snap.data()?.ids) ? snap.data().ids : []);
+  const starred = ids.has(caseId);
+  await updateDoc(ref, {
+    ids: starred ? arrayRemove(caseId) : arrayUnion(caseId),
+    updatedAt: serverTimestamp()
+  });
+  return { starred: !starred };
+}
 
 /* ------------------------------ Labels ------------------------------ */
 export function statusLabel(s) {

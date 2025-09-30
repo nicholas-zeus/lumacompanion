@@ -60,13 +60,16 @@
   <section class="controls" id="controlsSection">
     <div class="filters">
       <div class="segmented" role="tablist" aria-label="Case filters">
-        <button class="segmented-btn is-active" data-filter="my-queue">My queue</button>
-        <button class="segmented-btn" data-filter="all">All</button>
-        <button class="segmented-btn" data-filter="awaiting-doctor">Awaiting doctor</button>
-        <button class="segmented-btn" data-filter="awaiting-nurse">Awaiting nurse</button>
-        <button class="segmented-btn" data-filter="reopened">Reopened</button>
-        <button class="segmented-btn" data-filter="finished">Finished</button>
-        <button class="segmented-btn" data-filter="urgent">Urgent</button>
+<button class="segmented-btn is-active" data-filter="my-queue">My queue</button>
+<button class="segmented-btn" data-filter="urgent">Urgent</button>
+<button class="segmented-btn" data-filter="starred">Starred</button>
+<button class="segmented-btn" data-filter="awaiting-doctor">Awaiting doctor</button>
+<button class="segmented-btn" data-filter="awaiting-nurse">Awaiting nurse</button>
+<button class="segmented-btn" data-filter="all">All</button>
+<button class="segmented-btn" data-filter="reopened">Reopened</button>
+<button class="segmented-btn" data-filter="finished">Finished</button>
+
+
       </div>
     </div>
 
@@ -101,6 +104,8 @@
           <a class="case-title" href="#" data-link>—</a>
         </div>
         <div class="right">
+
+  <button class="star-btn" title="Star case" aria-pressed="false" aria-label="Star case">☆</button>
           <span class="urgent-pill" hidden>URGENT</span>
           <time class="deadline" hidden></time>
         </div>
@@ -130,7 +135,7 @@
   <!-- Scripts -->
   <script type="module">
     import { initFirebase, onAuth, signInWithMicrosoft, signOutNow } from '/js/firebase.js';
-    import { loadRole, queryCases, statusLabel, waitingLabel, sortCasesForDashboard } from '/js/api.js';
+    import { loadRole, queryCases, statusLabel, waitingLabel, sortCasesForDashboard, watchStarredIds, toggleStarCase } from '/js/api.js';
     import { formatDeadline, formatUpdatedAt } from '/js/utils.js';
     import '/js/theme.js';
 
@@ -147,12 +152,15 @@
     const signinBox   = document.getElementById('signinBox');
     const controlsSec = document.getElementById('controlsSection');
 
-    let state = {
-      user: null,
-      role: null,
-      filter: 'my-queue',
-      q: ''
-    };
+let state = {
+  user: null,
+  role: null,
+  filter: 'my-queue',
+  q: '',
+  starred: new Set()
+};
+let unwatchStars = null;
+
 
     function setSignedOutUI() {
       signinBox.classList.remove('hidden');
@@ -170,14 +178,25 @@
     }
 
     // Auth lifecycle
-    onAuth(async (user) => {
-      state.user = user;
-      if (!user) return setSignedOutUI();
+onAuth(async (user) => {
+  state.user = user;
+  if (!user) {
+    if (typeof unwatchStars === 'function') { unwatchStars(); unwatchStars = null; }
+    return setSignedOutUI();
+  }
 
-      state.role = await loadRole();
-      setSignedInUI(user, state.role);
-      await fetchAndRender();
-    });
+  state.role = await loadRole();
+  setSignedInUI(user, state.role);
+
+  if (typeof unwatchStars === 'function') unwatchStars();
+  unwatchStars = watchStarredIds((set) => {
+    state.starred = set;
+    fetchAndRender();
+  });
+
+  await fetchAndRender();
+});
+
 
     // Sign-in/out buttons
     signInBtn?.addEventListener('click', async () => {
@@ -249,12 +268,32 @@
 
         // Updated time
         node.querySelector('[data-updated]').textContent = formatUpdatedAt(c.updatedAt);
+        // ⭐ Star control
+const starBtn = node.querySelector('.star-btn');
+const setVisual = (isOn) => {
+  starBtn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+  starBtn.textContent = isOn ? '★' : '☆';
+  starBtn.title = isOn ? 'Unstar case' : 'Star case';
+};
+setVisual(state.starred.has(c.id));
+starBtn.addEventListener('click', async () => {
+  starBtn.disabled = true;
+  try {
+    const { starred } = await toggleStarCase(c.id);
+    if (starred) state.starred.add(c.id); else state.starred.delete(c.id);
+    setVisual(starred);
+    if (state.filter === 'starred') fetchAndRender();
+  } finally {
+    starBtn.disabled = false;
+  }
+});
+
 
         caseListEl.appendChild(node);
       }
     }
 
-    async function fetchAndRender() {
+   /* async function fetchAndRender() {
       if (!state.user) return;
       caseListEl.setAttribute('aria-busy', 'true');
 
@@ -268,7 +307,28 @@
       const sorted = sortCasesForDashboard(results);
       renderCases(sorted);
       caseListEl.setAttribute('aria-busy', 'false');
-    }
+    }*/
+
+    async function fetchAndRender() {
+  if (!state.user) return;
+  caseListEl.setAttribute('aria-busy', 'true');
+
+  const results = await queryCases({
+    role: state.role,
+    userEmail: state.user.email,
+    filter: (state.filter === 'starred') ? 'all' : state.filter,
+    q: state.q
+  });
+
+  const base = (state.filter === 'starred')
+    ? results.filter(r => state.starred.has(r.id))
+    : results;
+
+  const sorted = sortCasesForDashboard(base);
+  renderCases(sorted);
+  caseListEl.setAttribute('aria-busy', 'false');
+}
+
   </script>
 </body>
 </html>

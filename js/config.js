@@ -21,6 +21,7 @@ export const COLLECTIONS = {
   notifications: "notifications",
   settings: "settings",
   allowlist: "allowlist", // private, read via function only
+  userStars: "userStars", // ⭐ new collection for per-user starred list
 };
 
 // UI constants
