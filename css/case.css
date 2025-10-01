@@ -1004,3 +1004,34 @@ select.input option {
     min-width: 70vw;
   }
 }
+/* ===== Document viewer loading overlay ===== */
+.viewer-card {
+  position: relative; /* anchor overlay */
+}
+
+.viewer-loading {
+  position: absolute;
+  inset: 0;
+  display: none;                    /* toggled on via .is-on */
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--panel), transparent 35%);
+  border-radius: inherit;
+  z-index: 5;
+  backdrop-filter: blur(2px);
+  border: 1px solid color-mix(in oklab, var(--line), transparent 40%);
+}
+
+.viewer-loading.is-on { display: flex; }
+
+.viewer-loading .spinner {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in oklab, var(--ink), transparent 70%);
+  border-top-color: var(--accent, var(--brand));
+  animation: viewer-spin 0.9s linear infinite;
+}
+
+@keyframes viewer-spin {
+  to { transform: rotate(360deg); }
+}

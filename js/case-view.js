@@ -12,6 +12,21 @@ const pdfStack       = document.getElementById("pdfStack");
 const tagHitsWrap    = document.getElementById("tagHits");
 const tagFilterSelect= document.getElementById("tagFilterSelect");
 const tagFilterClear = document.getElementById("tagFilterClear");
+// Overlay helpers
+const viewerCard = document.querySelector(".viewer-card");
+let viewerLoadingEl;
+
+function ensureViewerLoading() {
+  if (viewerLoadingEl && viewerCard.contains(viewerLoadingEl)) return viewerLoadingEl;
+  viewerLoadingEl = document.createElement("div");
+  viewerLoadingEl.className = "viewer-loading";
+  viewerLoadingEl.innerHTML = `<div class="spinner" aria-label="Loading…"></div>`;
+  viewerCard?.appendChild(viewerLoadingEl);
+  return viewerLoadingEl;
+}
+function showViewerLoading() { ensureViewerLoading()?.classList.add("is-on"); }
+function hideViewerLoading() { ensureViewerLoading()?.classList.remove("is-on"); }
+
 /*function buildStickySidebar() {
   if (!document.getElementById("goTopBtn")) {
     const btn = document.createElement("button");
@@ -182,36 +197,82 @@ async function renderPdfFileAsCanvases(u) {
   pdfStack.appendChild(section);
 
   const url = streamFileUrl(u.driveFileId);
+
+  // Show overlay while the whole PDF renders
+  showViewerLoading();
+
   let pdf;
-  try { pdf = await window.pdfjsLib.getDocument(url).promise; }
-  catch { pagesWrap.innerHTML = `<div class="muted">Failed to load PDF.</div>`; return; }
+  try {
+    pdf = await window.pdfjsLib.getDocument(url).promise;
+  } catch {
+    pagesWrap.innerHTML = `<div class="muted">Failed to load PDF.</div>`;
+    hideViewerLoading();
+    return;
+  }
+
+  // Render each page at CSS width, but canvas at DPR*CSS for sharpness
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
+
+    // Compute desired CSS size (same as before)
     const viewport0 = page.getViewport({ scale: 1 });
     const maxWidth = Math.min(pagesWrap.clientWidth || 1000, 1400);
-    const scale = maxWidth / viewport0.width;
-    const viewport = page.getViewport({ scale: scale });
+    const cssScale = maxWidth / viewport0.width;
+
+    // HiDPI render scale for the canvas pixels
+    const renderScale = cssScale * dpr;
+
+    // Two viewports: one for CSS sizing, one for actual rendering pixels
+    const cssViewport = page.getViewport({ scale: cssScale });
+    const renderViewport = page.getViewport({ scale: renderScale });
+
     const canvas = document.createElement("canvas");
-    canvas.width = viewport.width; canvas.height = viewport.height;
-    const ctx = canvas.getContext("2d");
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    const ctx = canvas.getContext("2d", { alpha: false });
+
+    // Real pixel buffer (sharp)
+    canvas.width = Math.floor(renderViewport.width);
+    canvas.height = Math.floor(renderViewport.height);
+
+    // CSS size (what you see on screen)
+    canvas.style.width = Math.floor(cssViewport.width) + "px";
+    canvas.style.height = Math.floor(cssViewport.height) + "px";
+
+    await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
+
     const pageCard = document.createElement("div");
     pageCard.className = "page-card";
     pageCard.appendChild(canvas);
     pagesWrap.appendChild(pageCard);
     state.pageIndex.set(`${u.id}:${p}`, pageCard);
   }
+
+  hideViewerLoading();
 }
+
 function renderImageFile(u) {
   const section = document.createElement("div");
   section.className = "pdf-block";
+
   const img = document.createElement("img");
+  img.decoding = "async";
+  img.loading = "lazy";
+  img.style.maxWidth = "100%";
+  img.style.height = "auto";
+
+  // Show overlay while image fetches
+  showViewerLoading();
+  img.onload = () => hideViewerLoading();
+  img.onerror = () => hideViewerLoading();
+
   img.src = streamFileUrl(u.driveFileId);
+
   section.appendChild(img);
   pdfStack.appendChild(section);
   state.pageIndex.set(`${u.id}:1`, section);
 }
+
 async function loadPdfJsIfNeeded() {
   if (window.pdfjsLib?.getDocument) return;
   await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js");
