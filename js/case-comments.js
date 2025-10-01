@@ -31,37 +31,21 @@ function ensureComposerOnTop() {
   }
 }
 
+
 // --- MQ modal (lazy) ---
 let mqModal, mqModalBody;
 function ensureMqModal() {
   if (mqModal) return;
   mqModal = document.createElement("div");
-  mqModal.style.position = "fixed";
-  mqModal.style.inset = "0";
-  mqModal.style.background = "rgba(0,0,0,0.35)";
-  mqModal.style.display = "none";
-  mqModal.style.alignItems = "center";
-  mqModal.style.justifyContent = "center";
-  mqModal.style.zIndex = "1000";
+  mqModal.className = "mq-modal";    // themed by CSS
 
   const card = document.createElement("div");
-  card.style.background = "#fff";
-  card.style.border = "1px solid var(--line)";
-  card.style.borderRadius = "12px";
-  card.style.maxWidth = "720px";
-  card.style.width = "min(92vw, 720px)";
-  card.style.maxHeight = "80vh";
-  card.style.overflow = "auto";
-  card.style.padding = "16px";
-  card.style.boxShadow = "var(--shadow)";
+  card.className = "mq-card";        // themed by CSS
 
   const head = document.createElement("div");
-  head.style.display = "flex";
-  head.style.justifyContent = "space-between";
-  head.style.alignItems = "center";
-  head.style.marginBottom = "8px";
+  head.className = "mq-head";
   head.innerHTML = `<strong>Medical Questionnaire</strong>
-    <button class="btn" id="mqClose">Close</button>`;
+    <button class="btn" id="mqClose" type="button">Close</button>`;
 
   mqModalBody = document.createElement("div");
   mqModalBody.style.whiteSpace = "pre-wrap";
@@ -71,9 +55,21 @@ function ensureMqModal() {
   mqModal.appendChild(card);
   document.body.appendChild(mqModal);
 
+  // Close on backdrop click or button
   mqModal.addEventListener("click", (e) => { if (e.target === mqModal) hideMqModal(); });
   card.querySelector("#mqClose").addEventListener("click", hideMqModal);
 }
+
+function showMqModal(text) {
+  ensureMqModal();
+  mqModalBody.textContent = text || "";
+  mqModal.classList.add("open");
+}
+
+function hideMqModal() {
+  if (mqModal) mqModal.classList.remove("open");
+}
+
 function showMqModal(text) { ensureMqModal(); mqModalBody.textContent = text || ""; mqModal.style.display = "flex"; }
 function hideMqModal() { if (mqModal) mqModal.style.display = "none"; }
 

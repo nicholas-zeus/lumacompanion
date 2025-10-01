@@ -1050,3 +1050,45 @@ select.input option {
   max-width: 100%;
   overflow: hidden;
 }
+/* ===== Comments: Medical Questionnaire UI ===== */
+
+/* The small box under the button */
+.comments .mq{
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+/* Modal overlay + card (used by case-comments.js) */
+.mq-modal{
+  position: fixed;
+  inset: 0;
+  display: none;                /* toggled from JS */
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.35); /* overlay veil */
+  z-index: 1100;
+}
+.mq-modal.open{ display: flex; }
+
+.mq-card{
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  max-width: 720px;
+  width: min(92vw, 720px);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.mq-card .mq-head{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
