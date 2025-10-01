@@ -70,8 +70,7 @@ function hideMqModal() {
   if (mqModal) mqModal.classList.remove("open");
 }
 
-function showMqModal(text) { ensureMqModal(); mqModalBody.textContent = text || ""; mqModal.style.display = "flex"; }
-function hideMqModal() { if (mqModal) mqModal.style.display = "none"; }
+
 
 // --- Render newest → oldest; keep compose box on top ---
 // Guard against overlapping renders (latest run wins)
