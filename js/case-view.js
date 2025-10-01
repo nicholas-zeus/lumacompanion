@@ -264,8 +264,14 @@ async function renderPdfFileAsCanvases(u) {
     canvas.height = Math.floor(renderViewport.height);
 
     // CSS size (what you see on screen)
-    canvas.style.width = Math.floor(cssViewport.width) + "px";
-    canvas.style.height = Math.floor(cssViewport.height) + "px";
+// OLD (remove these two)
+// canvas.style.width = Math.floor(cssViewport.width) + "px";
+// canvas.style.height = Math.floor(cssViewport.height) + "px";
+
+// NEW (let CSS handle responsive sizing)
+canvas.style.width = "100%";
+canvas.style.height = "auto";
+
 
     await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
 

@@ -1036,3 +1036,17 @@ select.input option {
   to { transform: rotate(360deg); }
 }
 .viewer-loading { z-index: 2000; } /* ensure above everything */
+/* Make rendered PDF canvases responsive */
+.pdf-block canvas,
+.page-card canvas {
+  max-width: 100%;
+  width: 100%;
+  height: auto;       /* preserve aspect ratio */
+  display: block;
+}
+
+/* Ensure the page card doesn't leak horizontally */
+.page-card {
+  max-width: 100%;
+  overflow: hidden;
+}
