@@ -14,18 +14,66 @@ const tagFilterSelect= document.getElementById("tagFilterSelect");
 const tagFilterClear = document.getElementById("tagFilterClear");
 // Overlay helpers
 const viewerCard = document.querySelector(".viewer-card");
+// === Robust overlay helpers (drop-in replacement) ===
 let viewerLoadingEl;
 
+function getViewerContainer() {
+  // Prefer the right-side viewer card
+  let container = document.querySelector(".viewer-card");
+  if (!container) {
+    // Fallback to the stack itself
+    const stack = document.getElementById("pdfStack");
+    if (stack) container = stack.closest(".viewer-card") || stack;
+  }
+  // Last resort: body (full-page overlay)
+  return container || document.body;
+}
+
+function ensurePositioning(container) {
+  if (!container || container === document.body) return;
+  const cs = getComputedStyle(container);
+  if (cs.position === "static" || !cs.position) {
+    container.style.position = "relative";
+  }
+}
+
 function ensureViewerLoading() {
-  if (viewerLoadingEl && viewerCard.contains(viewerLoadingEl)) return viewerLoadingEl;
-  viewerLoadingEl = document.createElement("div");
-  viewerLoadingEl.className = "viewer-loading";
-  viewerLoadingEl.innerHTML = `<div class="spinner" aria-label="Loading…"></div>`;
-  viewerCard?.appendChild(viewerLoadingEl);
+  const container = getViewerContainer();
+  if (!viewerLoadingEl || !container.contains(viewerLoadingEl)) {
+    // (Re)create overlay and attach to the container we found
+    viewerLoadingEl = document.createElement("div");
+    viewerLoadingEl.className = "viewer-loading";
+    viewerLoadingEl.innerHTML = `<div class="spinner" aria-label="Loading…"></div>`;
+    ensurePositioning(container);
+    container.appendChild(viewerLoadingEl);
+
+    // If attached to body, make it a fixed, full-viewport overlay
+    if (container === document.body) {
+      Object.assign(viewerLoadingEl.style, {
+        position: "fixed",
+        inset: "0",
+        border: "none",
+        borderRadius: "0",
+        zIndex: "999",
+      });
+    } else {
+      // Ensure it’s absolute when inside a local container
+      viewerLoadingEl.style.position = "absolute";
+    }
+  }
   return viewerLoadingEl;
 }
-function showViewerLoading() { ensureViewerLoading()?.classList.add("is-on"); }
-function hideViewerLoading() { ensureViewerLoading()?.classList.remove("is-on"); }
+
+function showViewerLoading() {
+  const el = ensureViewerLoading();
+  el?.classList.add("is-on");
+}
+
+function hideViewerLoading() {
+  const el = ensureViewerLoading();
+  el?.classList.remove("is-on");
+}
+
 
 /*function buildStickySidebar() {
   if (!document.getElementById("goTopBtn")) {
@@ -153,11 +201,13 @@ export async function ensureDocviewLoaded() {
   if (!state.caseId || state.isNew) return;
 
   if (!state.docviewLoaded) {
+    showViewerLoading();
     await loadPdfJsIfNeeded();
     await loadDocviewData();
     wireDocviewControls();
     // DO NOT call buildStickySidebar(); we use FAB ↑ instead
     await renderCanvasStack();
+    hideViewerLoading();
     state.docviewLoaded = true;
   } else {
     await loadDocviewData();
