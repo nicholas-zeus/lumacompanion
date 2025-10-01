@@ -65,7 +65,7 @@ input, button, textarea, select { font: inherit; }
   --line: #2B3145;      /* dark slate border */
 
   /* Brand & accent */
-  --brand: #FF3CAC;     /* neon magenta */
+  --brand: #5dc4f8;     /* neon magenta */
   --brand-ink: #0C0F1A; /* dark ink on brand */
   --accent: #29E6FF;    /* bright cyan accent */
   --accent-ink: #8891B0;
@@ -75,7 +75,7 @@ input, button, textarea, select { font: inherit; }
   --warn: #FFD43D;      /* vivid yellow */
   --danger: #FF4B5C;    /* neon red */
 
-  --shadow: 0 8px 24px rgba(0, 255, 255, 0.3);
+  --shadow: 0 8px 24px rgba(144, 0, 255, 0.233);
 
   /* FAB theme */
   --fab-bg: linear-gradient(135deg, #29E6FF, #FF3CAC); /* cyan → magenta gradient */
