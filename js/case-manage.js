@@ -75,24 +75,34 @@ function hidePreviewOverlay() { if (previewOverlay) previewOverlay.style.display
 function isMobile() {
   return window.matchMedia("(max-width: 860px)").matches;
 }
+// Replace your existing markDirty with this:
 function markDirty(flag = true) {
   dirty = !!flag;
 
-  // Desktop inline bar
   const desktop = !isMobile();
   const _saveSection = saveSection || document.getElementById("saveSection");
   const _saveBtn = saveBtn || document.getElementById("saveBtn");
 
   if (desktop) {
-    if (_saveSection) _saveSection.style.display = dirty ? "" : "none";
+    if (_saveSection) {
+      // 👇 Clear the 'hidden' attribute so display rules can take effect
+      _saveSection.hidden = false;
+      _saveSection.style.display = dirty ? "" : "none";
+    }
     if (_saveBtn) _saveBtn.disabled = !dirty;
   } else {
-    if (_saveSection) _saveSection.style.display = "none"; // never show inline on mobile
+    // Mobile never shows inline bar
+    if (_saveSection) {
+      _saveSection.style.display = "none";
+      // Keep it hidden on mobile to avoid flicker
+      _saveSection.hidden = true;
+    }
   }
 
   // Tell the shared FAB about dirty state (controls mobile Save FAB visibility)
   fab.setManageDirty(dirty);
 }
+
 
 function clearPreview() {
   previewArea.innerHTML = "";
