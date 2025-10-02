@@ -1,15 +1,15 @@
 // /js/index-role-guards.js
 // Purpose:
 // - Hide "Create" on sign-in screen (no user)
-// - Hide "Create" for role === 'doctor'
-// - Show "Create" only when signed in AND role is not 'doctor'
-// No imports. Works via DOM + common globals + localStorage fallbacks.
+// - Hide "Create" for role === "doctor"
+// - Show "Create" for any other role (e.g., "nurse")
+// - Resilient against late-initialized globals/DOM; retries briefly and listens for common app events.
 
 (function () {
   const q  = (s, r = document) => r.querySelector(s);
   const qa = (s, r = document) => Array.from(r.querySelectorAll(s));
 
-  // 1) Locate the Create button (extensible list of candidates)
+  // ---------- Find the Create button ----------
   let createBtn, originalDisplay = "";
   function findCreateBtn() {
     if (createBtn && document.body.contains(createBtn)) return createBtn;
@@ -33,7 +33,7 @@
       }
     }
 
-    // Fallback: any prominent button that says "Create" or "New Case"
+    // Fallback: guess a prominent button with matching text
     const guess = qa("button, a").find(el => {
       const t = (el.textContent || "").trim().toLowerCase();
       return t === "create" || t.includes("create case") || t.includes("new case");
@@ -57,132 +57,127 @@
     btn.removeAttribute("aria-hidden");
   }
 
-  // 2) Detect "sign-in screen" vs "signed-in"
-  function isSignInScreen() {
-    // Common sign-in DOM hints — extend as needed
-    const signInHints = [
-      "#signin", "#login", ".sign-in", ".login-card", ".auth-card",
-      'form[action*="signin"]', 'form[action*="login"]',
-      "#googleSignIn", "[data-action='sign-in']", "[data-test='sign-in']",
-    ];
-    if (signInHints.some(sel => q(sel))) return true;
-
-    // If we know user is absent, treat as sign-in screen
-    const user = getUser();
-    if (!user) return true;
-
-    return false;
-  }
-
+  // ---------- User / role detection ----------
   function getUser() {
-    // Try common global places
-    // Firebase Auth (modular or namespaced)
-    try {
-      if (window.firebase?.auth?.().currentUser) return window.firebase.auth().currentUser;
-    } catch (_) {}
-    try {
-      if (window.auth && typeof window.auth.currentUser !== "undefined") return window.auth.currentUser;
-    } catch (_) {}
-    // App globals (custom)
+    // Firebase namespaced
+    try { if (window.firebase?.auth?.().currentUser) return window.firebase.auth().currentUser; } catch (_) {}
+    // Firebase v9 modular (exported globals)
+    try { if (window.auth && typeof window.auth.currentUser !== "undefined") return window.auth.currentUser; } catch (_) {}
+    // App globals
     if (window.currentUser && (window.currentUser.uid || window.currentUser.id)) return window.currentUser;
     if (window.APP_USER && (window.APP_USER.uid || window.APP_USER.id)) return window.APP_USER;
     if (window.state?.user) return window.state.user;
-
     // LocalStorage hint
     try {
       const lsUser = JSON.parse(localStorage.getItem("user") || "null");
       if (lsUser && (lsUser.uid || lsUser.id)) return lsUser;
     } catch (_) {}
-
     return null;
   }
 
-  // 3) Detect role (doctor/nurse/admin/etc.)
+  function normalizeRole(val) {
+    if (!val) return "";
+    if (Array.isArray(val)) {
+      const first = val.map(x => String(x || "").toLowerCase()).find(Boolean);
+      return first || "";
+    }
+    return String(val).toLowerCase();
+  }
+
   function getRole() {
-    // DOM data attributes
+    // Prefer explicit data attributes if present
     const roleDataEl = q("[data-user-role], [data-role], [data-role-current]");
     const roleData = roleDataEl?.dataset?.userRole || roleDataEl?.dataset?.role || roleDataEl?.dataset?.roleCurrent;
-    if (roleData) return String(roleData).toLowerCase();
+    if (roleData) return normalizeRole(roleData);
 
     // Meta tag
     const metaRole = q('meta[name="user-role"]')?.getAttribute("content");
-    if (metaRole) return String(metaRole).toLowerCase();
+    if (metaRole) return normalizeRole(metaRole);
 
     // Visible role chip/text
     const roleTextEl = q(".user-role, #userRole, [data-label='role']");
-    if (roleTextEl && roleTextEl.textContent) {
-      const t = roleTextEl.textContent.trim().toLowerCase();
-      if (t) return t;
-    }
+    if (roleTextEl?.textContent) return normalizeRole(roleTextEl.textContent.trim());
 
     // App globals
-    if (window.currentUser?.role) return String(window.currentUser.role).toLowerCase();
-    if (window.APP_ROLE) return String(window.APP_ROLE).toLowerCase();
-    if (window.state?.role) return String(window.state.role).toLowerCase();
+    if (window.currentUser?.role) return normalizeRole(window.currentUser.role);
+    if (window.APP_ROLE) return normalizeRole(window.APP_ROLE);
+    if (window.state?.role) return normalizeRole(window.state.role);
 
-    // LocalStorage fallback
+    // LocalStorage fallback (if you stash it there)
     try {
       const lsRole = localStorage.getItem("role") || localStorage.getItem("userRole");
-      if (lsRole) return String(lsRole).toLowerCase();
+      if (lsRole) return normalizeRole(lsRole);
     } catch (_) {}
 
-    return ""; // unknown yet
+    return "";
   }
 
+  // ---------- Sign-in screen heuristic ----------
+  function isSignInScreen() {
+    // Obvious sign-in DOM hints
+    const hints = [
+      "#signin", "#login", ".sign-in", ".login-card", ".auth-card",
+      'form[action*="signin"]', 'form[action*="login"]',
+      "#googleSignIn", "[data-action='sign-in']", "[data-test='sign-in']",
+      "#microsoftSignIn", "[data-action='microsoft-sign-in']",
+    ];
+    if (hints.some(sel => q(sel))) return true;
+
+    // If we know user is absent, treat as sign-in
+    if (!getUser()) return true;
+
+    return false;
+  }
+
+  // ---------- Main guard ----------
   function applyGuard() {
     const btn = findCreateBtn();
     if (!btn) return;
 
-    // Hide by default
+    // Default: hidden until proven otherwise
     hideBtn(btn);
 
-    // If we're on the sign-in screen → keep hidden
+    // On the sign-in screen: keep hidden
     if (isSignInScreen()) return;
 
-    // If signed in, decide by role
+    // Must have a signed-in user
     const user = getUser();
-    if (!user) return; // treat as sign-in state
+    if (!user) return;
 
-    const role = getRole();
-    if (!role) return; // unknown role yet; keep hidden until we know
+    // Need a known role
+    const role = getRole(); // e.g., "nurse" or "doctor"
+    if (!role) return;
 
-    if (role === "doctor") {
-      hideBtn(btn);
-    } else {
-      showBtn(btn);
-    }
+    // Hide for doctors only; show for everyone else (nurse, admin, etc.)
+    if (role === "doctor") hideBtn(btn);
+    else showBtn(btn);
   }
 
-  // 4) Wire it up: run now, retry a few times, and observe DOM/app changes
+  // ---------- Wire it up ----------
   function init() {
     applyGuard();
 
-    // Retry to catch late role/user injection
+    // Retry briefly to catch late user/role injection
     let tries = 0;
-    const maxTries = 15;
+    const maxTries = 20;            // ~4s total at 200ms
     const iv = setInterval(() => {
       applyGuard();
       if (++tries >= maxTries) clearInterval(iv);
     }, 200);
 
-    // Observe DOM mutations (SPA nav, injected buttons)
+    // Observe DOM changes (SPA nav, injecting buttons, role badges, etc.)
     const mo = new MutationObserver(() => applyGuard());
     mo.observe(document.documentElement, { childList: true, subtree: true });
 
-    // Listen for likely custom events/apps (adjust if you have specific ones)
+    // Listen for likely app events; fire one from your bootstrap after you resolve role if you can.
     ["authChanged", "userChanged", "roleChanged", "appReady"].forEach(ev =>
       document.addEventListener(ev, applyGuard)
     );
 
-    // If Firebase modular auth is available, hook into it (optional)
-    try {
-      if (window.firebase?.auth) {
-        window.firebase.auth().onAuthStateChanged?.(() => applyGuard());
-      }
-    } catch (_) {}
+    // If Firebase is present, react to auth changes
+    try { window.firebase?.auth?.().onAuthStateChanged?.(() => applyGuard()); } catch (_) {}
   }
 
-  // Start when DOM is ready
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
