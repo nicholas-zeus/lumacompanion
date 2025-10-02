@@ -233,53 +233,10 @@
           <label>Visit Date <span class="req">*</span></label>
           <input id="fVisitDate" type="date" class="input" required />
         </div>
-<!-- ===== Hospital (Locked) ===== -->
-<div class="form-row" id="hospitalRowLocked">
-  <label class="form-label" for="hospitalDisplay">Hospital</label>
-  <div class="form-value">
-    <!-- Filled by JS when rendering locked mode -->
-    <span id="hospitalDisplay" data-empty="Not set" class="muted">Not set</span>
-  </div>
-</div>
-
-<!-- ===== Hospital (Edit) ===== -->
-<div class="form-row" id="hospitalRowEdit" style="display:none;">
-  <label class="form-label" for="hospitalComboInput">Hospital</label>
-
-  <div class="combo-wrap" id="hospitalCombo"
-       role="combobox"
-       aria-haspopup="listbox"
-       aria-owns="hospitalComboList"
-       aria-expanded="false">
-
-    <!-- Visible text input for searching by name (and ID as fallback) -->
-    <input id="hospitalComboInput"
-           class="form-control"
-           type="text"
-           autocomplete="off"
-           placeholder="Search hospital by name…"
-           aria-autocomplete="list"
-           aria-controls="hospitalComboList"
-           aria-activedescendant=""
-           />
-
-    <!-- Clear selection -->
-    <!-- Hidden field actually saved to Firestore (hospitalId only) -->
-    <input id="hospitalId" name="hospitalId" type="hidden" value="" />
-  </div>
-
-  <!-- Results popup (JS toggles visibility) -->
-  <ul id="hospitalComboList"
-      role="listbox"
-      class="combo-list"
-      style="display:none; position:absolute; z-index:50; max-height:260px; overflow:auto; margin-top:4px;
-             background: var(--panel, #fff); color: var(--ink, #111);
-             border:1px solid var(--line, #e5e7eb); border-radius:10px; box-shadow: var(--shadow, 0 8px 24px rgba(0,0,0,.06));">
-    <!-- JS will inject <li role="option" data-id="H1234">Hospital Name — (H1234)</li> -->
-  </ul>
-
-
-
+        <div class="field">
+          <label>Hospital <span class="req">*</span></label>
+          <input id="fHospital" class="input" required />
+        </div>
 
         <!-- Row 5 -->
         <div class="field">
