@@ -1,11 +1,5 @@
 // /js/hospitals.js
-// Usage: import from hospitals.html with <script type="module" src="/js/hospitals.js"></script>
-// This module:
-// 1) Auth-gates the page (requires sign-in)
-// 2) Role check via 'allowlist' collection (doc id = user.email); allows only role === 'nurse'
-// 3) Validates CSV headers === ["Hosp_ID", "HospName", "Country"]
-// 4) On "Replace hospitals": deletes ALL docs in 'hospitals' (batched), then writes CSV rows (batched)
-// 5) Shows progress & errors in a simple log area and preview table
+// Standalone page module for Hospitals CSV import with nurse-only access.
 
 // ---- Firebase (ESM via CDN) ----
 import { firebaseConfig } from "/js/config.js";
@@ -22,8 +16,7 @@ import {
   doc,
   setDoc,
   deleteDoc,
-  query,
-  limit,
+  getDoc,            // ⬅️ import directly
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ---- Firestore collection names (hardcoded for isolation) ----
@@ -31,17 +24,17 @@ const ALLOWLIST = "allowlist";
 const HOSPITALS = "hospitals";
 
 // ---- DOM hooks (expected in hospitals.html) ----
-const fileInput   = document.getElementById("fileInput");     // <input type="file" accept=".csv">
-const validateBtn = document.getElementById("validateBtn");   // Validate CSV (no writes)
-const replaceBtn  = document.getElementById("replaceBtn");    // Destructive replace (delete all + insert)
-const logArea     = document.getElementById("logArea");       // <pre> or <div> for logs
-const previewTbl  = document.getElementById("previewTable");  // <table> for preview
+const fileInput   = document.getElementById("fileInput");
+const validateBtn = document.getElementById("validateBtn");
+const replaceBtn  = document.getElementById("replaceBtn");
+const logArea     = document.getElementById("logArea");
+const previewTbl  = document.getElementById("previewTable");
 
 // ---- Runtime state ----
 let app, auth, db;
 let currentUser = null;
-let currentRole = null;
-let parsedRows = [];         // validated, sanitized rows from CSV
+let currentRole = null;       // normalized single role OR first matching role
+let parsedRows = [];
 let headerOk = false;
 let dedupedCount = 0;
 
@@ -52,13 +45,9 @@ function log(msg) {
   logArea.textContent += `[${time}] ${msg}\n`;
   logArea.scrollTop = logArea.scrollHeight;
 }
-function clearLog() {
-  if (logArea) logArea.textContent = "";
-}
+function clearLog() { if (logArea) logArea.textContent = ""; }
 function setBusy(isBusy) {
-  [validateBtn, replaceBtn, fileInput].forEach((el) => {
-    if (el) el.disabled = !!isBusy;
-  });
+  [validateBtn, replaceBtn, fileInput].forEach((el) => { if (el) el.disabled = !!isBusy; });
 }
 function gateButtons(enabled) {
   if (validateBtn) validateBtn.disabled = !enabled;
@@ -99,56 +88,29 @@ function renderPreview(rows, maxRows = 10) {
 }
 
 // ---- CSV parsing (handles quotes, commas, CRLF, and BOM) ----
-function stripBOM(text) {
-  if (text.charCodeAt(0) === 0xFEFF) return text.slice(1);
-  return text;
-}
+function stripBOM(text) { return text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text; }
 function parseCSV(text) {
-  // Simple robust CSV parser (no external lib)
   const rows = [];
   let i = 0, field = "", row = [], inQuotes = false;
   const s = stripBOM(text);
 
   while (i < s.length) {
     const c = s[i];
-
     if (inQuotes) {
       if (c === '"') {
-        if (s[i + 1] === '"') {
-          field += '"'; // escaped quote
-          i += 2;
-        } else {
-          inQuotes = false;
-          i++;
-        }
-      } else {
-        field += c;
-        i++;
-      }
+        if (s[i + 1] === '"') { field += '"'; i += 2; }
+        else { inQuotes = false; i++; }
+      } else { field += c; i++; }
     } else {
-      if (c === '"') {
-        inQuotes = true; i++;
-      } else if (c === ",") {
-        row.push(field); field = ""; i++;
-      } else if (c === "\n") {
-        row.push(field); field = ""; rows.push(row); row = []; i++;
-      } else if (c === "\r") {
-        // handle CRLF or lone CR
-        if (s[i + 1] === "\n") i += 2; else i++;
-        row.push(field); field = ""; rows.push(row); row = [];
-      } else {
-        field += c; i++;
-      }
+      if (c === '"') { inQuotes = true; i++; }
+      else if (c === ",") { row.push(field); field = ""; i++; }
+      else if (c === "\n") { row.push(field); field = ""; rows.push(row); row = []; i++; }
+      else if (c === "\r") { if (s[i + 1] === "\n") i += 2; else i++; row.push(field); field = ""; rows.push(row); row = []; }
+      else { field += c; i++; }
     }
   }
-  // last field
-  row.push(field);
-  rows.push(row);
-
-  // Trim trailing empty last line (common when file ends with newline)
-  if (rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") {
-    rows.pop();
-  }
+  row.push(field); rows.push(row);
+  if (rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") rows.pop();
   return rows;
 }
 
@@ -159,39 +121,27 @@ function validateHeader(header) {
   const expected = ["Hosp_ID", "HospName", "Country"];
   return expected.every((x, idx) => cleaned[idx] === x);
 }
-
 function sanitizeRow(obj) {
-  // trim all fields and normalize spaces
-  const out = {
+  return {
     Hosp_ID: (obj.Hosp_ID ?? "").trim(),
     HospName: (obj.HospName ?? "").trim(),
     Country: (obj.Country ?? "").trim(),
   };
-  return out;
 }
-
 function validateRows(rows) {
   const errors = [];
   const map = new Map();
   let duplicates = 0;
 
   rows.forEach((r, idx) => {
-    const line = idx + 2; // +2 because header is line 1
+    const line = idx + 2;
     if (!r.Hosp_ID) errors.push(`Line ${line}: Hosp_ID is empty`);
     if (!r.HospName) errors.push(`Line ${line}: HospName is empty`);
-
-    // simple pattern check (optional): H followed by digits
     if (r.Hosp_ID && !/^H?\d+$/i.test(r.Hosp_ID)) {
-      // not fatal, warn only
       errors.push(`Line ${line}: Hosp_ID "${r.Hosp_ID}" looks unusual (expected e.g., H1234).`);
     }
-
     const key = r.Hosp_ID.toLowerCase();
-    if (map.has(key)) {
-      duplicates++;
-      // keep the first occurrence, ignore subsequent
-      return;
-    }
+    if (map.has(key)) { duplicates++; return; }
     map.set(key, r);
   });
 
@@ -200,25 +150,44 @@ function validateRows(rows) {
   return { uniqueRows, errors };
 }
 
-// ---- Firestore helpers ----
+// ---- Role helpers ----
+function normalizeRolePayload(data) {
+  // Supports: { role: "nurse" } OR { roles: ["nurse","..."] }
+  if (!data) return null;
+  if (typeof data.role === "string" && data.role.trim()) return data.role.trim();
+  if (Array.isArray(data.roles) && data.roles.length) return data.roles.map(r => (r || "").trim()).filter(Boolean);
+  return null;
+}
+
+function hasNurseRole(roleOrRoles) {
+  if (!roleOrRoles) return false;
+  const needle = "nurse";
+  if (typeof roleOrRoles === "string") return roleOrRoles.toLowerCase() === needle;
+  if (Array.isArray(roleOrRoles)) return roleOrRoles.some(r => (r || "").toLowerCase() === needle);
+  return false;
+}
+
+function canManageHospitals(roleOrRoles) {
+  // Current policy: allow only 'nurse'
+  return hasNurseRole(roleOrRoles);
+}
+
 async function fetchUserRoleByEmail(email) {
   try {
-    const emailId = (email || "").toLowerCase();
+    const emailId = (email || "").toLowerCase(); // use raw email as doc id (Firestore supports '.' and '@')
     const ref = doc(db, ALLOWLIST, emailId);
-    const snap = await getDocs(query(collection(db, ALLOWLIST), limit(1))); // quick read to ensure rules/collection exist
-    // Prefer direct doc read (faster), fall back above was just to warm permissions
-    const direct = await (await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js")).getDoc(ref);
-    if (direct.exists()) {
-      const data = direct.data() || {};
-      return data.role || null;
-    }
-    return null;
+    const snap = await getDoc(ref);              // ⬅️ direct doc read only
+    if (!snap.exists()) return null;
+    const data = snap.data() || {};
+    const rolePayload = normalizeRolePayload(data);
+    return rolePayload;
   } catch (e) {
     log(`Role check failed: ${e.message || e}`);
     return null;
   }
 }
 
+// ---- Firestore helpers ----
 async function deleteAllHospitals() {
   log("Fetching existing hospitals...");
   const col = collection(db, HOSPITALS);
@@ -241,18 +210,19 @@ async function deleteAllHospitals() {
 async function writeHospitals(rows) {
   log(`Writing ${rows.length} hospital(s)...`);
   let written = 0;
+  const now = Date.now();
   for (let i = 0; i < rows.length; i += 500) {
     const batch = writeBatch(db);
     const slice = rows.slice(i, i + 500);
     slice.forEach(r => {
-      const id = r.Hosp_ID; // document id
+      const id = r.Hosp_ID;
       const ref = doc(db, HOSPITALS, id);
       batch.set(ref, {
         Hosp_ID: r.Hosp_ID,
         HospName: r.HospName,
         Country: r.Country,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: now,
+        updatedAt: now,
       }, { merge: true });
     });
     await batch.commit();
@@ -274,10 +244,7 @@ async function handleValidate() {
     const file = fileInput.files[0];
     const text = await file.text();
     const matrix = parseCSV(text);
-    if (!matrix || matrix.length === 0) {
-      log("CSV appears empty.");
-      return;
-    }
+    if (!matrix || matrix.length === 0) { log("CSV appears empty."); return; }
 
     const header = (matrix[0] || []).map(x => (x ?? "").trim());
     headerOk = validateHeader(header);
@@ -288,16 +255,12 @@ async function handleValidate() {
       return;
     }
 
-    // Map to objects & sanitize
-    const objs = matrix.slice(1).map((row) => {
-      return sanitizeRow({
-        Hosp_ID: row[0],
-        HospName: row[1],
-        Country: row[2],
-      });
-    });
+    const objs = matrix.slice(1).map((row) => sanitizeRow({
+      Hosp_ID: row[0],
+      HospName: row[1],
+      Country: row[2],
+    }));
 
-    // Validate rows
     const { uniqueRows, errors } = validateRows(objs);
     errors.forEach(e => log(`⚠️ ${e}`));
 
@@ -321,7 +284,7 @@ async function handleValidate() {
 }
 
 async function handleReplace() {
-  if (!currentUser || currentRole !== "nurse") {
+  if (!currentUser || !canManageHospitals(currentRole)) {
     log("You do not have permission to replace hospitals. (Requires role: nurse)");
     return;
   }
@@ -329,7 +292,6 @@ async function handleReplace() {
     log("Nothing to import. Please validate a CSV first.");
     return;
   }
-
   const ok = confirm("This will DELETE ALL existing documents in 'hospitals' and replace them with the CSV content. Continue?");
   if (!ok) return;
 
@@ -374,23 +336,24 @@ async function handleReplace() {
     }
 
     log(`Signed in as ${currentUser.email}`);
-    // Fetch role from allowlist (doc id = email)
-    currentRole = await fetchUserRoleByEmail(currentUser.email);
-    if (!currentRole) {
+    const rolePayload = await fetchUserRoleByEmail(currentUser.email);
+
+    if (!rolePayload) {
       log("No role found in allowlist. Access denied.");
       gateButtons(false);
       setBusy(false);
       return;
     }
 
-    if (currentRole !== "nurse") {
-      log(`Role = ${currentRole}. Only 'nurse' is allowed to replace hospitals.`);
+    currentRole = rolePayload; // may be string or array
+    if (!canManageHospitals(currentRole)) {
+      log(`Role = ${JSON.stringify(currentRole)}. Only 'nurse' is allowed to replace hospitals.`);
       gateButtons(false);
       setBusy(false);
       return;
     }
 
-    log("Role OK (nurse). You can validate and replace hospitals.");
+    log(`Role OK (${Array.isArray(currentRole) ? currentRole.join(", ") : currentRole}). You can validate and replace hospitals.`);
     gateButtons(true);
     setBusy(false);
   });
