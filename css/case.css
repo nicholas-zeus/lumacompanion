@@ -1092,3 +1092,82 @@ select.input option {
   align-items: center;
   margin-bottom: 8px;
 }
+/* ===== Mobile overflow fixes for case.html → Details tab ===== */
+@media (max-width: 860px) {
+
+  /* 1) Container must not exceed viewport width */
+  .page-wrap {
+    padding-left: 16px;
+    padding-right: 16px;
+    max-width: 100%;
+  }
+
+  /* 2) Let grid/flex columns actually shrink (critical) */
+  .details-form,
+  .details-form .form-row,
+  .details-form .form-col,
+  .details-form .field,
+  #detailsForm,
+  #detailsForm .form-row,
+  #detailsForm .form-col,
+  #detailsForm .field {
+    min-width: 0;          /* allow shrinking inside grid/flex parents */
+  }
+
+  /* If you use CSS Grid for the details layout, ensure columns are shrinkable */
+  .details-form-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* stack on mobile */
+    gap: 12px;
+  }
+
+  /* 3) Inputs/selects never exceed container width */
+  #detailsForm input,
+  #detailsForm select,
+  #detailsForm textarea,
+  .details-form input,
+  .details-form select,
+  .details-form textarea,
+  .input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* 4) iOS/date controls can be wider than expected – normalize */
+  #detailsForm input[type="date"],
+  #detailsForm input[type="datetime-local"],
+  .details-form input[type="date"],
+  .details-form input[type="datetime-local"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* 5) Long unbroken strings in read-only/locked fields shouldn’t blow out */
+  #detailsForm .input,
+  .details-form .input,
+  #detailsForm .locked,
+  .details-form .locked {
+    overflow-wrap: anywhere;   /* allow breaking tokens */
+    word-break: break-word;
+  }
+
+  /* 6) Labels and inline meta shouldn’t force horizontal scroll */
+  #detailsForm label,
+  .details-form label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;       /* trims overly long labels on small screens */
+  }
+
+  /* 7) Belts & suspenders: keep the page from scrolling sideways */
+  html, body {
+    overflow-x: hidden;
+  }
+}
+
+/* In case the tabs/header create a 100vw overflow, clip just that layer */
+.tabs, .tabs .page-wrap { overflow-x: clip; }
