@@ -1,6 +1,6 @@
 // /js/index-role-guards.js
 // Show "Create" for everyone EXCEPT doctors.
-// Do NOT fight initial state while role is unknown (prevents race with index.html).
+// Important: do NOT depend on global auth/user; rely on DOM signals only.
 
 (function () {
   const q  = (s, r = document) => r.querySelector(s);
@@ -12,7 +12,7 @@
     if (createBtn && document.body.contains(createBtn)) return createBtn;
 
     const candidates = [
-      "#newCaseBtn",               // your index.html
+      "#newCaseBtn",               // index.html FAB
       "#createBtn",
       "[data-action='create-case']",
       ".btn-create",
@@ -29,7 +29,8 @@
         return createBtn;
       }
     }
-    // Fallback by text (rarely used here)
+
+    // Fallback by text (rarely needed)
     const guess = qa("button, a").find(el => {
       const t = (el.textContent || "").trim().toLowerCase();
       return t === "create" || t.includes("create case") || t.includes("new case");
@@ -55,19 +56,7 @@
     btn.style.display = originalDisplay ?? "";
   }
 
-  // ---------- Environment detection ----------
-  function getUser() {
-    try { if (window.firebase?.auth?.().currentUser) return window.firebase.auth().currentUser; } catch {}
-    try { if (window.auth && typeof window.auth.currentUser !== "undefined") return window.auth.currentUser; } catch {}
-    if (window.currentUser && (window.currentUser.uid || window.currentUser.id)) return window.currentUser;
-    if (window.APP_USER && (window.APP_USER.uid || window.APP_USER.id)) return window.APP_USER;
-    if (window.state?.user) return window.state.user;
-    try {
-      const lsUser = JSON.parse(localStorage.getItem("user") || "null");
-      if (lsUser && (lsUser.uid || lsUser.id)) return lsUser;
-    } catch {}
-    return null;
-  }
+  // ---------- Role / screen via DOM ----------
   function normalizeRole(val) {
     if (!val) return "";
     if (Array.isArray(val)) {
@@ -76,12 +65,13 @@
     }
     return String(val).toLowerCase();
   }
-  function getRole() {
-    // 1) Your UI pill
+
+  function getRoleFromDOM() {
+    // Your UI pill in the drawer
     const pill = q("#rolePill");
     if (pill && pill.textContent) return normalizeRole(pill.textContent.trim());
 
-    // 2) Data/meta (future-proof)
+    // Data/meta fallbacks (future-proof)
     const roleDataEl = q("[data-user-role], [data-role], [data-role-current]");
     const roleData = roleDataEl?.dataset?.userRole || roleDataEl?.dataset?.role || roleDataEl?.dataset?.roleCurrent;
     if (roleData) return normalizeRole(roleData);
@@ -89,21 +79,20 @@
     const metaRole = q('meta[name="user-role"]')?.getAttribute("content");
     if (metaRole) return normalizeRole(metaRole);
 
-    // 3) App globals
-    if (window.currentUser?.role) return normalizeRole(window.currentUser.role);
-    if (window.APP_ROLE) return normalizeRole(window.APP_ROLE);
-    if (window.state?.role) return normalizeRole(window.state.role);
-
-    // 4) LocalStorage fallback
+    // localStorage fallback if you ever set it
     try {
       const lsRole = localStorage.getItem("role") || localStorage.getItem("userRole");
       if (lsRole) return normalizeRole(lsRole);
     } catch {}
+
     return "";
   }
+
   function isSignInScreen() {
+    // index.html exposes #signinBox (visible when signed out)
     const box = q("#signinBox");
     if (box && !box.classList.contains("hidden")) return true;
+
     // generic hints
     const hints = [
       "#signin", ".sign-in", ".login-card", ".auth-card",
@@ -112,7 +101,7 @@
       "[data-action='sign-in']", "[data-action='microsoft-sign-in']",
     ];
     if (hints.some(sel => q(sel))) return true;
-    if (!getUser()) return true;
+
     return false;
   }
 
@@ -121,12 +110,12 @@
     const btn = findCreateBtn();
     if (!btn) return;
 
-    // Only force-hide on truly not-signed-in screens
-    if (isSignInScreen() || !getUser()) { hideBtn(btn); return; }
+    // Only force-hide when the sign-in UI is showing.
+    if (isSignInScreen()) { hideBtn(btn); return; }
 
-    const role = getRole();
+    const role = getRoleFromDOM();
 
-    // If role is unknown, DO NOTHING — let index.html's own logic decide.
+    // Unknown role? Don't override whatever the page did.
     if (!role) return;
 
     // Only doctors are blocked; everyone else is allowed.
@@ -138,7 +127,7 @@
   function init() {
     applyGuard();
 
-    // Retry briefly for late role/user
+    // Retry briefly for late role UI
     let tries = 0, maxTries = 20;
     const iv = setInterval(() => {
       applyGuard();
@@ -149,13 +138,10 @@
     const mo = new MutationObserver(() => applyGuard());
     mo.observe(document.documentElement, { childList: true, subtree: true });
 
-    // App events (fire these from your app when role/user changes)
-    ["authChanged", "userChanged", "roleChanged", "appReady"].forEach(ev =>
+    // If your app dispatches these, we'll re-apply.
+    ["roleChanged", "appReady"].forEach(ev =>
       document.addEventListener(ev, applyGuard)
     );
-
-    // Firebase auth listener if available
-    try { window.firebase?.auth?.().onAuthStateChanged?.(() => applyGuard()); } catch {}
   }
 
   if (document.readyState === "loading") {
