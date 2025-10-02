@@ -53,6 +53,84 @@ function ensureLoadingOverlay() {
 }
 function showLoading() { ensureLoadingOverlay(); loadingOverlay.style.display = "flex"; }
 function hideLoading() { if (loadingOverlay) loadingOverlay.style.display = "none"; }
+// --- Hospitals dropdown helpers ---
+let hospitalsCache = null;     // [{ id: Hosp_ID, name: HospName }]
+let hospitalMap = new Map();   // id -> name
+
+async function fetchHospitalsList() {
+  if (hospitalsCache) return hospitalsCache;
+  const { db } = await import("/js/firebase.js");
+  const { collection, getDocs } =
+    await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+
+  const snap = await getDocs(collection(db, "hospitals"));
+  const list = [];
+  snap.forEach(d => {
+    const row = d.data() || {};
+    // doc id is Hosp_ID; field names per importer
+    const id = d.id || row.Hosp_ID || "";
+    const name = row.HospName || id || "(unknown hospital)";
+    list.push({ id, name });
+  });
+  // cache + map
+  hospitalsCache = list.sort((a,b)=>a.name.localeCompare(b.name));
+  hospitalMap = new Map(hospitalsCache.map(h => [h.id, h.name]));
+  return hospitalsCache;
+}
+
+function ensureHospitalSelect() {
+  const el = document.getElementById("fHospital");
+  if (!el) return null;
+
+  // If it's already a <select>, reuse it. If it's an <input>, replace it.
+  if (el.tagName.toLowerCase() === "select") return el;
+
+  // Replace <input id="fHospital"> with a <select id="fHospital" class="input">
+  const sel = document.createElement("select");
+  sel.id = el.id;
+  sel.className = el.className || "input";
+  sel.required = el.required || false;
+
+  // Insert select in place of the input
+  el.insertAdjacentElement("afterend", sel);
+  el.remove();
+
+  // Ensure hidden field exists
+  if (!document.getElementById("fHospitalID")) {
+    const hid = document.createElement("input");
+    hid.type = "hidden";
+    hid.id = "fHospitalID";
+    sel.insertAdjacentElement("afterend", hid);
+  }
+  return sel;
+}
+
+async function populateHospitalOptions(selectedId = "") {
+  const sel = ensureHospitalSelect();
+  if (!sel) return;
+
+  // Basic placeholder
+  sel.innerHTML = `<option value="">— Select hospital —</option>`;
+
+  const list = await fetchHospitalsList();
+  for (const h of list) {
+    const opt = document.createElement("option");
+    opt.value = h.id;      // store ID as the option value
+    opt.textContent = h.name;
+    sel.appendChild(opt);
+  }
+  sel.value = selectedId || "";
+
+  // keep hidden ID synced
+  const hid = document.getElementById("fHospitalID");
+  if (hid) hid.value = sel.value || "";
+
+  // on change → sync hidden id
+  sel.addEventListener("change", () => {
+    const hid2 = document.getElementById("fHospitalID");
+    if (hid2) hid2.value = sel.value || "";
+  });
+}
 
 /* Fields */
 const f = (id) => document.getElementById(id);
@@ -259,6 +337,9 @@ function clearDetailsForm() {
 
 /* Gather form -> details */
 function gatherDetailsFromForm() {
+  const fHospitalIdEl = document.getElementById("fHospitalID") || document.getElementById("fHospital");
+  const hospitalId = (fHospitalIdEl?.value || "").trim();
+
   return {
     Name: fName.value.trim(),
     MemberID: fMemberID.value.trim(),
@@ -269,7 +350,7 @@ function gatherDetailsFromForm() {
     TypeOfAdmission: fAdmissionType.value.trim(),
     TypeOfConsultation: fConsultType.value.trim(),
     VisitDate: fVisitDate.value || "",
-    Hospital: fHospital.value.trim(),
+    Hospital: hospitalId,  // <-- store ID
     Diagnosis: fDiagnosis.value.trim(),
     DischargeDate: fDischargeDate.value || "",
     ChiefComplaint: fChiefComplaint.value.trim(),
@@ -285,19 +366,33 @@ function gatherDetailsFromForm() {
   };
 }
 
+
 /* Hydrate form from doc */
 function hydrateFormFromDoc(doc) {
   const d = doc.details || {};
+
+  // (existing lines above unchanged)
+  // Ensure options exist (in case hydrate is called before populate — safe no-op if already done)
+  // If you followed the call order suggested above, options already exist and this is fine:
+  const sel = document.getElementById("fHospital");
+  if (sel && sel.tagName.toLowerCase() === "select") {
+    sel.value = d.Hospital || "";
+    const hid = document.getElementById("fHospitalID");
+    if (hid) hid.value = sel.value || "";
+  } else {
+    // fallback to plain input if the page hasn’t swapped yet (shouldn’t happen with the calls above)
+    fHospital.value = d.Hospital || "";
+  }
+
+  // continue with your existing hydrations...
   fName.value = d.Name || ""; fMemberID.value = d.MemberID || "";
   fNationality.value = d.Nationality || "";
   fDOB.value = toInputDate(d.DOB);
-
   fPolicyEff.value = toInputDate(d.PolicyEffectiveDate);
   fUWType.value = d.UnderwritingType || "";
   fAdmissionType.value = d.TypeOfAdmission || "";
   fConsultType.value = d.TypeOfConsultation || "";
   fVisitDate.value = toInputDate(d.VisitDate);
-  fHospital.value = d.Hospital || "";
   fDiagnosis.value = d.Diagnosis || "";
   fDischargeDate.value = toInputDate(d.DischargeDate);
   fChiefComplaint.value = d.ChiefComplaint || "";
@@ -317,6 +412,7 @@ function hydrateFormFromDoc(doc) {
 
   setAgeInline(d.DOB, d.VisitDate);
 }
+
 
 /* Primary button label + handler */
 // Floating unified primary button (FAB) with icons
@@ -362,6 +458,7 @@ export async function loadCase() {
     // NEW MODE
     state.caseDoc = null;
     statusText.textContent = "—";
+    await populateHospitalOptions("");  // no selection yet
     clearDetailsForm();
     lockFields(false);         // allow typing
     setTabsEnabled(false);     // lock other tabs
@@ -421,7 +518,7 @@ export async function loadCase() {
       return;
     }
     state.caseDoc = doc;
-
+await populateHospitalOptions((doc?.details?.Hospital) || "");
     hydrateFormFromDoc(doc);
     lockFields(true);
     setTabsEnabled(true);
