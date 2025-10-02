@@ -11,7 +11,9 @@ import { fab } from "/js/fab.js";
 document.addEventListener("caseLoaded", () => {
   fab.init?.();
   fab.setTab?.("details");
+  try { syncDetailsFab(); } catch {}
 });
+
 
 // NEW CASE flow (inside loadCase -> state.isNew branch)
 
@@ -76,6 +78,41 @@ async function fetchHospitalsList() {
   hospitalsCache = list.sort((a,b)=>a.name.localeCompare(b.name));
   hospitalMap = new Map(hospitalsCache.map(h => [h.id, h.name]));
   return hospitalsCache;
+}
+// --- FAB sync helpers (centralized, role-safe) ---
+const detailsFabHandlers = { onCreate: null, onSave: null, onEdit: null };
+
+function anyDetailsFieldUnlocked() {
+  return !!detailsForm?.querySelector('.input:not(:disabled)');
+}
+
+export function syncDetailsFab() {
+  // Respect role-based guards: nurses can act, others see no actionable FAB
+  const role = (state.role || "").toLowerCase();
+  if (role !== "nurse") {
+    // Keep label "Edit" (role guards will hide/neutralize it)
+    fab.setDetails("edit", null);
+    return;
+  }
+
+  // New case = Create (✓). Existing unlocked = Save (✓). Locked = Edit (✏)
+  if (state.isNew) {
+    fab.setDetails("create", detailsFabHandlers.onCreate);
+  } else if (anyDetailsFieldUnlocked()) {
+    fab.setDetails("save", detailsFabHandlers.onSave);
+  } else {
+    fab.setDetails("edit", detailsFabHandlers.onEdit);
+  }
+}
+
+// Keep icon synced even if something else toggles disabled on inputs
+const _detailsLockObserver = new MutationObserver((muts) => {
+  if (muts.some(m => m.attributeName === "disabled")) {
+    try { syncDetailsFab(); } catch {}
+  }
+});
+if (detailsForm) {
+  _detailsLockObserver.observe(detailsForm, { subtree: true, attributes: true, attributeFilter: ["disabled"] });
 }
 
 function ensureHospitalSelect() {
@@ -322,7 +359,10 @@ function setTabsEnabled(enabled) {
 function lockFields(isLocked) {
   detailsForm.querySelectorAll(".input").forEach(i => { i.disabled = !!isLocked; });
   applyOverflowToggles(!!isLocked);
+  // NEW: reflect FAB mode to match lock state
+  try { syncDetailsFab(); } catch {}
 }
+
 
 /* Clear form */
 function clearDetailsForm() {
@@ -465,7 +505,7 @@ export async function loadCase() {
     if (downloadPdfBtn) downloadPdfBtn.hidden = true;
 
     // Use the FAB for "Create"
-    fab.setDetails("create", async () => {
+    /*fab.setDetails("create", async () => {
       showLoading();
       try {
         syncDeadlineVisibility(); // enforce deadline requirement if urgent
@@ -502,7 +542,50 @@ export async function loadCase() {
       } finally {
         hideLoading();
       }
-    });
+    });*/
+    // Use the FAB for "Create"
+detailsFabHandlers.onCreate = async () => {
+  showLoading();
+  try {
+    syncDeadlineVisibility(); // enforce deadline requirement if urgent
+    const details = gatherDetailsFromForm();
+
+    const initPayload = {
+      details,
+      status: "awaiting doctor",
+      urgent: !!(fUrgent && fUrgent.checked),
+      deadlineAt: fDeadline?.value ? new Date(fDeadline.value) : null,
+      assignedNurse: {
+        email: state.user.email,
+        displayName: state.user.displayName || state.user.email
+      }
+    };
+
+    const created = await createCase(initPayload, state.user);
+
+    // switch URL to created id and reload record
+    location.hash = `#${created.id}`;
+    state.isNew = false;
+
+    const fresh = await getCase(created.id);
+    state.caseDoc = fresh;
+    hydrateFormFromDoc(fresh);
+
+    lockFields(true);
+    setTabsEnabled(true);
+    if (downloadPdfBtn) downloadPdfBtn.hidden = false;
+
+    // Now wire Edit↔Save for existing case
+    wirePrimaryButtonForExisting();
+    document.dispatchEvent(new Event("caseLoaded"));
+  } finally {
+    hideLoading();
+  }
+};
+
+// Let sync decide the correct icon (✓ for Create because #new is unlocked)
+syncDetailsFab();
+
 
     document.dispatchEvent(new Event("caseLoaded"));
     hideLoading();
@@ -536,23 +619,26 @@ await populateHospitalOptions((doc?.details?.Hospital) || "");
 function wirePrimaryButtonForExisting() {
   const role = (state.role || "").toLowerCase();
 
-  // Non-nurse roles: keep fields locked and hide actionable FAB
+  // Non-nurse roles: keep fields locked and show a non-actionable "Edit" (role guards will hide it)
   if (role !== "nurse") {
     try { lockFields?.(true); } catch {}
-    fab.setDetails("edit", null); // shows ✏️ label but no handler (hidden by tab logic)
+    detailsFabHandlers.onEdit = null;
+    detailsFabHandlers.onSave = null;
+    fab.setDetails("edit", null);
     return;
   }
 
   let saving = false;
 
   const enterEdit = () => {
-    lockFields(false);
-    fab.setDetails("save", onSave);
+    lockFields(false);           // unlock fields
+    syncDetailsFab();            // FAB becomes ✓ Save
   };
 
   const onSave = async () => {
     if (saving) return;
     saving = true;
+    showLoading();
     try {
       // Build a proper patch like createCase uses
       const details = gatherDetailsFromForm();
@@ -564,21 +650,28 @@ function wirePrimaryButtonForExisting() {
 
       await updateCase(state.caseId, patch, state.user);
 
-      lockFields(true);
-      fab.setDetails("edit", enterEdit);
+      lockFields(true);          // re-lock after save
+      syncDetailsFab();          // FAB becomes ✏ Edit
     } catch (err) {
       console.error("Save failed:", err);
       alert("Failed to save changes. Please try again.");
-      fab.setDetails("save", onSave); // stay in Save state
+      // stay in Save state
+      try { syncDetailsFab(); } catch {}
     } finally {
+      hideLoading();
       saving = false;
     }
   };
 
-  // Start locked with "Edit"
+  // expose handlers for the sync engine
+  detailsFabHandlers.onEdit = enterEdit;
+  detailsFabHandlers.onSave = onSave;
+
+  // Start locked for existing cases; FAB will show ✏ Edit
   lockFields(true);
-  fab.setDetails("edit", enterEdit);
+  syncDetailsFab();
 }
+
 
 
 
