@@ -5,6 +5,315 @@ import { computeAge } from "/js/utils.js";
 import { toDate } from "/js/utils.js";
 import { fab } from "/js/fab.js";
 
+/* ===================== HOSPITAL DROPDOWN (Details tab) =====================
+
+Adds a searchable combobox backed by Firestore `hospitals` collection.
+- Stores only `hospitalId` on the case document.
+- Shows Hospital Name in the UI (resolves from directory).
+- Uses localStorage cache to speed up subsequent loads.
+- Hooks into `document` event "caseLoaded" (already used elsewhere in your app).
+
+DOM required (already provided in case.html):
+- #hospitalRowLocked, #hospitalRowEdit
+- #hospitalDisplay  (locked label area)
+- #hospitalCombo, #hospitalComboInput, #hospitalComboList, #hospitalClearBtn
+- #hospitalId (hidden input that is saved with the form)
+
+Security: Firestore rules must allow allowlisted users to read /hospitals.
+
+=========================================================================== */
+
+// ---- Firebase ESM (safe init if app exists) ----
+import { firebaseConfig } from "/js/config.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const appHosp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const dbHosp  = getFirestore(appHosp);
+
+// ---- DOM ----
+const hospitalRowLocked = document.getElementById("hospitalRowLocked");
+const hospitalRowEdit   = document.getElementById("hospitalRowEdit");
+const hospitalDisplay   = document.getElementById("hospitalDisplay");
+const hospitalIdInput   = document.getElementById("hospitalId");
+const comboWrap         = document.getElementById("hospitalCombo");
+const comboInput        = document.getElementById("hospitalComboInput");
+const comboList         = document.getElementById("hospitalComboList");
+const clearBtn          = document.getElementById("hospitalClearBtn");
+
+// ---- Local cache ----
+const HOSP_CACHE_KEY = "hospitals_cache.data";
+const HOSP_CACHE_META = "hospitals_cache.meta";
+const HOSP_COLLECTION = "hospitals";
+
+let hospList = []; // [{id, name}]
+let hospMap  = new Map(); // id -> name
+let comboOpen = false;
+let activeIndex = -1;
+let filtered = [];
+
+// ---- Utils ----
+function nowTs(){ return Date.now(); }
+function saveCache(list){
+  try{
+    localStorage.setItem(HOSP_CACHE_KEY, JSON.stringify(list));
+    localStorage.setItem(HOSP_CACHE_META, JSON.stringify({ cachedAt: nowTs(), count: list.length }));
+  }catch(e){}
+}
+function readCache(){
+  try{
+    const data = JSON.parse(localStorage.getItem(HOSP_CACHE_KEY) || "[]");
+    const meta = JSON.parse(localStorage.getItem(HOSP_CACHE_META) || "{}");
+    return { data, meta };
+  }catch(e){ return { data: [], meta: {} }; }
+}
+function buildMaps(list){
+  hospList = list;
+  hospMap = new Map(list.map(x => [x.id, x.name]));
+}
+function setLockedDisplayFromId(id){
+  if (!hospitalDisplay) return;
+  if (!id){
+    hospitalDisplay.textContent = hospitalDisplay.dataset.empty || "Not set";
+    hospitalDisplay.classList.add("muted");
+    return;
+  }
+  const name = hospMap.get(id);
+  if (name){
+    hospitalDisplay.textContent = name;
+    hospitalDisplay.classList.remove("muted");
+  }else{
+    hospitalDisplay.textContent = `Unknown hospital (${id})`;
+    hospitalDisplay.classList.remove("muted");
+  }
+}
+function openList(){
+  if (!comboList) return;
+  comboList.style.display = "block";
+  comboWrap?.setAttribute("aria-expanded","true");
+  comboOpen = true;
+}
+function closeList(){
+  if (!comboList) return;
+  comboList.style.display = "none";
+  comboWrap?.setAttribute("aria-expanded","false");
+  comboOpen = false;
+  activeIndex = -1;
+  updateActiveDescendant();
+}
+function updateActiveDescendant(){
+  if (!comboInput) return;
+  const active = comboList?.querySelector('[aria-selected="true"]');
+  comboInput.setAttribute("aria-activedescendant", active ? active.id : "");
+}
+function renderList(items){
+  if (!comboList) return;
+  comboList.innerHTML = "";
+  if (!items.length){
+    const li = document.createElement("li");
+    li.role = "option";
+    li.id = "hospital-opt-empty";
+    li.className = "muted";
+    li.textContent = "No matches";
+    li.setAttribute("aria-disabled","true");
+    comboList.appendChild(li);
+    return;
+  }
+  items.forEach((x, idx) => {
+    const li = document.createElement("li");
+    li.role = "option";
+    li.id = `hospital-opt-${idx}`;
+    li.dataset.id = x.id;
+    li.tabIndex = -1;
+    li.style.padding = "8px 10px";
+    li.style.cursor = "pointer";
+    li.textContent = `${x.name} — (${x.id})`;
+    li.addEventListener("mousedown", (e) => { // mousedown to avoid blur before click
+      e.preventDefault();
+      selectItem(x);
+    });
+    li.addEventListener("mousemove", () => setActive(idx));
+    comboList.appendChild(li);
+  });
+}
+function setActive(i){
+  const options = Array.from(comboList.querySelectorAll('[role="option"]'));
+  options.forEach(o => o.removeAttribute("aria-selected"));
+  if (i >= 0 && i < options.length){
+    activeIndex = i;
+    options[i].setAttribute("aria-selected","true");
+    options[i].scrollIntoView({ block: "nearest" });
+  } else {
+    activeIndex = -1;
+  }
+  updateActiveDescendant();
+}
+function filterList(q){
+  const qq = (q || "").trim().toLowerCase();
+  if (!qq){
+    filtered = hospList.slice(0, 50);
+  }else{
+    const nameMatch = [];
+    const idMatch = [];
+    for (const h of hospList){
+      if (h.name.toLowerCase().includes(qq)) nameMatch.push(h);
+      else if (h.id.toLowerCase().includes(qq)) idMatch.push(h);
+      if (nameMatch.length + idMatch.length >= 50) break;
+    }
+    filtered = nameMatch.concat(idMatch);
+  }
+  renderList(filtered);
+  setActive(filtered.length ? 0 : -1);
+}
+function selectItem(item){
+  if (!item) return;
+  hospitalIdInput.value = item.id;
+  comboInput.value = item.name; // show name in the input
+  setLockedDisplayFromId(item.id);
+  markDirtyMaybe();
+  closeList();
+}
+function clearSelection(){
+  hospitalIdInput.value = "";
+  comboInput.value = "";
+  setLockedDisplayFromId("");
+  markDirtyMaybe();
+  closeList();
+}
+function markDirtyMaybe(){
+  // Try to integrate with your existing dirty tracking, if available:
+  try {
+    if (typeof window.markDirty === "function") window.markDirty(true);
+    // Also fire a generic change event for any form-level listeners
+    hospitalIdInput.dispatchEvent(new Event("change", { bubbles: true }));
+    hospitalIdInput.dispatchEvent(new Event("input", { bubbles: true }));
+  } catch(e){}
+}
+
+// ---- Load directory from cache then Firestore ----
+async function loadHospitalsDirectory(){
+  // 1) Use cache immediately if present
+  const { data } = readCache();
+  if (Array.isArray(data) && data.length){
+    buildMaps(data);
+  }
+  // 2) Fetch fresh from Firestore (best-effort)
+  try{
+    const snap = await getDocs(collection(dbHosp, HOSP_COLLECTION));
+    const fresh = [];
+    snap.forEach(doc => {
+      const d = doc.data() || {};
+      const id = d.Hosp_ID || doc.id;
+      const name = d.HospName || "";
+      if (id && name) fresh.push({ id: String(id), name: String(name) });
+    });
+    // Sort by name for nicer UX
+    fresh.sort((a,b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    buildMaps(fresh);
+    saveCache(fresh);
+  }catch(e){
+    // If rules/network error, we silently keep cache.
+    // You can surface a toast if needed.
+    // console.warn("Hospitals fetch failed", e);
+  }
+}
+
+// ---- Wire combobox behaviors ----
+function initHospitalCombobox(){
+  if (!comboInput || !comboList) return;
+
+  // Opening and filtering
+  let debounce = 0;
+  comboInput.addEventListener("input", () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      filterList(comboInput.value);
+      if (!comboOpen) openList();
+    }, 120);
+  });
+  comboInput.addEventListener("focus", () => {
+    filterList(comboInput.value);
+    openList();
+  });
+
+  // Keyboard interactions
+  comboInput.addEventListener("keydown", (e) => {
+    const opts = Array.from(comboList.querySelectorAll('[role="option"]'));
+    if (e.key === "ArrowDown"){
+      e.preventDefault();
+      if (!comboOpen) openList();
+      setActive(Math.min(activeIndex + 1, opts.length - 1));
+    } else if (e.key === "ArrowUp"){
+      e.preventDefault();
+      setActive(Math.max(activeIndex - 1, 0));
+    } else if (e.key === "Enter"){
+      if (comboOpen && activeIndex >= 0 && activeIndex < filtered.length){
+        e.preventDefault();
+        selectItem(filtered[activeIndex]);
+      }
+    } else if (e.key === "Escape"){
+      closeList();
+    }
+  });
+
+  // Click outside to close
+  document.addEventListener("click", (e) => {
+    if (!comboWrap) return;
+    if (!comboWrap.contains(e.target) && !comboList.contains(e.target)){
+      closeList();
+    }
+  });
+
+  // Clear button
+  clearBtn?.addEventListener("click", clearSelection);
+}
+
+// ---- Public-ish entry: call on case load to sync UI with case data ----
+async function initHospitalFieldOnCaseLoaded(caseData){
+  // Ensure directory is ready (cache first, then fire fetch)
+  await loadHospitalsDirectory();
+
+  // 1) Locked mode label
+  const id = (caseData && caseData.hospitalId) ? String(caseData.hospitalId) : "";
+  hospitalIdInput.value = id;
+  setLockedDisplayFromId(id);
+
+  // 2) Edit mode input shows name (but form stores only id)
+  comboInput.value = hospMap.get(id) || "";
+
+  // 3) Prepare initial list (for first open)
+  filterList("");
+  closeList(); // will open on focus
+}
+
+// ---- Hook into your existing lifecycle ----
+// You already dispatch "caseLoaded" elsewhere; we use it to bootstrap our field.
+//
+// Expecting event.detail.case to carry the loaded case data.
+// If not present, we fallback to a global 'state.case' if available.
+document.addEventListener("caseLoaded", async (ev) => {
+  const cd = (ev && ev.detail && ev.detail.case) ? ev.detail.case
+           : (window.state && window.state.case) ? window.state.case
+           : null;
+
+  // Initialize UI widgets only once
+  initHospitalCombobox();
+
+  await initHospitalFieldOnCaseLoaded(cd || {});
+});
+
+// Optional: after save, you may dispatch a "detailsSaved" with new case data.
+// If your code already does something similar, this will keep locked label in sync.
+document.addEventListener("detailsSaved", (ev) => {
+  const cd = (ev && ev.detail && ev.detail.case) ? ev.detail.case : null;
+  const id = cd && cd.hospitalId ? String(cd.hospitalId) : hospitalIdInput.value;
+  setLockedDisplayFromId(id);
+});
+
+
+
 document.addEventListener("caseLoaded", () => {
   fab.init?.();
   fab.setTab?.("details");
@@ -317,57 +626,6 @@ function hydrateFormFromDoc(doc) {
 
 /* Primary button label + handler */
 // Floating unified primary button (FAB) with icons
-let fabBtn;
-/*function ensureFloatingPrimaryButton() {
-  if (fabBtn) return fabBtn;
-  fabBtn = document.createElement("button");
-  fabBtn.id = "detailsFab";
-  Object.assign(fabBtn.style, {
-    position: "fixed",
-    right: "16px",
-    bottom: "16px",
-    width: "56px",
-    height: "56px",
-    borderRadius: "18px",
-    border: "0",
-    boxShadow: "var(--shadow)",
-    background: "linear-gradient(135deg, var(--brand), var(--accent))",
-    color: "var(--brand-ink)",
-    fontSize: "22px",
-    display: "grid",
-    placeItems: "center",
-    zIndex: "1001",
-    cursor: "pointer"
-  });
-  fabBtn.setAttribute("aria-label", "Action");
-  document.body.appendChild(fabBtn);
-  return fabBtn;
-}*/
-
-// labelMode: "edit" | "create" | "save"
-// labelMode: "edit" | "create" | "save" (case-insensitive)
-/*function setPrimaryButton(labelMode, onClick) {
-  const saveDetailsBtn = document.getElementById("saveDetailsBtn");
-  const newCaseActions = document.getElementById("newCaseActions");
-  const editDetailsBtn = document.getElementById("editDetailsBtn");
-  if (saveDetailsBtn) saveDetailsBtn.hidden = true;
-  if (newCaseActions) newCaseActions.classList.add("hidden");
-  if (editDetailsBtn) editDetailsBtn.hidden = true;
-
-  const btn = ensureFloatingPrimaryButton();
-
-  let icon = "💾", tooltip = "Save";
-  if (labelMode === "edit")   { icon = "✏️"; tooltip = "Edit"; }
-  if (labelMode === "create") { icon = "💾"; tooltip = "Create"; }
-  if (labelMode === "save")   { icon = "💾"; tooltip = "Save"; }
-
-  btn.textContent = icon;
-  btn.title = tooltip;
-  btn.setAttribute("aria-label", tooltip);
-  btn.onclick = (e) => { e.preventDefault(); onClick?.(); };
-}*/
-
-
 
 /* Finish banner + role rules */
 function lockUIFinished(isFinished) {
@@ -483,9 +741,7 @@ export async function loadCase() {
 }
 
 
-/* Nurse-only editing logic for existing cases */
-// Existing case: toggle Edit ↔ Save on the Details FAB
-// Existing case: toggle Edit ↔ Save on the Details FAB
+
 function wirePrimaryButtonForExisting() {
   const role = (state.role || "").toLowerCase();
 
