@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <title>Escalation — Dashboard</title>
+
+  <!-- Global + dashboard styles -->
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/dashboard.css" />
+
+  <!-- Favicon (optional) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Ctext y='48' x='6' font-size='48'%3E%E2%9C%85%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+  <!-- App header -->
+  <header class="app-header">
+    <!-- Left side: nothing on index.html -->
+    <div class="header-left"></div>
+
+    <!-- Center title -->
+    <div class="header-title">Escalation</div>
+
+    <!-- Right side: gear icon -->
+    <div class="header-actions">
+      <button id="gearBtn" class="btn" aria-label="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <!-- Settings drawer -->
+  <aside id="settingsDrawer" class="drawer hidden">
+    <div class="drawer-content">
+      <div class="drawer-pill" id="rolePill" hidden>NURSE</div>
+      <div class="drawer-item expandable" id="themesToggle">
+        Themes &gt;
+      </div>
+      <div id="themesList" class="drawer-sub hidden">
+        <div class="drawer-sub-item" data-theme="light">Light <span class="checkmark" hidden>✔</span></div>
+           <div class="drawer-sub-item" data-theme="sunrise">Sunrise <span class="checkmark" hidden>✔</span></div>
+        <!--<div class="drawer-sub-item" data-theme="sunset">Sunset <span class="checkmark" hidden>✔</span></div>-->
+                <div class="drawer-sub-item" data-theme="dark">Dark <span class="checkmark" hidden>✔</span></div>
+      </div>
+      <button id="signOutBtn" class="btn btn-ghost" data-action="signout">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- Sign-in box -->
+  <main id="signinBox" class="signin-box hidden">
+    <div class="signin-card">
+      <h2>Escalation</h2>
+      <p>Click below to sign in using your Microsoft account.</p>
+      <button id="signInBtn" class="btn btn-primary" data-action="signin">Sign in with Microsoft</button>
+    </div>
+  </main>
+
+  <!-- Filters + search -->
+  <section class="controls" id="controlsSection">
+    <div class="filters">
+      <div class="segmented" role="tablist" aria-label="Case filters">
+<button class="segmented-btn is-active" data-filter="my-queue">My queue</button>
+<button class="segmented-btn" data-filter="urgent">Urgent</button>
+<button class="segmented-btn" data-filter="starred">Starred</button>
+<button class="segmented-btn" data-filter="awaiting-doctor">Awaiting doctor</button>
+<button class="segmented-btn" data-filter="awaiting-nurse">Awaiting nurse</button>
+<button class="segmented-btn" data-filter="all">All</button>
+<button class="segmented-btn" data-filter="reopened">Reopened</button>
+<button class="segmented-btn" data-filter="finished">Finished</button>
+
+
+      </div>
+    </div>
+
+    <div class="searchbar">
+      <input id="searchInput" type="search" class="input" placeholder="Search by Name, MemberID, Hospital, Diagnosis" autocomplete="off" />
+    </div>
+  </section>
+
+  <!-- Persistent banners -->
+  <div id="bannerArea" class="banner-area" aria-live="polite"></div>
+
+  <!-- Case list -->
+  <main id="caseList" class="case-list" aria-live="polite" aria-busy="true">
+    <!-- Cards injected by JS -->
+  </main>
+
+  <!-- Empty state -->
+  <template id="tpl-empty">
+    <div class="empty">
+      <div class="empty-icon">🗂️</div>
+      <div class="empty-title">No cases found</div>
+      <p class="empty-text">Try changing filters or your search.</p>
+    </div>
+  </template>
+
+  <!-- Case card template -->
+  <template id="tpl-card">
+    <article class="case-card">
+      <div class="case-head">
+        <div>
+          <!--urgent and time-->
+
+
+          <!-- line 1 open and close-->
+           <div class="line1" style="margin-bottom: 12px;">
+          <span class="urgent-pill" hidden>URGENT</span>
+          <time class="deadline" hidden></time>
+           </div>
+
+          <!-- line 2-->
+           <div class="line2">
+          <span class="status-pill"></span>
+          <a class="case-title" href="#" data-link>—</a>
+          <!-- line 2 end-->
+           </div>
+        </div>
+        <div class="right">
+          <button class="star-btn" title="Star case" aria-pressed="false" aria-label="Star case">☆</button>
+          <!--<div class="line1"></div>
+          <div class="line2">
+            <span class="urgent-pill" hidden>URGENT</span>
+          </div>
+          <div class="line3">
+            <time class="deadline" hidden></time>
+          </div>-->
+        </div>
+
+    </div>
+
+      <div class="case-meta">
+        <span class="meta"><strong>MemberID:</strong> <span data-member>—</span></span>
+        <span class="meta"><strong>Hospital:</strong> <span data-hospital>—</span></span>
+        <span class="meta"><strong>Diagnosis:</strong> <span data-dx>—</span></span>
+      </div>
+
+      <div class="case-assign">
+        <span class="meta"><strong>Nurse:</strong> <span data-nurse>—</span></span>
+        <span class="meta"><strong>Doctor:</strong> <span data-doctor>—</span></span>
+      </div>
+
+      <div class="case-foot">
+        <span class="meta"><strong>Waiting action:</strong> <span data-waiting>—</span></span>
+        <time class="updated" data-updated>—</time>
+      </div>
+    </article>
+  </template>
+
+  <!-- New Case FAB -->
+  <a id="newCaseBtn" class="fab" href="/case.html#new" hidden aria-label="Create new case">＋</a>
+
+
+  <!-- Scripts -->
+  <script type="module">
+    import { initFirebase, onAuth, signInWithMicrosoft, signOutNow } from '/js/firebase.js';
+    import { loadRole, queryCases, statusLabel, waitingLabel, sortCasesForDashboard, watchStarredIds, toggleStarCase } from '/js/api.js';
+    import { formatDeadline, formatUpdatedAt } from '/js/utils.js';
+    import '/js/theme.js';
+
+    // Boot
+    initFirebase();
+
+    const signInBtn   = document.getElementById('signInBtn');
+    const signOutBtn  = document.getElementById('signOutBtn');
+    const rolePill    = document.getElementById('rolePill');
+    const newCaseBtn  = document.getElementById('newCaseBtn');
+    const caseListEl  = document.getElementById('caseList');
+    const searchInput = document.getElementById('searchInput');
+    const segmented   = document.querySelector('.segmented');
+    const signinBox   = document.getElementById('signinBox');
+    const controlsSec = document.getElementById('controlsSection');
+
+let state = {
+  user: null,
+  role: null,
+  filter: 'my-queue',
+  q: '',
+  starred: new Set()
+};
+let unwatchStars = null;
+
+
+    function setSignedOutUI() {
+      signinBox.classList.remove('hidden');
+      controlsSec.style.display = 'none';
+      caseListEl.innerHTML = '';
+      caseListEl.setAttribute('aria-busy', 'false');
+    }
+
+    function setSignedInUI(user, role) {
+      signinBox.classList.add('hidden');
+      controlsSec.style.display = '';
+      newCaseBtn.hidden = !(role === 'nurse' || role === 'admin');
+      rolePill.hidden = false;
+      rolePill.textContent = role.toUpperCase();
+    }
+
+    // Auth lifecycle
+onAuth(async (user) => {
+  state.user = user;
+  if (!user) {
+    if (typeof unwatchStars === 'function') { unwatchStars(); unwatchStars = null; }
+    return setSignedOutUI();
+  }
+
+  state.role = await loadRole();
+  setSignedInUI(user, state.role);
+
+  if (typeof unwatchStars === 'function') unwatchStars();
+  unwatchStars = watchStarredIds((set) => {
+    state.starred = set;
+    fetchAndRender();
+  });
+
+  await fetchAndRender();
+});
+
+
+    // Sign-in/out buttons
+    signInBtn?.addEventListener('click', async () => {
+      await signInWithMicrosoft();
+    });
+    signOutBtn?.addEventListener('click', async () => {
+      await signOutNow();
+    });
+
+    // Segmented filters
+    segmented.addEventListener('click', (e) => {
+      const btn = e.target.closest('.segmented-btn');
+      if (!btn) return;
+      document.querySelectorAll('.segmented-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+      state.filter = btn.dataset.filter;
+      fetchAndRender();
+    });
+
+    // Search with small debounce
+    let t;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        state.q = searchInput.value.trim();
+        fetchAndRender();
+      }, 180);
+    });
+
+    function renderEmpty() {
+      const tpl = document.getElementById('tpl-empty').content.cloneNode(true);
+      caseListEl.innerHTML = '';
+      caseListEl.appendChild(tpl);
+    }
+
+    function renderCases(cases) {
+      caseListEl.innerHTML = '';
+      if (!cases.length) return renderEmpty();
+
+      const tpl = document.getElementById('tpl-card');
+      for (const c of cases) {
+        const node = tpl.content.cloneNode(true);
+
+        // Title + link
+        const title = `${c.details?.Name || 'Unknown'} — ${c.details?.TypeOfConsultation || ''}`.trim();
+        node.querySelector('.case-title').textContent = title || `Case ${c.id}`;
+        node.querySelector('.case-title').href = `/case.html#${c.id}`;
+
+        // Status + waiting
+        node.querySelector('.status-pill').textContent = statusLabel(c.status);
+        node.querySelector('[data-waiting]').textContent = waitingLabel(c.status);
+
+        // Meta
+        node.querySelector('[data-member]').textContent = c.details?.MemberID || '—';
+        node.querySelector('[data-hospital]').textContent = c.details?.Hospital || '—';
+        node.querySelector('[data-dx]').textContent = c.details?.Diagnosis || '—';
+
+        // Assignments
+        node.querySelector('[data-nurse]').textContent  = c.assignedNurse?.displayName || c.assignedNurse?.email || '—';
+        node.querySelector('[data-doctor]').textContent = c.assignedDoctor?.displayName || c.assignedDoctor?.email || '—';
+
+        // Urgent + deadline
+        const urgentPill = node.querySelector('.urgent-pill');
+        const deadlineEl = node.querySelector('.deadline');
+        if (c.urgent) urgentPill.hidden = false;
+        if (c.deadlineAt) {
+          deadlineEl.hidden = false;
+          deadlineEl.textContent = formatDeadline(c.deadlineAt);
+        }
+
+        // Updated time
+        node.querySelector('[data-updated]').textContent = formatUpdatedAt(c.updatedAt);
+        // ⭐ Star control
+const starBtn = node.querySelector('.star-btn');
+const setVisual = (isOn) => {
+  starBtn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+  starBtn.textContent = isOn ? '★' : '☆';
+  starBtn.title = isOn ? 'Unstar case' : 'Star case';
+};
+setVisual(state.starred.has(c.id));
+starBtn.addEventListener('click', async () => {
+  starBtn.disabled = true;
+  try {
+    const { starred } = await toggleStarCase(c.id);
+    if (starred) state.starred.add(c.id); else state.starred.delete(c.id);
+    setVisual(starred);
+    if (state.filter === 'starred') fetchAndRender();
+  } finally {
+    starBtn.disabled = false;
+  }
+});
+
+
+        caseListEl.appendChild(node);
+      }
+    }
+
+   /* async function fetchAndRender() {
+      if (!state.user) return;
+      caseListEl.setAttribute('aria-busy', 'true');
+
+      const results = await queryCases({
+        role: state.role,
+        userEmail: state.user.email,
+        filter: state.filter,
+        q: state.q
+      });
+
+      const sorted = sortCasesForDashboard(results);
+      renderCases(sorted);
+      caseListEl.setAttribute('aria-busy', 'false');
+    }*/
+
+    async function fetchAndRender() {
+  if (!state.user) return;
+  caseListEl.setAttribute('aria-busy', 'true');
+
+  const results = await queryCases({
+    role: state.role,
+    userEmail: state.user.email,
+    filter: (state.filter === 'starred') ? 'all' : state.filter,
+    q: state.q
+  });
+
+  const base = (state.filter === 'starred')
+    ? results.filter(r => state.starred.has(r.id))
+    : results;
+
+  const sorted = sortCasesForDashboard(base);
+  renderCases(sorted);
+  caseListEl.setAttribute('aria-busy', 'false');
+}
+
+  </script>
+  <script type="module" src="/js/index-role-guards.js"></script>
+
+</body>
+</html>

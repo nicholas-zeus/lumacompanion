@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Escalation — Case</title>
+
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/case.css" />
+
+  <!-- Page-level wrapper for consistent max width across all tabs -->
+  <style>
+    .page-wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+
+    /* viewer cards used by the new Document View tab */
+    .docview-shell {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .docview-shell {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .doc-list-item {
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      /*here*/
+      display: grid;
+      gap: 4px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .doc-list-item:hover {
+      background: var(--panel);
+    }
+
+    .doc-file {
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    .doc-sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .doc-actions a {
+      font-size: 12px;
+    }
+
+    .viewer-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 4px 0 10px;
+    }
+
+    .viewer-section h3 {
+      margin: 0;
+    }
+
+    .pdf-frame {
+      width: 100%;
+      height: 680px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .tag-hits {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    .tag-hit {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      padding: 8px;
+    }
+
+    .tag-hit .hit-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <!-- Header -->
+  <header class="app-header">
+    <!--<div class="page-wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">-->
+    <!-- Left: back button -->
+    <div class="header-left">
+      <a id="backBtn" href="/index.html" class="btn back-btn">
+        <span class="label-full">&lt; Back</span>
+        <span class="label-short">&lt;</span>
+      </a>
+    </div>
+
+    <!-- Center title -->
+    <div class="header-title">Escalation</div>
+
+    <!-- Right: gear button -->
+    <div class="header-actions">
+      <button id="gearBtn" class="btn" aria-label="Settings">⚙️</button>
+    </div>
+    <!--</div>-->
+  </header>
+
+  <!-- Settings drawer (hidden by default) -->
+  <aside id="settingsDrawer" class="drawer hidden">
+    <div class="drawer-content">
+      <div class="drawer-pill" id="rolePill" hidden>NURSE</div>
+      <div class="drawer-item expandable" id="themesToggle">Themes &gt;</div>
+      <div id="themesList" class="drawer-sub hidden">
+        <div class="drawer-sub-item" data-theme="light">Light <span class="checkmark" hidden>✔</span></div>
+        <div class="drawer-sub-item" data-theme="sunrise">Sunrise <span class="checkmark" hidden>✔</span></div>
+        <!--<div class="drawer-sub-item" data-theme="sunset">Sunset <span class="checkmark" hidden>✔</span></div>-->
+        <div class="drawer-sub-item" data-theme="dark">Dark <span class="checkmark" hidden>✔</span></div>
+      </div>
+      <button id="signOutBtn" class="btn btn-ghost" data-action="signout">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- Sign-in box (hidden by default) -->
+  <main id="signinBox" class="signin-box hidden">
+    <div class="signin-card">
+      <h2>Escalation</h2>
+      <p>Click below to sign in using your Microsoft account.</p>
+      <button id="signInBtn" class="btn btn-primary" data-action="signin">Sign in with Microsoft</button>
+    </div>
+  </main>
+
+  <!-- Banners -->
+  <div class="banner-area">
+    <div class="page-wrap">
+      <div id="bannerArea" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <nav class="tabs">
+    <div class="page-wrap" style="display:flex;gap:8px;">
+      <button class="tab is-active" data-tab="details">Details</button>
+      <button class="tab" data-tab="documents">Manage Docs</button>
+      <button class="tab" data-tab="docview">View Docs</button>
+      <button class="tab" data-tab="comments">Comments</button>
+    </div>
+  </nav>
+
+  <!-- DETAILS TAB -->
+  <section id="tab-details" class="tabpanel is-active" aria-labelledby="details">
+    <div class="page-wrap">
+      <div id="finishedLock" class="banner hidden">This case is <strong>Finished</strong>. Undo to make changes.</div>
+
+      <form id="detailsForm" class="form-grid">
+        <!-- Row 1 -->
+        <div class="field">
+          <label>Name <span class="req">*</span></label>
+          <input id="fName" class="input" required />
+        </div>
+        <div class="field">
+          <label>Member ID <span class="req">*</span></label>
+          <input id="fMemberID" class="input" required />
+        </div>
+        <div class="field">
+          <label>Nationality <span class="req">*</span></label>
+          <input id="fNationality" class="input" required />
+        </div>
+
+        <!-- Row 2 -->
+        <div class="field">
+          <label>DOB <span class="req">*</span></label>
+          <input id="fDOB" type="date" class="input" required />
+        </div>
+        <div class="field">
+          <label>Age (years)</label>
+          <input id="fAgeYears" class="input" readonly />
+        </div>
+        <div class="field">
+          <label>Age (months)</label>
+          <input id="fAgeMonths" class="input" readonly />
+        </div>
+
+        <!-- Row 3 -->
+        <div class="field">
+          <label>Policy Effective Date <span class="req">*</span></label>
+          <input id="fPolicyEff" type="date" class="input" required />
+        </div>
+        <div class="field">
+          <label>Underwriting Type <span class="req">*</span></label>
+          <select id="fUWType" class="input" required>
+            <option value="">— select —</option>
+            <option value="MHD">MHD</option>
+            <option value="FMU">FMU</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Type of Admission <span class="req">*</span></label>
+          <select id="fAdmissionType" class="input" required>
+            <option value="">— select —</option>
+            <option>Scheduled</option>
+            <option>Admit</option>
+            <option>Discharge</option>
+          </select>
+        </div>
+
+        <!-- Row 4 -->
+        <div class="field">
+          <label>Type of Consultation <span class="req">*</span></label>
+          <input id="fConsultType" class="input" placeholder="e.g., simple disease, high cost, ex-gratia" required />
+        </div>
+        <div class="field">
+          <label>Visit Date <span class="req">*</span></label>
+          <input id="fVisitDate" type="date" class="input" required />
+        </div>
+        <div class="field">
+          <label>Hospital <span class="req">*</span></label>
+          <select id="fHospital" class="input">
+            <option value="">— Select hospital —</option>
+          </select>
+          <input type="hidden" id="fHospitalID" />
+        </div>
+
+        <!-- Row 5 -->
+        <div class="field">
+          <label>Diagnosis <span class="req">*</span></label>
+          <input id="fDiagnosis" class="input" required />
+        </div>
+        <div class="field">
+          <label>Discharge Date</label>
+          <input id="fDischargeDate" type="date" class="input" />
+        </div>
+        <div class="field">
+          <label>Chief Complaint <span class="req">*</span></label>
+          <input id="fChiefComplaint" class="input" required />
+        </div>
+
+        <!-- Row 6 -->
+        <div class="field span-2">
+          <label>Present Illness <span class="req">*</span></label>
+          <textarea id="fPresentIllness" class="input" rows="2" required></textarea>
+        </div>
+        <div class="field span-2">
+          <label>Exclusion <span class="req">*</span></label>
+          <textarea id="fExclusion" class="input" rows="2" required></textarea>
+        </div>
+
+        <!-- Row 7 -->
+        <div class="field">
+          <label class="checkbox">
+            <input id="fUrgent" type="checkbox" /> Urgent
+          </label>
+          <small class="hint">If checked, a Deadline is required. Note: items beyond 24h are not considered
+            urgent.</small>
+        </div>
+        <div class="field">
+          <label>Deadline (local)</label>
+          <input id="fDeadline" type="datetime-local" class="input" />
+        </div>
+        <div class="field"></div>
+
+        <!-- Row 8 (optionals) -->
+        <div class="field span-2">
+          <label>Vital Signs</label>
+          <textarea id="fVitalSigns" class="input" rows="2"></textarea>
+        </div>
+        <div class="field span-2">
+          <label>Physical Findings</label>
+          <textarea id="fPhysicalFindings" class="input" rows="2"></textarea>
+        </div>
+
+        <!-- Row 9 -->
+        <div class="field span-2">
+          <label>Summary</label>
+          <textarea id="fSummary" class="input" rows="3"
+            placeholder="You can paste tables; formatting will be preserved in transcript."></textarea>
+        </div>
+        <div class="field span-2">
+          <label>Treatment</label>
+          <textarea id="fTreatment" class="input" rows="2"></textarea>
+        </div>
+
+        <!-- Row 10 -->
+        <div class="field span-2">
+          <label>Reason for Admission <span class="req">*</span></label>
+          <textarea id="fReasonAdm" class="input" rows="2" required></textarea>
+        </div>
+        <div class="field span-2">
+          <label>Reason for Consultation <span class="req">*</span></label>
+          <textarea id="fReasonConsult" class="input" rows="2" required
+            placeholder="Reason for escalating to medical team for consultation"></textarea>
+        </div>
+
+        <!-- Row 11 -->
+        <div class="field span-2">
+          <label>Other Remark</label>
+          <textarea id="fOtherRemark" class="input" rows="2"></textarea>
+        </div>
+
+        <div class="split">
+          <div>
+            <!-- <div class="muted">Status</div>-->
+            <div id="statusText" class="status-readout">—</div>
+          </div>
+          <div class="right-actions">
+            <!--<button id="editDetailsBtn" class="btn">Edit</button>-->
+            <button id="saveDetailsBtn" class="btn btn-primary" hidden>Save</button>
+            <button id="assignNurseBtn" class="btn" hidden>Assign me (Nurse)</button>
+            <button id="assignDoctorBtn" class="btn" hidden>Assign me (Doctor)</button>
+          </div>
+        </div>
+      </form>
+
+      <!-- New case only -->
+      <div id="newCaseActions" class="split hidden">
+        <div></div>
+        <button id="createCaseBtn" class="btn btn-primary">Create Case</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- MANAGE DOCUMENTS TAB -->
+  <section id="tab-documents" class="tabpanel" aria-labelledby="documents">
+    <div class="page-wrap">
+      <div class="docview-shell">
+        <!-- Sidebar / Panel -->
+        <aside class="list-card" id="managePanel">
+          <div class="sidebar-head mobile-only"
+            style="display:none;position:sticky;top:0;background:var(--panel);padding:8px 6px;z-index:2;border-bottom:1px solid var(--line);">
+            <button id="manageCloseBtn" class="btn" style="margin-left:auto;">✕</button>
+          </div>
+
+          <!-- Upload Section -->
+          <div class="sidebar-section">
+            <h3>Upload</h3>
+            <div id="uploadDrop" class="upload-drop">
+              <p>Click or drag files here</p>
+              <input id="fileInput" type="file" multiple hidden />
+            </div>
+            <div id="stagedList" class="file-list"></div>
+          </div>
+
+          <!-- List Section -->
+          <div class="sidebar-section">
+            <h3>Existing</h3>
+            <div id="uploadedList" class="file-list"></div>
+          </div>
+
+          <!-- Save Section (desktop only) -->
+          <div class="sidebar-section" id="saveSection">
+            <button id="saveBtn" class="btn btn-primary">💾 Save</button>
+          </div>
+        </aside>
+
+        <!-- Right viewer -->
+        <section class="viewer-card">
+          <div id="previewArea" class="preview-grid"></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Overlay during save -->
+    <div id="savingOverlay" class="saving-overlay hidden">
+      <div class="saving-content">
+        <div class="spinner"></div>
+        <p>Saving…</p>
+      </div>
+    </div>
+
+    <!-- Confirm modal -->
+    <div id="confirmOverlay" class="modal hidden">
+      <div class="modal-card">
+        <p id="confirmMessage"></p>
+        <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+          <button id="confirmNo" class="btn">Cancel</button>
+          <button id="confirmYes" class="btn btn-primary">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating buttons (mobile only) — removed from HTML; JS creates its own -->
+    <!-- <button id="toggleSidebarBtn" class="fab fab-toggle">^</button>
+    <button id="mobileSaveBtn" class="fab fab-save" hidden>💾</button> -->
+  </section>
+
+  <!-- DOCUMENTS (VIEW) TAB -->
+  <section id="tab-docview" class="tabpanel" aria-labelledby="docview">
+    <div class="page-wrap">
+      <div class="docs-toolbar">
+        <div class="tag-filter" style="display:flex;align-items:center;gap:8px;">
+          <label for="tagFilterSelect">Page tag</label>
+          <select id="tagFilterSelect">
+            <option value="">All tags</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="docview-shell">
+        <aside class="list-card" id="docList"></aside>
+        <section class="viewer-card">
+          <div id="pdfStack"></div>
+          <div id="tagHits" class="tag-hits" hidden></div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMENTS TAB -->
+  <section id="tab-comments" class="tabpanel" aria-labelledby="comments">
+    <div class="page-wrap">
+      <div class="comments">
+        <div id="commentsList" class="comments-list"></div>
+
+        <form id="commentForm" class="comment-form">
+          <textarea id="commentBody" class="input" rows="3" placeholder="Add a comment…" required></textarea>
+          <textarea id="commentMQ" class="input" rows="3"
+            placeholder="Medical Questionnaire (optional, will be in transcript)"></textarea>
+          <div class="split">
+            <div class="muted">Use <strong>Confirm</strong> to handoff; <strong>Save</strong> to keep status unchanged.
+            </div>
+            <div>
+              <button id="saveCommentBtn" class="btn">Save</button>
+              <button id="confirmBtn" class="btn btn-primary">Confirm</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scripts -->
+  <script type="module" src="/js/case-shared.js"></script>
+  <script type="module" src="/js/case-details.js"></script>
+  <script type="module" src="/js/case-manage.js"></script>
+  <script type="module" src="/js/case-view.js"></script>
+  <script type="module" src="/js/case-comments.js"></script>
+  <script type="module" src="/js/case-menu.js"></script>
+  <script type="module" src="/js/case-finish-guards.js"></script>
+  <script type="module" src="/js/case-role-guards.js"></script>
+
+
+
+  <!-- Minimal inline overrides for Manage Documents (mobile/desktop) -->
+  <style>
+    /* (Fixed old id) Make manage sidebar non-sticky by default; we control via media rules below */
+    #managePanel {
+      position: static;
+      max-height: none;
+      transform: none;
+    }
+
+    /* Modal (kept) */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1001;
+    }
+
+    .modal.hidden {
+      display: none;
+    }
+
+    .modal:not(.hidden) {
+      display: flex;
+    }
+
+    .modal-card {
+      background: var(--panel);
+      /*here*/
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      width: 90%;
+      max-width: 360px;
+    }
+
+    /* Desktop manage panel becomes sticky */
+    @media (min-width: 861px) {
+      #managePanel {
+        position: sticky;
+        top: 12px;
+        align-self: start;
+        max-height: calc(100vh - 24px);
+        overflow: auto;
+        transform: none;
+        visibility: visible;
+      }
+
+      .mobile-only {
+        display: none !important;
+      }
+    }
+
+    /* Mobile: full-screen drawer behavior */
+    @media (max-width: 860px) {
+      #managePanel {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        background: var(--panel);
+        border: 0;
+        /*here*/
+        overflow: auto;
+        z-index: 999;
+        transform: translateY(100%);
+        transition: transform .25s ease, visibility 0s linear .25s;
+        visibility: hidden;
+        pointer-events: none;
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+      }
+
+      #managePanel.open {
+        transform: translateY(0);
+        transition: transform .25s ease;
+        visibility: visible;
+        pointer-events: auto;
+      }
+
+      body.dimmed::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        z-index: 998;
+      }
+
+      .mobile-only {
+        display: block !important;
+      }
+    }
+
+    /* Force left/right alignment */
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+    }
+
+    .header-left {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+    }
+
+    .header-actions {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      margin-left: auto;
+      /* pushes gear all the way right */
+    }
+
+    /* Back button text control */
+    .back-btn .label-short {
+      display: none;
+    }
+
+    @media (max-width: 600px) {
+      .back-btn .label-full {
+        display: none;
+      }
+
+      .back-btn .label-short {
+        display: inline;
+      }
+    }
+  </style>
+  <script type="module" src="/js/theme.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const map = { documents: "Manage Docs", docview: "View Docs" };
+      document.querySelectorAll(".tabs .tab").forEach(btn => {
+        const key = btn.dataset.tab;
+        if (map[key]) btn.textContent = map[key];
+      });
+    });
+  </script>
+</body>
+
+</html>

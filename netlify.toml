@@ -1,0 +1,23 @@
+# Netlify config for static pages + Functions
+
+[build]
+  publish = "."
+  command = ""
+
+[build.environment]
+  NODE_VERSION = "18"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = ["googleapis", "busboy"]  # removed firebase-admin
+
+[dev]
+  functions = "netlify/functions"
+  publish = "."
+  framework = "#static"
+
+[[redirects]]
+  from = "/poctest"
+  to = "/poctest.html"
+  status = 200

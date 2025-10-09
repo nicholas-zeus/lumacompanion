@@ -1,0 +1,1173 @@
+/* =============== Core Tabs =============== */
+/* =============== Core Tabs (compact, equal, button-like) =============== */
+
+/* THEME HOOKS FOR TABS */
+:root {
+  --tab-bg: var(--panel);
+  --tab-ink: var(--ink);
+  --tab-border: var(--line);
+  --tab-hover-bg: var(--hover, var(--panel));
+  --tab-active-bg: var(--brand);
+  --tab-active-ink: var(--brand-ink);
+  --tab-active-border: var(--brand);
+}
+
+.tabs {
+  background: transparent;
+  border: none;
+}
+
+/* Tab panels default hidden; only the active one shows */
+.tabpanel {
+  display: none;
+}
+
+.tabpanel.is-active {
+  display: block;
+}
+
+/* Make the 4 tabs share width equally */
+.tabs .page-wrap {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 10px 16px;
+}
+
+/* Button look */
+.tab {
+  min-width: 20px;
+  /* allow shrinking; prevents overflow */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  /* Compact sizing */
+  padding: 10px 12px;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1;
+
+  /* Opaque, button-like */
+  border-radius: 12px;
+  border: 1px solid var(--tab-border);
+  background: var(--tab-bg);
+  color: var(--tab-ink);
+
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 1.5px 3px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  user-select: none;
+
+  /* Safety to avoid horizontal scroll on small screens */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: var(--tab-hover-bg);
+}
+
+/* Active = dark (match your black FAB theme), fully opaque */
+.tab.is-active {
+  background: var(--tab-active-bg);
+  color: var(--tab-active-ink);
+  border-color: var(--tab-active-border);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* Keyboard focus */
+.tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Mobile: shrink fonts/padding further so nothing overflows */
+@media (max-width: 860px) {
+  .tabs .page-wrap {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    padding: 8px 12px;
+  }
+
+  .tab {
+    font-size: 12px;
+    padding: 8px 8px;
+    border-radius: 10px;
+  }
+}
+
+/* =============== Details Form =============== */
+.form-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.field .hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+/**/
+/* THEME-AWARE INPUTS (applies to both locked/readonly and unlocked) */
+.input,
+select.input,
+textarea.input,
+.form-grid .input {
+  background: var(--input-bg);
+  color: var(--input-ink);
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+/* placeholders */
+.input::placeholder,
+textarea.input::placeholder {
+  color: var(--input-placeholder);
+}
+
+/* focus */
+.input:focus,
+textarea.input:focus,
+select.input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--input-focus-ring);
+}
+
+/* readonly = “locked” (non-editable but selectable) */
+.input[readonly],
+textarea.input[readonly] {
+  background: var(--input-readonly-bg);
+  color: var(--input-ink);
+  cursor: default;
+}
+
+/* disabled = greyed & not interactive */
+.input:disabled,
+textarea.input:disabled,
+select.input:disabled {
+  background: var(--input-disabled-bg);
+  color: var(--input-disabled-ink);
+  border-color: var(--input-border);
+  opacity: 1;
+  /* avoid native dimming */
+  cursor: not-allowed;
+}
+
+/* keep selects legible in dark/sunset */
+select.input option {
+  color: var(--ink);
+  background: var(--panel);
+}
+
+/**/
+
+.split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.right-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.status-readout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: var(--brand);
+  background: #eef2ff;
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+/* Finished lock banner */
+.banner {
+  margin-bottom: 12px;
+}
+
+/* =============== Upload Documents Tab =============== */
+.docs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tag-filter select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--panel);
+}
+
+.uploads {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 280px 1fr;
+}
+
+.uploads h3 {
+  margin-bottom: 6px;
+}
+
+.uploads .list {
+  display: grid;
+  gap: 8px;
+}
+
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 10px;
+}
+
+.upload-row .meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.viewer {
+  min-height: 300px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px;
+  box-shadow: var(--shadow);
+}
+
+.pdf-grid-empty {
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  height: 200px;
+}
+
+.pdf-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.pdf-page {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: var(--shadow);
+}
+
+.pdf-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px 0;
+}
+
+.pdf-pg {
+  opacity: 0.7;
+}
+
+.tag-select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+/* =============== View Documents Tab =============== */
+/* Two-column shell: left = sticky list, right = canvas/image stack */
+.docview-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .docview-shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* LEFT: floating/sticky file list */
+.list-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 10px;
+
+  /* Sticky so it "floats" while scrolling pages */
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+
+.doc-list-item {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+/* Keep hover subtle but theme-safe */
+.doc-list-item:hover {
+  background: var(--panel);
+}
+
+/* RIGHT meta */
+.doc-file {
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.doc-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.doc-actions a {
+  font-size: 12px;
+}
+
+/* RIGHT: viewer card with natural height (fix) */
+.viewer-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 10px;
+  /* remove fixed scroll; let card expand */
+  overflow: visible;
+  max-height: none;
+}
+
+/* Section header inside viewer (filename + actions) */
+.viewer-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 4px 0 10px;
+}
+
+.viewer-section h3 {
+  margin: 0;
+}
+
+/* Each file block container */
+.pdf-block {
+  margin-bottom: 16px;
+}
+
+/* Canvas-first page card (PDF) or image card (JPG/PNG) */
+.page-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: var(--shadow);
+  margin-bottom: 12px;
+}
+
+.page-card canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.page-card img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+/* Inline PDF frame (legacy; kept if needed) */
+.pdf-frame {
+  width: 100%;
+  height: 680px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+/* Tag-hits grid when filtering to a specific tag */
+.tag-hits {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.tag-hit {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 8px;
+}
+
+.tag-hit .hit-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Misc helpers */
+.muted {
+  color: var(--muted);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* =============== Comments =============== */
+.comments {
+  display: grid;
+  gap: 12px;
+}
+
+.comments-list {
+  display: grid;
+  gap: 10px;
+}
+
+.comment {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: var(--shadow);
+}
+
+.comment .who {
+  font-weight: 700;
+}
+
+.comment .when {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.comment .mq {
+  background: #f1f5f9;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 8px;
+  margin-top: 6px;
+}
+
+.comment-form {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  box-shadow: var(--shadow);
+}
+
+.comment-form textarea {
+  width: 100%;
+}
+
+/* =============== Mobile tweaks =============== */
+@media (max-width: 860px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .span-2 {
+    grid-column: 1;
+  }
+
+  .uploads {
+    grid-template-columns: 1fr;
+  }
+
+  .list-card {
+    position: static;
+    /* disable sticky on narrow screens */
+    max-height: none;
+  }
+}
+
+/* Floating go-to-top button (mobile only) */
+.go-top-btn {
+  position: fixed;
+  right: 16px;
+  bottom: 72px;
+  /* sits above FAB if present */
+  z-index: 60;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--brand-ink);
+  display: none;
+  /* hidden by default */
+  place-items: center;
+  box-shadow: var(--shadow);
+  font-size: 20px;
+  cursor: pointer;
+  border: 0;
+}
+
+@media (max-width: 860px) {
+
+  /* show only on mobile + DocView tab active */
+  body:has(#tab-docview.is-active) .go-top-btn {
+    display: grid;
+  }
+}
+
+/* /css/case.css  (append near the end) */
+
+/* Manage Documents */
+.upload-drop {
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.upload-drop.dragging {
+  background: #f0f9ff;
+}
+
+.file-list {
+  display: grid;
+  gap: 6px;
+}
+
+.file-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.file-row .file-name {
+  cursor: pointer;
+  flex: 1;
+}
+
+.file-row .trash {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.thumb-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--panel);
+}
+
+.thumb-card img,
+.thumb-card canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.saving-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.saving-overlay.hidden {
+  display: none;
+}
+
+.saving-content {
+  text-align: center;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 4px solid #ccc;
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =============== Mobile floating buttons (FABs) — THEME-AWARE CLEAN VERSION =============== */
+/* Base positioning/visibility — no hard-coded colors */
+.fab,
+.fab-save,
+.fab-toggle {
+  position: fixed;
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  /*border: 1px solid var(--fab-border, transparent);*/
+  cursor: pointer;
+  display: none;
+  /* shown via JS */
+  place-items: center;
+  font-size: 22px;
+  z-index: 1001;
+  box-shadow: var(--shadow), var(--fab-shadow-extra, none);
+  background: var(--fab-bg);
+  color: var(--fab-text);
+}
+
+/* Individual vertical positions */
+.fab {
+  bottom: 72px;
+}
+
+.fab-save {
+  bottom: 88px;
+  font-size: 20px;
+}
+
+.fab-toggle {
+  bottom: 16px;
+  font-size: 20px;
+}
+
+/* Hover/active */
+.fab:hover,
+.fab-save:hover,
+.fab-toggle:hover {
+  filter: brightness(1.05);
+}
+
+.fab:active,
+.fab-save:active,
+.fab-toggle:active {
+  transform: translateY(1px);
+  filter: brightness(.95);
+}
+
+/* Icons */
+.fab svg,
+.fab-save svg,
+.fab-toggle svg {
+  fill: currentColor;
+}
+
+/* --- Visibility guardrails for other floating UI --- */
+/* Hide by default; show contextually via @media + :has above */
+#detailsFab,
+#goTopBtn,
+.fab-toggle {
+  /* .fab-toggle will be enabled by the rule above on /documents tab */
+  /* intentional: keep defaults to none */
+}
+
+/* Hard-guard: any FAB with [hidden] stays hidden no matter what */
+.fab[hidden],
+.fab-toggle[hidden],
+.fab-save[hidden] {
+  display: none !important;
+}
+
+/* =============== Settings Drawer =============== */
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 280px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.2);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer:not(.hidden) {
+  transform: translateX(0);
+}
+
+.drawer-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.drawer-pill {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.drawer-item {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.drawer-sub {
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drawer-sub-item {
+  cursor: pointer;
+  padding: 4px 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.drawer-sub-item .checkmark {
+  color: var(--accent-ink);
+}
+
+/* =============== Sign-in Box =============== */
+.signin-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 16px;
+}
+
+.signin-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  max-width: 360px;
+}
+
+.signin-card h2 {
+  margin-bottom: 12px;
+  font-weight: 800;
+  color: var(--brand);
+}
+
+.signin-card p {
+  margin-bottom: 16px;
+  color: var(--muted);
+}
+
+/* Back button text decoration */
+.back-btn {
+  text-decoration: none;
+}
+
+/* Responsive labels */
+.back-btn .label-short {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .back-btn .label-full {
+    display: none;
+  }
+
+  .back-btn .label-short {
+    display: inline;
+  }
+}
+
+/* Spread buttons within margins */
+.app-header .page-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-left {
+  flex: 0 0 auto;
+}
+
+.header-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* Header layout fix: 3-column grid */
+.app-header .page-wrap {
+  display: grid !important;
+  /* override any leftover inline flex */
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-header .header-left {
+  justify-self: start;
+}
+
+.app-header .header-actions {
+  justify-self: end;
+}
+
+.app-header .header-title {
+  justify-self: center;
+}
+
+/* Back link underline off in all states */
+.back-btn,
+.back-btn:hover,
+.back-btn:focus {
+  text-decoration: none;
+}
+
+/* ===== Overflow (3-dots) menu for tabs (reusable) ===== */
+
+/* Theme hooks */
+:root {
+  --menu-bg: var(--panel);
+  --menu-ink: var(--ink);
+  --menu-border: var(--line);
+  --menu-hover-bg: var(--hover, var(--panel));
+  --menu-shadow: 0 10px 24px rgba(0, 0, 0, .18);
+}
+
+/* Wrapper you can place inside .tabs .page-wrap (keeps current flex layout) */
+.tabs-overflow {
+  margin-left: auto;
+  /* pushes to the right within the flex row */
+  position: relative;
+  /* anchor for the absolute menu */
+  display: flex;
+  align-items: center;
+}
+
+/* Kebab button — visually consistent with tabs but lighter */
+.tab-overflow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--tab-border);
+  background: var(--tab-bg);
+  color: var(--tab-ink);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 1.5px 3px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tab-overflow-btn:hover {
+  background: var(--tab-hover-bg);
+}
+
+.tab-overflow-btn:focus-visible {
+  outline: 2px solid var(--ring, rgba(90, 167, 255, .5));
+  outline-offset: 2px;
+}
+
+/* Popover menu */
+.tab-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid var(--menu-border);
+  border-radius: 12px;
+  background: var(--menu-bg);
+  color: var(--menu-ink);
+  box-shadow: var(--menu-shadow);
+  display: none;
+  /* toggled with .is-open */
+  z-index: 30;
+  /* above tabs, below drawers */
+}
+
+.tab-menu.is-open {
+  display: block;
+}
+
+/* Menu items */
+.tab-menu .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tab-menu .menu-item:hover {
+  background: var(--menu-hover-bg);
+  border-color: var(--menu-border);
+}
+
+.tab-menu .menu-item:focus-visible {
+  outline: 2px solid var(--ring, rgba(90, 167, 255, .5));
+  outline-offset: 2px;
+}
+
+/* Optional: subtle group header (if ever needed) */
+.tab-menu .menu-label {
+  font-size: 12px;
+  opacity: .7;
+  padding: 6px 8px 4px;
+}
+
+/* Mobile nits: ensure menu stays inside viewport */
+@media (max-width: 520px) {
+  .tab-menu {
+    right: 8px;
+    min-width: 70vw;
+  }
+}
+/* ===== Document viewer loading overlay ===== */
+.viewer-card {
+  position: relative; /* anchor overlay */
+}
+
+.viewer-loading {
+  position: absolute;
+  inset: 0;
+  display: none;                    /* toggled on via .is-on */
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--panel), transparent 35%);
+  border-radius: inherit;
+  z-index: 5;
+  backdrop-filter: blur(2px);
+  border: 1px solid color-mix(in oklab, var(--line), transparent 40%);
+}
+
+.viewer-loading.is-on { display: flex; }
+
+.viewer-loading .spinner {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in oklab, var(--ink), transparent 70%);
+  border-top-color: var(--accent, var(--brand));
+  animation: viewer-spin 0.9s linear infinite;
+}
+
+@keyframes viewer-spin {
+  to { transform: rotate(360deg); }
+}
+.viewer-loading { z-index: 2000; } /* ensure above everything */
+/* Make rendered PDF canvases responsive */
+.pdf-block canvas,
+.page-card canvas {
+  max-width: 100%;
+  width: 100%;
+  height: auto;       /* preserve aspect ratio */
+  display: block;
+}
+
+/* Ensure the page card doesn't leak horizontally */
+.page-card {
+  max-width: 100%;
+  overflow: hidden;
+}
+/* ===== Comments: Medical Questionnaire UI ===== */
+
+/* The small box under the button */
+.comments .mq{
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+/* Modal overlay + card (used by case-comments.js) */
+.mq-modal{
+  position: fixed;
+  inset: 0;
+  display: none;                /* toggled from JS */
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.35); /* overlay veil */
+  z-index: 1100;
+}
+.mq-modal.open{ display: flex; }
+
+.mq-card{
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  max-width: 720px;
+  width: min(92vw, 720px);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.mq-card .mq-head{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+/* ===== Mobile overflow fixes for case.html → Details tab ===== */
+@media (max-width: 860px) {
+
+  /* 1) Container must not exceed viewport width */
+  .page-wrap {
+    padding-left: 16px;
+    padding-right: 16px;
+    max-width: 100%;
+  }
+
+  /* 2) Let grid/flex columns actually shrink (critical) */
+  .details-form,
+  .details-form .form-row,
+  .details-form .form-col,
+  .details-form .field,
+  #detailsForm,
+  #detailsForm .form-row,
+  #detailsForm .form-col,
+  #detailsForm .field {
+    min-width: 0;          /* allow shrinking inside grid/flex parents */
+  }
+
+  /* If you use CSS Grid for the details layout, ensure columns are shrinkable */
+  .details-form-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* stack on mobile */
+    gap: 12px;
+  }
+
+  /* 3) Inputs/selects never exceed container width */
+  #detailsForm input,
+  #detailsForm select,
+  #detailsForm textarea,
+  .details-form input,
+  .details-form select,
+  .details-form textarea,
+  .input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* 4) iOS/date controls can be wider than expected – normalize */
+  #detailsForm input[type="date"],
+  #detailsForm input[type="datetime-local"],
+  .details-form input[type="date"],
+  .details-form input[type="datetime-local"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* 5) Long unbroken strings in read-only/locked fields shouldn’t blow out */
+  #detailsForm .input,
+  .details-form .input,
+  #detailsForm .locked,
+  .details-form .locked {
+    overflow-wrap: anywhere;   /* allow breaking tokens */
+    word-break: break-word;
+  }
+
+  /* 6) Labels and inline meta shouldn’t force horizontal scroll */
+  #detailsForm label,
+  .details-form label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;       /* trims overly long labels on small screens */
+  }
+
+  /* 7) Belts & suspenders: keep the page from scrolling sideways */
+  html, body {
+    overflow-x: hidden;
+  }
+}
+
+/* In case the tabs/header create a 100vw overflow, clip just that layer */
+.tabs, .tabs .page-wrap { overflow-x: clip; }

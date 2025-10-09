@@ -1,0 +1,13 @@
+{
+  "name": "escalation-site",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Netlify Functions for Escalation Console",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "googleapis": "^131.0.0",
+    "busboy": "^1.6.0"
+  }
+}

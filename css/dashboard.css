@@ -1,0 +1,154 @@
+/* Dashboard-specific polish */
+
+.case-card:hover{
+  transform: translateY(-1px);
+  transition: transform .12s ease;
+}
+
+.case-card .case-title:hover{
+  text-decoration: underline;
+}
+
+.status-pill{
+  /* Default tone already in app.css; these add subtle variants */
+  background: #eef2ff; color:#3730a3;
+}
+.status-pill[data-s="awaiting doctor"]{ background:#e0f2fe; color:#1e3a8a; }
+.status-pill[data-s="awaiting nurse"]{ background:#ecfccb; color:#3f6212; }
+.status-pill[data-s="reopened"]{ background:#f1f5f9; color:#334155; }
+.status-pill[data-s="finished"]{ background:#e2e8f0; color:#475569; text-decoration: line-through; }
+
+.case-card .deadline::before{
+  content: "Deadline ";
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+@media (max-width: 420px){
+  .case-head .right{ gap: 6px; }
+  .deadline{ padding: 3px 6px; }
+}
+
+/* Keep urgent at-a-glance */
+.case-card .urgent-pill{ letter-spacing: 0.6px; }
+/* =============== Settings Drawer =============== */
+.drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 280px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  box-shadow: -4px 0 12px rgba(0,0,0,0.2);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  z-index: 1002;
+  display: flex; flex-direction: column;
+}
+.drawer:not(.hidden) {
+  transform: translateX(0);
+}
+.drawer-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.drawer-pill {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.drawer-item {
+  font-weight: 600;
+  cursor: pointer;
+}
+.drawer-sub {
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.drawer-sub-item {
+  cursor: pointer;
+  padding: 4px 0;
+  display: flex;
+  justify-content: space-between;
+}
+.drawer-sub-item .checkmark {
+  color: var(--accent-ink);
+}
+
+/* =============== Sign-in Box =============== */
+.signin-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 16px;
+}
+.signin-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  max-width: 360px;
+}
+.signin-card h2 {
+  margin-bottom: 12px;
+  font-weight: 800;
+  color: var(--brand);
+}
+.signin-card p {
+  margin-bottom: 16px;
+  color: var(--muted);
+}
+/* ========== Starred case button ========== */
+.star-btn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--muted);
+  transition: transform 0.15s ease, color 0.2s ease;
+}
+.star-btn:hover {
+  background: var(--hover, rgba(0,0,0,0.05));
+}
+.star-btn[aria-pressed="true"] {
+  color: var(--accent);
+  transform: scale(1.1);
+}
+/* Case header right side with two lines */
+.case-head .right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.case-head .right .line1 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.case-head .right .line2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+}
+.case-head .right .line3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+}
