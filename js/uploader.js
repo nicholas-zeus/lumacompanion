@@ -82,7 +82,6 @@ async function findDuplicateCaseIdsByMd5(md5, currentCaseId) {
 import { splitIfNeeded } from "/js/pdf-splitter.js";
 
 function makePartFileName(baseName, index, ext = ".pdf") {
-  // "Report.pdf" -> "Report~1.pdf"
   const dot = baseName.lastIndexOf(".");
   if (dot > 0) {
     const stem = baseName.slice(0, dot);
@@ -90,6 +89,7 @@ function makePartFileName(baseName, index, ext = ".pdf") {
   }
   return `${baseName}~${index}${ext}`;
 }
+
 
 /**
  * Creates a single Firestore "logical upload" doc even when the PDF is split into parts.
@@ -107,69 +107,60 @@ export async function saveStagedFile({
   bannerArea,
   onUploaded = () => {},
   onProgress = () => {},
-  maxBytes = 4.5 * 1024 * 1024,       // 4.5 MB ceiling
+  maxBytes = 4.5 * 1024 * 1024,
   pdfDpi = 120,
   jpegQuality = 0.72
 }) {
   if (!file) throw new Error("saveStagedFile: file required");
   if (!caseId) throw new Error("saveStagedFile: caseId required");
 
-  // Enforce allowed types (PDF + images)
   const isPdf = file.type === "application/pdf";
   const isImg = /^image\//i.test(file.type);
-  if (!isPdf && !isImg) {
-    throw new Error("Only PDF and image files are allowed.");
-  }
+  if (!isPdf && !isImg) throw new Error("Only PDF and image files are allowed.");
 
-  // 1) Split/compress on client if needed
+  // 1) Split/compress client-side
   const splitRes = await splitIfNeeded(file, {
     maxBytes,
     dpi: pdfDpi,
     quality: jpegQuality,
     imageMaxWidth: 2600
   });
-  // splitRes = { isSplit, mode, blobs[], pageCounts[], totalBytes, parts }
+  // splitRes: { isSplit, mode, blobs, pageCounts, totalBytes, parts }
 
-  // 2) Upload parts sequentially; fake a simple percent based on part sizes
-  // (we don't have per-chunk progress from fetch, so we tick each part when done)
+  // 2) Upload each part sequentially; report coarse progress
+  const partMetas = [];
   const totalBytes = splitRes.totalBytes || splitRes.blobs.reduce((s, b) => s + (b.size || 0), 0);
   let uploadedBytes = 0;
 
-  const partMetas = [];
   for (let i = 0; i < splitRes.blobs.length; i++) {
     const blob = splitRes.blobs[i];
     const partIdx = i + 1;
 
-    let partName;
-    if (isPdf && splitRes.isSplit) {
-      partName = makePartFileName(file.name, partIdx, ".pdf");
+    let partName, partType;
+    if (isPdf) {
+      // Keep original name for single; numbered suffix for split
+      partName = splitRes.isSplit ? makePartFileName(file.name, partIdx, ".pdf") : file.name;
+      partType = "application/pdf";
     } else {
-      // single (pdf or image): keep original name
-      partName = file.name;
+      // Images > maxBytes were recompressed to JPEG — ensure name/type match actual bytes
+      const baseStem = file.name.replace(/\.[^.]+$/, "");
+      const needsJpegNaming = blob.type === "image/jpeg";
+      partName = needsJpegNaming ? `${baseStem}.jpg` : file.name;
+      partType = needsJpegNaming ? "image/jpeg" : (file.type || "application/octet-stream");
     }
 
-    // Convert Blob -> File to preserve filename & type
-    const partFile = new File([blob], partName, { type: isPdf ? "application/pdf" : (file.type || "application/octet-stream") });
+    const partFile = new File([blob], partName, { type: partType });
 
-    // Upload each part (existing function)
     const meta = await uploadFile({ file: partFile, caseId, batchNo });
     // meta: { fileId, fileName, size, mimeType, md5, uploadedAt }
-
     partMetas.push(meta);
 
-    // naive progress: bump after each part by its size
     uploadedBytes += Number(meta.size || blob.size || 0);
-    const percent = totalBytes > 0 ? Math.min(100, (uploadedBytes / totalBytes) * 100) : (100 * (partIdx / splitRes.blobs.length));
-    try { onProgress(percent); } catch {}
+    const pct = totalBytes ? Math.min(100, (uploadedBytes / totalBytes) * 100) : (100 * (partIdx / splitRes.blobs.length));
+    try { onProgress(pct); } catch {}
   }
 
-  // 3) Firestore 'uploads' doc — a single logical record
-  // Shape:
-  // {
-  //   caseId, batchNo, fileName, fileType,
-  //   totalSize, filePartsCount, driveFileIds:[], fileParts:{ "1":{id,size,md5}, ... },
-  //   fileHash: firstPartMd5 (best-effort), uploadedBy, uploadedAt, updatedAt
-  // }
+  // 3) Single logical Firestore doc (source of truth for UI)
   const fileParts = {};
   const driveFileIds = [];
   let sumSize = 0;
@@ -183,13 +174,13 @@ export async function saveStagedFile({
   const upRef = await addDoc(collection(db, COLLECTIONS.uploads), {
     caseId,
     batchNo,
-    fileName: file.name,
+    fileName: file.name,                       // logical name shown in UI
     fileType: isPdf ? "application/pdf" : (file.type || "application/octet-stream"),
     totalSize: sumSize,
-    filePartsCount: partMetas.length,
-    driveFileIds,
-    fileParts,                   // map keyed by "1","2",...
-    fileHash: partMetas[0]?.md5 || null, // best-effort for dup-banner
+    filePartsCount: partMetas.length,          // backend detail; UI should ignore
+    driveFileIds,                              // UI uses these to preview/download
+    fileParts,                                 // backend detail; audits/ops
+    fileHash: partMetas[0]?.md5 || null,       // best-effort dedupe
     uploadedBy: {
       email: (auth.currentUser?.email || ""),
       displayName: (auth.currentUser?.displayName || "")
@@ -199,26 +190,18 @@ export async function saveStagedFile({
   });
   const newUploadId = upRef.id;
 
-  // 4) Duplicate banner (best-effort: use first part’s md5)
+  // 4) Duplicate banner & tag reuse (best-effort)
   try {
     if (partMetas[0]?.md5) {
       const dupCaseIds = await findDuplicateCaseIdsByMd5(partMetas[0].md5, caseId);
       renderDuplicateBanner(bannerArea, dupCaseIds);
-    }
-  } catch (e) {
-    console.warn("dup banner skipped:", e);
-  }
-
-  // 5) Same-case mapping reuse (best-effort for exact same md5 only; otherwise no-op)
-  try {
-    if (partMetas[0]?.md5) {
       const previous = await findSameCaseUploadByMd5(partMetas[0].md5, caseId);
       if (previous && previous.id !== newUploadId) {
         await reusePageTagsIfAny({ caseId, fromUploadId: previous.id, toUploadId: newUploadId });
       }
     }
   } catch (e) {
-    console.warn("tag reuse skipped:", e);
+    console.warn("dup/tag reuse skipped:", e);
   }
 
   const logicalMeta = {
@@ -237,6 +220,7 @@ export async function saveStagedFile({
 
   return logicalMeta;
 }
+
 
 async function findSameCaseUploadByMd5(md5, caseId) {
   const col = collection(db, COLLECTIONS.uploads);

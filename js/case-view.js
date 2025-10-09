@@ -91,10 +91,10 @@ async function loadDocviewData() {
 }
 
 // Render left-panel file list as ONE row per logical doc (handles multipart)
-async function renderfilelist() {
+function renderFileList() {
   docList.innerHTML = "";
-  const files = uploadedFiles || []; // rely on your current data source
-  docCount.textContent = `${files.length}`;
+  const files = Array.isArray(state.uploadsIndex) ? state.uploadsIndex : [];
+  if (docCount) docCount.textContent = `${files.length} file${files.length === 1 ? "" : "s"}`;
 
   if (!files.length) {
     const empty = document.createElement("div");
@@ -104,24 +104,23 @@ async function renderfilelist() {
     return;
   }
 
-  files.forEach((f) => {
-    const name = f.fileName || f.name || "(untitled)";
-    const parts = Number(f.filePartsCount || (Array.isArray(f.driveFileIds) ? f.driveFileIds.length : 1) || 1);
+  files.forEach((u) => {
+    const name = u.fileName || u.name || "(untitled)";
     const row = document.createElement("div");
     row.className = "doc-list-item";
     row.innerHTML = `
-      <div class="doc-file">${name}</div>
-      <div class="doc-sub">${parts > 1 ? `${parts} parts` : ""}</div>
-    `;
+      <div class="doc-file" title="${name}">${name}</div>
+      <div class="doc-sub"></div>`; // no "(n parts)" — keep multipart invisible
+
     row.addEventListener("click", () => {
-      openDocViewer(f).catch(err => {
-        console.error("openDocViewer failed:", err);
-        alert(err?.message || "Failed to open file.");
-      });
+      // Scroll to the first page of this logical upload (already rendered by renderCanvasStack)
+      focusFirstPageOf(u.id);
     });
+
     docList.appendChild(row);
   });
 }
+
 
 import { streamFileUrl, getDriveIds, isMultipartUpload } from "/js/api.js";
 import { mapWithConcurrency } from "/js/semaphore.js";
@@ -303,76 +302,102 @@ export async function ensureDocviewLoaded() {
 
 async function renderCanvasStack() {
   if (!pdfStack || !tagHitsWrap) return;
-  pdfStack.hidden = false; tagHitsWrap.hidden = true;
+  pdfStack.hidden = false; 
+  tagHitsWrap.hidden = true;
   pdfStack.innerHTML = "";
   state.pageIndex.clear();
+
   for (const u of state.uploadsIndex) {
     if (isPdf(u)) {
-      await renderPdfFileAsCanvases(u);
+      await renderPdfFileAsCanvases(u);   // now handles single or multiple Drive parts
     } else if (isImage(u)) {
       await renderImageFile(u);
     } else {
       const card = document.createElement("div");
       card.className = "pdf-block";
-      card.innerHTML = `<div class="viewer-section"><h3>${u.fileName}</h3></div><div class="muted">Preview not available.</div>`;
+      card.innerHTML = `<div class="viewer-section"><h3>${u.fileName || "(file)"}</h3></div><div class="muted">Preview not available.</div>`;
       pdfStack.appendChild(card);
     }
   }
+
   if (!pdfStack.children.length) {
     pdfStack.innerHTML = `<div class="muted">No files uploaded yet.</div>`;
   }
 }
 
+
 async function renderPdfFileAsCanvases(u) {
+  // Container for this logical upload
   const section = document.createElement("div");
   section.className = "pdf-block";
   const pagesWrap = document.createElement("div");
   section.appendChild(pagesWrap);
   pdfStack.appendChild(section);
 
-  // ✅ Use proxy for PDF.js (bypass CORS)
-  const url = `/.netlify/functions/file/${encodeURIComponent(u.driveFileId)}?proxy=1`;
+  // Build ordered list of part IDs (single or multipart)
+  const ids = Array.isArray(u.driveFileIds) && u.driveFileIds.length
+    ? u.driveFileIds
+    : (u.driveFileId ? [u.driveFileId] : []);
 
-  showViewerLoading();
-  let pdf;
-  try {
-    pdf = await window.pdfjsLib.getDocument({ url }).promise;
-  } catch {
-    pagesWrap.innerHTML = `<div class="muted">Failed to load PDF.</div>`;
-    hideViewerLoading();
+  if (!ids.length) {
+    pagesWrap.innerHTML = `<div class="muted">No file parts to display.</div>`;
     return;
   }
 
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  // Ensure pdf.js loaded (your module already wires this before rendering)
+  showViewerLoading();
 
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const viewport0 = page.getViewport({ scale: 1 });
-    const maxWidth = Math.min(pagesWrap.clientWidth || 1000, 1400);
-    const cssScale = maxWidth / viewport0.width;
-    const renderScale = cssScale * dpr;
-    const cssViewport = page.getViewport({ scale: cssScale });
-    const renderViewport = page.getViewport({ scale: renderScale });
+  let pageNo = 0; // logical page counter across ALL parts
+  try {
+    for (const fileId of ids) {
+      // Use your proxy path for PDF.js
+      const url = `/.netlify/functions/file/${encodeURIComponent(fileId)}?proxy=1`;
 
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d", { alpha: false });
+      let pdf;
+      try {
+        pdf = await window.pdfjsLib.getDocument({ url }).promise;
+      } catch {
+        // If a part fails, render a stub and continue with other parts
+        const stub = document.createElement("div");
+        stub.className = "muted";
+        stub.style.margin = "8px 0";
+        stub.textContent = "Failed to load one part of this PDF.";
+        pagesWrap.appendChild(stub);
+        continue;
+      }
 
-    canvas.width = Math.floor(renderViewport.width);
-    canvas.height = Math.floor(renderViewport.height);
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale: 1 }); // base scale; we scale canvas by DPR below
 
-    await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
 
-    const pageCard = document.createElement("div");
-    pageCard.className = "page-card";
-    pageCard.appendChild(canvas);
-    pagesWrap.appendChild(pageCard);
-    state.pageIndex.set(`${u.id}:${p}`, pageCard);
+        // Scale by DPR for crispness
+        const scale = dpr;
+        const vScaled = page.getViewport({ scale });
+        canvas.width = Math.floor(vScaled.width);
+        canvas.height = Math.floor(vScaled.height);
+
+        // Render
+        await page.render({ canvasContext: ctx, viewport: vScaled }).promise;
+
+        // Wrap each page in a card + register in index using logical (uploadId:pageNo)
+        pageNo += 1;
+        const card = document.createElement("div");
+        card.className = "page-card";
+        card.appendChild(canvas);
+        pagesWrap.appendChild(card);
+
+        state.pageIndex.set(`${u.id}:${pageNo}`, card);
+      }
+    }
+  } finally {
+    hideViewerLoading();
   }
-
-  hideViewerLoading();
 }
+
 
 async function renderImageFile(u) {
   const section = document.createElement("div");
