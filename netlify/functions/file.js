@@ -64,59 +64,44 @@ exports.handler = async (event) => {
     }
 
     // === 2. Proxy content server-side (for fetch, PDF.js)
- // GET /.netlify/functions/file/:id?proxy=1[&download=1][&filename=...]
-if (event.httpMethod === "GET" && q.proxy === "1") {
-  const range = event.headers["range"] || event.headers["Range"] || undefined;
+    if (event.httpMethod === "GET" && q.proxy === "1") {
+      const oauth2 = new google.auth.OAuth2(CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, REDIRECT_URI);
+      oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
+      const drive = google.drive({ version: "v3", auth: oauth2 });
 
-  // Acquire access token
-  const oauth2 = new google.auth.OAuth2(CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, REDIRECT_URI);
-  oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
-  const tokenResp  = await oauth2.getAccessToken();
-  const accessToken = typeof tokenResp === "string" ? tokenResp : (tokenResp?.token || tokenResp?.access_token);
-  if (!accessToken) throw new Error("Failed to get access token");
+      // Optional: override name for Content-Disposition
+      const meta = await drive.files.get({
+        fileId,
+        fields: "id,name,mimeType",
+        supportsAllDrives: false,
+      });
 
-  // Build Drive download URL (alt=media, supportsAllDrives)
-  const base = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`;
-  const usp  = new URLSearchParams({ alt: "media", supportsAllDrives: "true" });
-  const url  = `${base}?${usp.toString()}`;
+      const name = meta.data.name || "file";
+      const mime = meta.data.mimeType || "application/octet-stream";
+      const disposition = q.download === "1"
+        ? `attachment; filename="${name}"`
+        : `inline; filename="${name}"`;
 
-  // Fetch from Drive with Range passthrough
-  const hdrs = { Authorization: `Bearer ${accessToken}` };
-  if (range) hdrs.Range = range;
-  const upstream = await fetch(url, { headers: hdrs });
+      const resp = await drive.files.get(
+        { fileId, alt: "media", supportsAllDrives: false },
+        { responseType: "arraybuffer" }
+      );
 
-  // Pull bytes
-  const arrayBuf = await upstream.arrayBuffer();
-  const buf      = Buffer.from(arrayBuf);
-
-  // Compose response headers (preserve content headers from Drive)
-  const h = Object.fromEntries(upstream.headers.entries());
-  const contentType   = h["content-type"]   || "application/octet-stream";
-  const contentRange  = h["content-range"];
-  const contentLength = String(buf.length);
-  const statusCode    = upstream.status; // 206 for partial, 200 for full
-
-  // Optional download filename
-  if (q.download === "1") {
-    const filename = q.filename ? decodeURIComponent(q.filename) : `${fileId}.bin`;
-    h["content-disposition"] = `attachment; filename="${filename}"`;
-  }
-
-  return {
-    statusCode,
-    headers: {
-      ...CORS,
-      "content-type": contentType,
-      ...(contentRange ? { "content-range": contentRange } : {}),
-      "accept-ranges": "bytes",
-      "content-length": contentLength,
-      "cache-control": "no-store",
-    },
-    isBase64Encoded: false,
-    body: buf.toString("binary"),
-  };
-}
-
+      const buf = Buffer.from(resp.data);
+      return {
+        statusCode: 200,
+        headers: {
+          ...CORS,
+          "Content-Type": mime,
+          "Content-Length": String(buf.length),
+          "Content-Disposition": disposition,
+          "Cache-Control": "no-store",
+          "Accept-Ranges": "none",
+        },
+        body: buf.toString("base64"),
+        isBase64Encoded: true,
+      };
+    }
 
     // === 3. Metadata only
     if (event.httpMethod === "GET" && q.meta === "1") {

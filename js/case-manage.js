@@ -78,26 +78,34 @@ async function openUploadedForTagging(uf) {
   // Clear previous preview
   previewArea.innerHTML = "";
 
-  // Use this module’s overlay helpers
-  showPreviewOverlay();
+  // Show the viewer loading overlay (you already style this)
+  ensureViewerLoading();
+  turnOnViewerLoading();
 
   try {
     const isMultipart = Number(uf.filePartsCount || 0) > 1;
     const driveFileIds = uf.driveFileIds || (uf.driveFileId ? [uf.driveFileId] : []);
 
+    // Route to tagging renderer
     if (isMultipart && driveFileIds.length > 1) {
+      // We'll add this in tagging.js next turn
       const { renderMultipartPdfWithTags } = await import("/js/tagging.js");
       await renderMultipartPdfWithTags({
         containerEl: previewArea,
         caseId: state.caseId,
         uploadId: uf.id,
         driveFileIds,
-        onTagChange: () => { /* autosave handled in tagging.js */ },
+        onTagChange: (pageNumber, tag) => {
+          // optional real-time tag write, or keep save-on-change behavior you already have
+        },
       });
     } else {
       const firstId = driveFileIds[0];
-      if (!firstId) { console.warn("No drive file id; cannot render."); return; }
-      const { renderPdfWithTags } = await import("/js/tagging.js");
+      if (!firstId) {
+        // Fallback: old schema might keep only "url" or older "id"
+        console.warn("No drive file id; cannot render.");
+        return;
+      }
       await renderPdfWithTags({
         containerEl: previewArea,
         caseId: state.caseId,
@@ -106,10 +114,9 @@ async function openUploadedForTagging(uf) {
       });
     }
   } finally {
-    hidePreviewOverlay();
+    turnOffViewerLoading();
   }
 }
-
 
 
 // --- Utils ---
@@ -227,28 +234,12 @@ function loadScript(src) {
 
 // --- Upload Section ---
 function handleFiles(files) {
-  const allowed = [];
-  const rejected = [];
-  for (const f of files) {
-    const name = (f.name || "").toLowerCase();
-    const type = (f.type || "").toLowerCase();
-    const isPdf   = type === "application/pdf" || name.endsWith(".pdf");
-    const isImage = type.startsWith("image/");
-    if (isPdf || isImage) allowed.push(f);
-    else rejected.push(f.name || "unknown");
-  }
-
-  if (rejected.length) {
-    alert(`Only PDF and image files are allowed.\nRejected: ${rejected.join(", ")}`);
-  }
-
-  for (const file of allowed) {
+  for (const file of files) {
     stagedFiles.push({ file, key: `staged-${stagedCounter++}` });
   }
   renderStagedList();
-  markDirty(allowed.length > 0 || pageTags.size > 0);
+  markDirty(true);
 }
-
 uploadDrop.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", (e) => {
   handleFiles(Array.from(e.target.files));
@@ -306,13 +297,17 @@ function renderUploadedList() {
   }
 
   uploadedFiles.forEach((uf) => {
-    // Firestore is source of truth: show one logical file
+    // Normalized fields:
     const name = uf.fileName || uf.name || "(untitled)";
+    const totalSize = uf.totalSize || uf.size || 0;
+    const parts = Number(uf.filePartsCount || 1);
 
     const div = document.createElement("div");
     div.className = "file-row";
     div.innerHTML = `
-      <span class="file-name" title="${name}">${name}</span>
+      <span class="file-name" title="${name}">
+        ${name}${parts > 1 ? ` <span class="muted">(${parts} parts)</span>` : ""}
+      </span>
       <button class="trash" title="Remove from list">🗑</button>`;
 
     // Open for preview/tagging
@@ -323,7 +318,7 @@ function renderUploadedList() {
       });
     });
 
-    // Soft delete (Firestore row only — Drive cleanup handled downstream)
+    // Soft delete (Firestore row only — Drive cleanup handled by GAS later)
     div.querySelector(".trash").addEventListener("click", async (e) => {
       e.stopPropagation();
       if (!confirm("Remove this document entry? Files on Drive will be cleaned up by your scheduled job.")) return;
@@ -340,7 +335,6 @@ function renderUploadedList() {
     uploadedList.appendChild(div);
   });
 }
-
 
 
 // --- Preview ---
@@ -422,97 +416,30 @@ async function renderPreview(fileOrMeta, fileKey) {
   try {
     clearPreview();
 
-    // STAGED: File/Blob
+    // STAGED file
     if (fileOrMeta instanceof File || fileOrMeta instanceof Blob) {
       const name = (fileOrMeta.name || "").toLowerCase();
       const type = (fileOrMeta.type || "").toLowerCase();
 
-      if (type === "application/pdf" || name.endsWith(".pdf")) {
-        const { renderLocalPdfWithTags } = await import("/js/tagging.js");
-        await renderLocalPdfWithTags({
-          containerEl: previewArea,
-          file: fileOrMeta,
-          onTagChange: (pageNumber, tag) => {
-            pageTags.set(`${fileKey}:${pageNumber}`, tag || "");
-            markDirty(true);
-          }
-        });
+      if (type.includes("pdf") || name.endsWith(".pdf")) {
+        await renderPdf(fileOrMeta, fileKey, null);  // pass File/Blob
       } else if (type.startsWith("image/")) {
-        await renderImageWithTags(fileOrMeta, fileKey);
+        const url = URL.createObjectURL(fileOrMeta);
+        renderImage(url, fileKey, null);
       } else {
         previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
       }
       return;
     }
-async function renderImageWithTags(file, fileKey) {
-  const url = URL.createObjectURL(file);
-  try {
-    await renderImageUrlWithTags(url, fileKey, null);
-  } finally {
-    // caller may revoke later if needed
-  }
-}
 
-async function renderImageUrlWithTags(url, fileKey, altKey) {
-  const { getTagOptions } = await import("/js/api.js");
-  const opts = await getTagOptions();
-
-  const wrapper = document.createElement("div");
-  wrapper.className = "pdf-page"; // reuse same styling blocks
-
-  const img = document.createElement("img");
-  img.src = url;
-  img.style.width = "100%";
-  img.style.height = "auto";
-  wrapper.appendChild(img);
-
-  const footer = document.createElement("div");
-  footer.className = "pdf-footer";
-  const label = document.createElement("span");
-  label.className = "pdf-pg";
-  label.textContent = "Image";
-  const sel = document.createElement("select");
-  sel.className = "tag-select";
-
-  const emptyOpt = document.createElement("option");
-  emptyOpt.value = "";
-  emptyOpt.textContent = "— tag —";
-  sel.appendChild(emptyOpt);
-  opts.forEach(t => {
-    const o = document.createElement("option");
-    o.value = t; o.textContent = t; sel.appendChild(o);
-  });
-
-  const k1 = `${fileKey}:1`;
-  const k2 = altKey ? `${altKey}:1` : null;
-  sel.value = (pageTags.get(k1) ?? (k2 ? pageTags.get(k2) : "")) || "";
-
-  sel.addEventListener("change", () => {
-    pageTags.set(`${fileKey}:1`, sel.value || "");
-    markDirty(true);
-  });
-
-  footer.appendChild(label);
-  footer.appendChild(sel);
-  wrapper.appendChild(footer);
-
-  previewArea.appendChild(wrapper);
-  state.pageIndex?.set?.(`${fileKey}:1`, wrapper);
-}
-
-    // EXISTING uploaded meta (fallback path; normally use openUploadedForTagging)
+    // EXISTING uploaded meta
     const altKey = fileOrMeta.driveFileId || null;
     if (isPdfMeta(fileOrMeta)) {
-      const { renderPdfWithTags } = await import("/js/tagging.js");
-      await renderPdfWithTags({
-        containerEl: previewArea,
-        caseId: state.caseId,
-        uploadId: fileOrMeta.id,
-        driveFileId: fileOrMeta.driveFileId
-      });
+      const url = streamFileUrl(fileOrMeta.driveFileId);
+      await renderPdf(url, fileKey, altKey);         // pass URL string
     } else if (isImageMeta(fileOrMeta)) {
       const url = streamFileUrl(fileOrMeta.driveFileId);
-      await renderImageUrlWithTags(url, fileKey, altKey);
+      renderImage(url, fileKey, altKey);
     } else {
       previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
     }
@@ -520,7 +447,6 @@ async function renderImageUrlWithTags(url, fileKey, altKey) {
     hidePreviewOverlay();
   }
 }
-
 
 // --- PDF renderer with resilient staged-file support (drop-in) ---
 async function renderPdf(source, fileKey, altKey) {
@@ -681,32 +607,37 @@ async function saveAll() {
   }
   if (!stagedFiles.length) return;
 
+  // UI: lock with overlay
   savingOverlay.classList.remove("hidden");
-
-  // Optional: progress bar inside overlay (if present)
-  const bar = savingOverlay.querySelector?.(".progress-bar > .bar");
 
   try {
     for (const sf of stagedFiles) {
+      // 1) Upload (split if needed) → 1 logical uploads doc even for multi-part PDFs
       const logical = await saveStagedFile({
         file: sf.file,
         caseId: state.caseId,
         batchNo: 1,
-        bannerArea,
-        onProgress: (pct) => { if (bar) bar.style.width = `${Math.round(pct)}%`; }
+        bannerArea,                       // your existing banner area for dup warnings
+        onProgress: (pct) => {
+          // Optional: if you later add a progress bar node, update it here
+          // e.g., progressEl.style.width = `${pct.toFixed(0)}%`;
+        }
       });
       const newUploadId = logical.uploadId;
 
-      // Move staged tag keys `${sf.key}:<page>` → `${newUploadId}:<page>`
+      // 2) Save page tags (view-time sync will handle global order across parts)
+      // Move staged tag keys from `${sf.key}:<page>` → `${newUploadId}:<page>`
       for (const [k, v] of [...pageTags.entries()]) {
         if (!k.startsWith(`${sf.key}:`)) continue;
         const pageNo = parseInt(k.split(":")[1], 10);
         await setPageTag({ caseId: state.caseId, uploadId: newUploadId, pageNumber: pageNo, tag: v });
+        // re-key for future edits (avoid rendering drift)
         pageTags.delete(k);
         pageTags.set(`${newUploadId}:${pageNo}`, v);
       }
     }
 
+    // 3) Clear staging + dirty state; refresh the uploaded list
     stagedFiles = [];
     renderStagedList();
     markDirty(false);
@@ -718,7 +649,6 @@ async function saveAll() {
     savingOverlay.classList.add("hidden");
   }
 }
-
 
 
 // Desktop save button
@@ -746,7 +676,6 @@ async function refreshUploadedList() {
   }
   renderUploadedList();
 }
-
 
 // --- Hard delete (Drive + Firestore metadata) ---
 async function hardDeleteFile(uf) {
