@@ -55,7 +55,37 @@ function wireDocviewControls() {
     scrollToTop();
   });
 }
+async function renderFileList() {
+  docList.innerHTML = "";
+  const files = uploadedFiles || []; // rely on your current data source
+  docCount.textContent = `${files.length}`;
 
+  if (!files.length) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "No documents uploaded.";
+    docList.appendChild(empty);
+    return;
+  }
+
+  files.forEach((f) => {
+    const name = f.fileName || f.name || "(untitled)";
+    const parts = Number(f.filePartsCount || (Array.isArray(f.driveFileIds) ? f.driveFileIds.length : 1) || 1);
+    const row = document.createElement("div");
+    row.className = "doc-list-item";
+    row.innerHTML = `
+      <div class="doc-file">${name}</div>
+      <div class="doc-sub">${parts > 1 ? `${parts} parts` : ""}</div>
+    `;
+    row.addEventListener("click", () => {
+      openDocViewer(f).catch(err => {
+        console.error("openDocViewer failed:", err);
+        alert(err?.message || "Failed to open file.");
+      });
+    });
+    docList.appendChild(row);
+  });
+}
 function scrollToTop() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -91,37 +121,7 @@ async function loadDocviewData() {
 }
 
 // Render left-panel file list as ONE row per logical doc (handles multipart)
-async function renderfilelist() {
-  docList.innerHTML = "";
-  const files = uploadedFiles || []; // rely on your current data source
-  docCount.textContent = `${files.length}`;
 
-  if (!files.length) {
-    const empty = document.createElement("div");
-    empty.className = "muted";
-    empty.textContent = "No documents uploaded.";
-    docList.appendChild(empty);
-    return;
-  }
-
-  files.forEach((f) => {
-    const name = f.fileName || f.name || "(untitled)";
-    const parts = Number(f.filePartsCount || (Array.isArray(f.driveFileIds) ? f.driveFileIds.length : 1) || 1);
-    const row = document.createElement("div");
-    row.className = "doc-list-item";
-    row.innerHTML = `
-      <div class="doc-file">${name}</div>
-      <div class="doc-sub">${parts > 1 ? `${parts} parts` : ""}</div>
-    `;
-    row.addEventListener("click", () => {
-      openDocViewer(f).catch(err => {
-        console.error("openDocViewer failed:", err);
-        alert(err?.message || "Failed to open file.");
-      });
-    });
-    docList.appendChild(row);
-  });
-}
 
 import { streamFileUrl, getDriveIds, isMultipartUpload } from "/js/api.js";
 import { mapWithConcurrency } from "/js/semaphore.js";
