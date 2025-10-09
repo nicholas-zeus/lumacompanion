@@ -57,7 +57,7 @@ function wireDocviewControls() {
 }
 async function renderFileList() {
   docList.innerHTML = "";
-  const files = uploadedFiles || []; // rely on your current data source
+  const files = state.uploadsIndex || []; // rely on your current data source
   docCount.textContent = `${files.length}`;
 
   if (!files.length) {
