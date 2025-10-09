@@ -107,7 +107,7 @@ export async function saveStagedFile({
   bannerArea,
   onUploaded = () => {},
   onProgress = () => {},
-  maxBytes = 4.5 * 1024 * 1024,       // 4.5 MB ceiling
+  maxBytes = 4.2 * 1024 * 1024,       // 4.5 MB ceiling
   pdfDpi = 120,
   jpegQuality = 0.72
 }) {
