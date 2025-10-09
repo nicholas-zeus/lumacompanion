@@ -234,6 +234,7 @@ export async function saveStagedFile({
   };
 
   try { onUploaded(logicalMeta); } catch {}
+//console.log('PDF split mode:', splitRes.mode, 'parts:', splitRes.parts, 'sizes:', splitRes.blobs.map(b=>b.size));
 
   return logicalMeta;
 }

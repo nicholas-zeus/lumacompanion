@@ -16,37 +16,36 @@ const tagFilterClear = document.getElementById("tagFilterClear");
 let viewerLoadingEl;
 let viewerLoadingCount = 0;
 
-function ensureViewerLoading() {
+/* =========================================================
+   Viewer loading overlay (single implementation)
+   ========================================================= */
+function showViewerLoading() {
   if (!viewerLoadingEl) {
     viewerLoadingEl = document.createElement("div");
     viewerLoadingEl.className = "viewer-loading";
     viewerLoadingEl.innerHTML = `<div class="spinner" aria-label="Loading…"></div>`;
-    Object.assign(viewerLoadingEl.style, {
-      position: "fixed",
-      inset: "0",
-      border: "none",
-      borderRadius: "0",
-      zIndex: "2000"
-    });
-    document.body.appendChild(viewerLoadingEl);
+    const viewerCard = pdfStack?.closest?.(".viewer-card") || pdfStack || document.body;
+    if (viewerCard === document.body) {
+      Object.assign((viewerLoadingEl.style), { position: "fixed", inset: "0", zIndex: "2000" });
+    } else {
+      viewerCard.style.position = viewerCard.style.position || "relative";
+      Object.assign((viewerLoadingEl.style), { position: "absolute", inset: "0", zIndex: "10" });
+    }
+    viewerCard.appendChild(viewerLoadingEl);
   }
-  return viewerLoadingEl;
-}
-
-function showViewerLoading() {
-  const el = ensureViewerLoading();
   viewerLoadingCount++;
-  el.classList.add("is-on");
+  viewerLoadingEl.classList.add("is-on");
 }
-
 function hideViewerLoading() {
-  if (!viewerLoadingEl) return;
   viewerLoadingCount = Math.max(0, viewerLoadingCount - 1);
-  if (viewerLoadingCount === 0) {
+  if (viewerLoadingEl && viewerLoadingCount === 0) {
     viewerLoadingEl.classList.remove("is-on");
   }
 }
 
+/* =========================================================
+   Tag filtering & list rendering
+   ========================================================= */
 function wireDocviewControls() {
   tagFilterSelect?.addEventListener("change", () => applyDocTagFilter(tagFilterSelect.value));
   tagFilterClear?.addEventListener("click", () => {
@@ -62,17 +61,20 @@ function scrollToTop() {
 
 async function loadDocviewData() {
   const rows = await listUploads(state.caseId);
-  state.uploadsIndex = rows;
-  state.uploadsById.clear();
-  rows.forEach(r => state.uploadsById.set(r.id, r));
-  if (docCount) docCount.textContent = `${rows.length} file${rows.length === 1 ? "" : "s"}`;
+  state.uploads = rows || [];
+  docCount.textContent = state.uploads.length.toString();
+  renderFileList();
 
-  state.allTags.clear();
+  // optional: prefetch tag hits for this case (if used in your UI)
+  state.allTags = new Set();
   state.tagHits = [];
-  const col = collection(db, "pageTags");
-  const qRef = query(col, where("caseId", "==", state.caseId), limit(5000));
-  const snap = await getDocs(qRef);
-  snap.forEach(d => {
+  const q = query(
+    collection(db, "caseTags"),
+    where("caseId", "==", state.caseId),
+    limit(500)
+  );
+  const snap = await getDocs(q);
+  snap.forEach((d) => {
     const row = d.data();
     if (row?.tag) {
       state.allTags.add(row.tag);
@@ -90,45 +92,145 @@ async function loadDocviewData() {
   renderFileList();
 }
 
-// Render left-panel file list as ONE row per logical doc (handles multipart)
-async function renderfilelist() {
-  docList.innerHTML = "";
-  const files = uploadedFiles || []; // rely on your current data source
-  docCount.textContent = `${files.length}`;
+function applyDocTagFilter(tag = "") {
+  state.activeTagFilter = tag || "";
+  renderFileList();
+}
 
-  if (!files.length) {
-    const empty = document.createElement("div");
-    empty.className = "muted";
-    empty.textContent = "No documents uploaded.";
-    docList.appendChild(empty);
+function renderFileList() {
+  if (!docList) return;
+  const activeTag = (state.activeTagFilter || "").trim();
+  const uploads = state.uploads || [];
+
+  const withTag = activeTag
+    ? uploads.filter(u => (state.tagHits || []).some(t => t.tag === activeTag && t.uploadId === u.id))
+    : uploads;
+
+  docList.innerHTML = withTag.map(u => {
+    const isPdfFile = isPdf(u);
+    const tags = (state.tagHits || []).filter(t => t.uploadId === u.id).map(t => t.tag);
+    return `
+      <li class="doc-row" data-id="${u.id}">
+        <button class="doc-link" data-id="${u.id}" data-name="${escapeHtml(u.fileName || "")}">
+          <span class="name">${escapeHtml(u.fileName || "(no name)")}</span>
+          <span class="meta">
+            ${isPdfFile ? "PDF" : (u.mimeType || u.fileType || "").split("/")[1] || "File"}
+            · ${(u.size ? prettyBytes(u.size) : "")}
+          </span>
+        </button>
+        ${tags.length ? `<div class="tags">${tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+      </li>
+    `;
+  }).join("");
+
+  docList.querySelectorAll(".doc-link").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-id");
+      if (!id) return;
+      openInViewer(id);
+      scrollToTop();
+    });
+  });
+
+  // Show tag hits (optional)
+  if (tagHitsWrap) {
+    const activeHits = (state.tagHits || []).filter(h => !activeTag || h.tag === activeTag);
+    tagHitsWrap.innerHTML = activeHits.slice(0, 200).map(h =>
+      `<button class="tag-hit" data-upload="${h.uploadId}" data-page="${h.pageNumber}">
+         <span class="t">${escapeHtml(h.tag)}</span>
+         <span class="p">p.${h.pageNumber}</span>
+       </button>`
+    ).join("");
+
+    tagHitsWrap.querySelectorAll(".tag-hit").forEach(b => {
+      b.addEventListener("click", async () => {
+        const uploadId = b.getAttribute("data-upload");
+        const page = parseInt(b.getAttribute("data-page") || "1", 10);
+        if (!uploadId) return;
+        await openInViewer(uploadId, { page });
+        pdfStack?.querySelector(`[data-page="${page}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+  }
+}
+
+/* =========================================================
+   Viewer rendering (PDF via pdf.js)
+   ========================================================= */
+async function openInViewer(uploadId, opts = {}) {
+  if (!uploadId) return;
+  const upload = (state.uploads || []).find(u => u.id === uploadId);
+  if (!upload) return;
+
+  if (!isPdf(upload)) {
+    // non-PDF: just open in a new tab/window
+    if (upload.webViewLink) window.open(upload.webViewLink, "_blank", "noopener");
     return;
   }
 
-  files.forEach((f) => {
-    const name = f.fileName || f.name || "(untitled)";
-    const parts = Number(f.filePartsCount || (Array.isArray(f.driveFileIds) ? f.driveFileIds.length : 1) || 1);
-    const row = document.createElement("div");
-    row.className = "doc-list-item";
-    row.innerHTML = `
-      <div class="doc-file">${name}</div>
-      <div class="doc-sub">${parts > 1 ? `${parts} parts` : ""}</div>
-    `;
-    row.addEventListener("click", () => {
-      openDocViewer(f).catch(err => {
-        console.error("openDocViewer failed:", err);
-        alert(err?.message || "Failed to open file.");
-      });
-    });
-    docList.appendChild(row);
-  });
+  showViewerLoading();
+  try {
+    await loadPdfJsIfNeeded();
+    await renderPdfToStack(upload, opts);
+  } finally {
+    hideViewerLoading();
+  }
 }
 
-import { streamFileUrl, getDriveIds, isMultipartUpload } from "/js/api.js";
-import { mapWithConcurrency } from "/js/semaphore.js";
+function isPdf(u) {
+  const n = (u.fileName || "").toLowerCase();
+  const t = (u.mimeType || u.fileType || "").toLowerCase();
+  return n.endsWith(".pdf") || t === "application/pdf";
+}
 
-// Local pdf.js loader (same CDN/version as tagging.js)
+async function renderPdfToStack(upload, opts = {}) {
+  const { page: scrollToPage = 1 } = opts;
+  if (!pdfStack) return;
+
+  const src = choosePdfUrl(upload);
+  if (!src) return;
+
+  // clear stack
+  pdfStack.innerHTML = "";
+
+  const pdfjs = await loadPdfJsIfNeeded();
+  const loadingTask = pdfjs.getDocument(src);
+  const pdf = await loadingTask.promise;
+
+  const scale = 1.2;
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.dataset.page = String(p);
+    canvas.className = "pdf-canvas";
+
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    pdfStack.appendChild(canvas);
+  }
+
+  // Scroll to requested page if provided
+  if (scrollToPage && scrollToPage > 0 && scrollToPage <= pdf.numPages) {
+    const target = pdfStack.querySelector(`[data-page="${scrollToPage}"]`);
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function choosePdfUrl(u) {
+  // Prefer a restricted viewer link if available, else direct webContentLink, else webViewLink
+  return u.webContentLink || u.webViewLink || u.previewLink || u.url || null;
+}
+
+/* =========================================================
+   pdf.js loader
+   ========================================================= */
 const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120";
-async function ensurePdfJsLocal() {
+
+async function loadPdfJsIfNeeded() {
   if (globalThis.pdfjsLib) {
     if (!globalThis.pdfjsLib.GlobalWorkerOptions?.workerSrc) {
       globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN}/pdf.worker.min.js`;
@@ -149,141 +251,23 @@ async function ensurePdfJsLocal() {
   return lib;
 }
 
-// Very small loading overlay helpers that line up with your CSS
-function showViewerLoading() {
-  if (!viewerLoadingEl) {
-    viewerLoadingEl = document.createElement("div");
-    viewerLoadingEl.className = "viewer-loading";
-    viewerLoadingEl.innerHTML = `<div class="spinner"></div>`;
-    // attach overlay to the right viewer card container
-    const viewerCard = pdfStack.closest(".viewer-card") || pdfStack;
-    viewerCard.style.position = viewerCard.style.position || "relative";
-    viewerCard.appendChild(viewerLoadingEl);
-  }
-  viewerLoadingCount++;
-  viewerLoadingEl.classList.add("is-on");
+/* =========================================================
+   Utilities
+   ========================================================= */
+function escapeHtml(s = "") {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
 }
-function hideViewerLoading() {
-  viewerLoadingCount = Math.max(0, viewerLoadingCount - 1);
-  if (viewerLoadingEl && viewerLoadingCount === 0) {
-    viewerLoadingEl.classList.remove("is-on");
-  }
+function prettyBytes(bytes = 0) {
+  if (!Number.isFinite(bytes)) return "";
+  const units = ["B","KB","MB","GB","TB"];
+  let i = 0, n = bytes;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(n >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
-// Open a (possibly multipart) document and render all pages in serial into #pdfStack
-async function openDocViewer(uf) {
-  // Clean current view
-  pdfStack.innerHTML = "";
-
-  showViewerLoading();
-  try {
-    const pdfjsLib = await ensurePdfJsLocal();
-
-    const driveIds = getDriveIds(uf);
-    const multipart = isMultipartUpload(uf);
-    if (!driveIds.length) {
-      console.warn("No drive IDs to render.");
-      return;
-    }
-
-    // Concurrency policy: pre-load PDFs with concurrency=2, then render in order
-    const sources = driveIds.map((id) => streamFileUrl(id));
-    const pdfDocs = await mapWithConcurrency(sources, 2, async (src) => {
-      return pdfjsLib.getDocument(src).promise;
-    });
-
-    let globalPageIdx = 0;
-    const DPR = Math.max(1, window.devicePixelRatio || 1);
-    const SCALE = 1.6 * DPR;
-
-    // Render in strict order: part1..partN, page1..pageM
-    for (let partIdx = 0; partIdx < pdfDocs.length; partIdx++) {
-      const pdf = pdfDocs[partIdx];
-      for (let p = 1; p <= pdf.numPages; p++) {
-        globalPageIdx++;
-
-        const page = await pdf.getPage(p);
-        const viewport = page.getViewport({ scale: SCALE });
-
-        // Card for each rendered page
-        const card = document.createElement("div");
-        card.className = "page-card";
-
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        canvas.style.width = "100%";
-        canvas.style.height = "auto";
-
-        const renderTask = page.render({ canvasContext: ctx, viewport });
-        await renderTask.promise;
-
-        // Page header (optional)
-        const hdr = document.createElement("div");
-        hdr.className = "doc-sub";
-        hdr.textContent = `Page ${globalPageIdx}`;
-
-        card.appendChild(hdr);
-        card.appendChild(canvas);
-        pdfStack.appendChild(card);
-      }
-    }
-
-    // After render, scroll to first page of part 1 if the user clicked the filename
-    // (This function always starts from the first canvas, so no extra scroll needed.)
-  } finally {
-    hideViewerLoading();
-  }
-}
-
-function isPdf(u) {
-  const n = (u.fileName || "").toLowerCase();
-  const t = (u.mimeType || u.fileType || "").toLowerCase();
-  return n.endsWith(".pdf") || t === "application/pdf";
-}
-
-function isImage(u) {
-  const n = (u.fileName || "").toLowerCase();
-  const t = (u.mimeType || u.fileType || "").toLowerCase();
-  return /(\.jpg|\.jpeg|\.png)$/.test(n) || t.startsWith("image/");
-}
-
-function focusFirstPageOf(uploadId) {
-  const key1 = `${uploadId}:1`;
-  const el = state.pageIndex.get(key1);
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function applyDocTagFilter(tag) {
-  if (!pdfStack || !tagHitsWrap) return;
-  if (!tag) {
-    Array.from(pdfStack.querySelectorAll(".page-card, img, .pdf-block")).forEach(el => el.style.display = "");
-    tagHitsWrap.hidden = true; pdfStack.hidden = false;
-    return;
-  }
-  const allow = new Set(state.tagHits.filter(h => h.tag === tag).map(h => `${h.uploadId}:${h.pageNumber}`));
-  let shown = 0;
-  for (const [key, el] of state.pageIndex.entries()) {
-    if (allow.has(key)) { el.style.display = ""; shown++; }
-    else el.style.display = "none";
-  }
-  if (shown === 0) {
-    pdfStack.hidden = true;
-    tagHitsWrap.hidden = false;
-    tagHitsWrap.innerHTML = `<div class="muted">No pages tagged “${tag}”.</div>`;
-  } else {
-    tagHitsWrap.hidden = true;
-    pdfStack.hidden = false;
-  }
-  for (const [key, el] of state.pageIndex.entries()) {
-    if (el.style.display !== "none") {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      break;
-    }
-  }
-}
-
+/* =========================================================
+   Public entry
+   ========================================================= */
 export async function ensureDocviewLoaded() {
   if (!state.caseId || state.isNew) return;
 
@@ -295,120 +279,16 @@ export async function ensureDocviewLoaded() {
     await renderCanvasStack();
     hideViewerLoading();
     state.docviewLoaded = true;
-  } else {
-    await loadDocviewData();
-    await renderCanvasStack();
-  }
+  } 
 }
 
+// Placeholder: if you have a separate canvas stack renderer, keep this.
+// Otherwise, reuse renderPdfToStack after selecting a default PDF (if any).
 async function renderCanvasStack() {
-  if (!pdfStack || !tagHitsWrap) return;
-  pdfStack.hidden = false; tagHitsWrap.hidden = true;
-  pdfStack.innerHTML = "";
-  state.pageIndex.clear();
-  for (const u of state.uploadsIndex) {
-    if (isPdf(u)) {
-      await renderPdfFileAsCanvases(u);
-    } else if (isImage(u)) {
-      await renderImageFile(u);
-    } else {
-      const card = document.createElement("div");
-      card.className = "pdf-block";
-      card.innerHTML = `<div class="viewer-section"><h3>${u.fileName}</h3></div><div class="muted">Preview not available.</div>`;
-      pdfStack.appendChild(card);
-    }
+  const firstPdf = (state.uploads || []).find(isPdf);
+  if (firstPdf) {
+    await openInViewer(firstPdf.id);
+  } else {
+    pdfStack.innerHTML = `<div class="empty">No PDF files uploaded.</div>`;
   }
-  if (!pdfStack.children.length) {
-    pdfStack.innerHTML = `<div class="muted">No files uploaded yet.</div>`;
-  }
-}
-
-async function renderPdfFileAsCanvases(u) {
-  const section = document.createElement("div");
-  section.className = "pdf-block";
-  const pagesWrap = document.createElement("div");
-  section.appendChild(pagesWrap);
-  pdfStack.appendChild(section);
-
-  // ✅ Use proxy for PDF.js (bypass CORS)
-  const url = `/.netlify/functions/file/${encodeURIComponent(u.driveFileId)}?proxy=1`;
-
-  showViewerLoading();
-  let pdf;
-  try {
-    pdf = await window.pdfjsLib.getDocument({ url }).promise;
-  } catch {
-    pagesWrap.innerHTML = `<div class="muted">Failed to load PDF.</div>`;
-    hideViewerLoading();
-    return;
-  }
-
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const viewport0 = page.getViewport({ scale: 1 });
-    const maxWidth = Math.min(pagesWrap.clientWidth || 1000, 1400);
-    const cssScale = maxWidth / viewport0.width;
-    const renderScale = cssScale * dpr;
-    const cssViewport = page.getViewport({ scale: cssScale });
-    const renderViewport = page.getViewport({ scale: renderScale });
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d", { alpha: false });
-
-    canvas.width = Math.floor(renderViewport.width);
-    canvas.height = Math.floor(renderViewport.height);
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
-
-    await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
-
-    const pageCard = document.createElement("div");
-    pageCard.className = "page-card";
-    pageCard.appendChild(canvas);
-    pagesWrap.appendChild(pageCard);
-    state.pageIndex.set(`${u.id}:${p}`, pageCard);
-  }
-
-  hideViewerLoading();
-}
-
-async function renderImageFile(u) {
-  const section = document.createElement("div");
-  section.className = "pdf-block";
-
-  const img = document.createElement("img");
-  img.decoding = "async";
-  img.loading = "lazy";
-  img.style.maxWidth = "100%";
-  img.style.height = "auto";
-
-  showViewerLoading();
-  img.onload = () => hideViewerLoading();
-  img.onerror = () => hideViewerLoading();
-
-  img.src = `/.netlify/functions/file/${encodeURIComponent(u.driveFileId)}?proxy=1`;
-
-
-  section.appendChild(img);
-  pdfStack.appendChild(section);
-  state.pageIndex.set(`${u.id}:1`, section);
-}
-
-async function loadPdfJsIfNeeded() {
-  if (window.pdfjsLib?.getDocument) return;
-  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js");
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
-}
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = src;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error(`Failed to load ${src}`));
-    document.head.appendChild(s);
-  });
 }
