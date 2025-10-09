@@ -149,7 +149,7 @@ async function ensurePdfJsLocal() {
 }
 
 // Very small loading overlay helpers that line up with your CSS
-function showViewerLoading() {
+/*function showViewerLoading() {
   if (!viewerLoadingEl) {
     viewerLoadingEl = document.createElement("div");
     viewerLoadingEl.className = "viewer-loading";
@@ -161,7 +161,7 @@ function showViewerLoading() {
   }
   viewerLoadingCount++;
   viewerLoadingEl.classList.add("is-on");
-}
+}*/
 function hideViewerLoading() {
   viewerLoadingCount = Math.max(0, viewerLoadingCount - 1);
   if (viewerLoadingEl && viewerLoadingCount === 0) {
