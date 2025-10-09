@@ -60,7 +60,7 @@ exports.handler = async (event) => {
       (await ensureFolderByName(drive, "Cases", ROOT)) ||
       null;
     if (!casesFolderId) return { statusCode: 200, headers: CORS, body: "[]" };
-
+   
     const caseFolderId = await ensureFolderByName(drive, caseId, casesFolderId);
     if (!caseFolderId) return { statusCode: 200, headers: CORS, body: "[]" };
 

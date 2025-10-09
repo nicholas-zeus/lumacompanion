@@ -336,15 +336,25 @@ export async function upsertCommentMQ({ caseId, commentId, text, currentUser }) 
 
 /* ---------------------------- Uploads (Drive) --------------------------- */
 export async function listUploads(caseId) {
-  const col = collection(db, COLLECTIONS.uploads);
+  const col  = collection(db, COLLECTIONS.uploads);
   const qRef = query(col, where("caseId", "==", caseId), orderBy("uploadedAt", "desc"), limit(1000));
   const snap = await getDocs(qRef);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Ensure consistent shape for UI
+  return snap.docs.map(d => {
+    const r = { id: d.id, ...d.data() };
+    r.driveFileIds = Array.isArray(r.driveFileIds) ? r.driveFileIds : (r.driveFileId ? [r.driveFileId] : []);
+    r.filePartsCount = Number(r.filePartsCount || r.driveFileIds.length || 1);
+    r.totalSize = Number(r.totalSize || r.size || 0);
+    return r;
+  });
 }
+
 export async function softDeleteUpload(uploadId) {
+  if (!uploadId) throw new Error("uploadId required");
   const ref = doc(db, COLLECTIONS.uploads, uploadId);
-  await updateDoc(ref, { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  await setDoc(ref, { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
 }
+
 /*export async function uploadFile({ file, caseId, batchNo = 1 }) {
   const form = new FormData();
   form.append("file", file);
@@ -362,50 +372,19 @@ export async function softDeleteUpload(uploadId) {
 // Upload a single file to Cases/{caseId}/{batchNo}/{filename} via Netlify function.
 // Returns { fileId, fileName, size, mimeType, md5, uploadedAt } on success.
 
-export async function uploadFile({ caseId, batchNo, file }) {
-  if (!file || !(file instanceof File || file instanceof Blob)) {
-    throw new Error("uploadFile: 'file' must be a File/Blob");
-  }
-  if (!caseId) throw new Error("uploadFile: missing caseId");
-  if (!batchNo) throw new Error("uploadFile: missing batchNo");
+export async function uploadFile({ file, caseId, batchNo = 1 }) {
+  const form = new FormData();
+  form.append("file", file);
 
-  // Build multipart form-data; DO NOT set Content-Type yourself.
-  const fd = new FormData();
-  fd.append("caseId", String(caseId));
-  fd.append("batchNo", String(batchNo));
-  // 3rd arg names the file; harmless for Blob, correct for File
-  fd.append("file", file, file.name || "upload.bin");
+  const url = `${functionsBase}/upload?caseId=${encodeURIComponent(caseId)}&batchNo=${encodeURIComponent(batchNo)}`;
+  const res = await authorizedFetch(url, { method: "POST", body: form });
 
-  // Resolve function path (uses app config if present, else defaults)
-  const base =
-    (window.APP_CONFIG && window.APP_CONFIG.functionsBase) ||
-    (window.appConfig && window.appConfig.functionsBase) ||
-    "/.netlify/functions";
-
-  const url = `${base}/upload`;
-
-  // Important: don't add headers like 'Content-Type'; the browser will set the boundary.
-  let res;
-  try {
-    res = await fetch(url, { method: "POST", body: fd });
-  } catch (e) {
-    throw new Error(`Network error calling ${url}: ${e.message || e}`);
-  }
-
-  // Try to read plain-text body for better diagnostics on non-2xx
-  const text = await res.text().catch(() => "");
+  const text = await res.text();
   if (!res.ok) {
-    // Surface common server messages directly (your function returns these)
-    // e.g., "Content-Type must be multipart/form-data", "Missing caseId", "Payload too large …"
     throw new Error(`Upload failed: ${res.status} ${text || res.statusText}`);
   }
-
-  // If OK, parse JSON payload
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error("Upload succeeded but response was not valid JSON.");
-  }
+  try { return JSON.parse(text); }
+  catch { throw new Error("Upload succeeded but response was not valid JSON."); }
 }
 
 
@@ -415,16 +394,31 @@ export async function uploadFile({ caseId, batchNo, file }) {
 
 
 
-export function streamFileUrl(fileId) {
-  return `${functionsBase}/file/${encodeURIComponent(fileId)}`;
+
+export function streamFileUrl(fileId, { proxy = true, download = false, filename = "" } = {}) {
+  const base = `${functionsBase}/file/${encodeURIComponent(fileId)}`;
+  const qs   = [];
+  if (proxy)    qs.push("proxy=1");
+  if (download) qs.push("download=1");
+  if (filename) qs.push(`filename=${encodeURIComponent(filename)}`);
+  return qs.length ? `${base}?${qs.join("&")}` : base;
 }
+
 
 /* ------------------------------ Page Tags ------------------------------ */
 function pageTagDocId(uploadId, pageNumber) {
   return `${uploadId}_${pageNumber}`;
 }
+
+export async function setPageTag({ caseId, uploadId, pageNumber, tag }) {
+  if (!caseId || !uploadId || !pageNumber) throw new Error("caseId, uploadId, pageNumber required");
+  const id  = `${uploadId}:${pageNumber}`;
+  const ref = doc(db, COLLECTIONS.pageTags, id);
+  await setDoc(ref, { caseId, uploadId, pageNumber, tag, updatedAt: serverTimestamp() }, { merge: true });
+}
+
 export async function getPageTagsForUpload(caseId, uploadId, maxPagesHint = 200) {
-  const col = collection(db, COLLECTIONS.pageTags);
+  const col  = collection(db, COLLECTIONS.pageTags);
   const qRef = query(col, where("caseId", "==", caseId), where("uploadId", "==", uploadId), limit(maxPagesHint));
   const snap = await getDocs(qRef);
   const out = new Map();
@@ -434,24 +428,17 @@ export async function getPageTagsForUpload(caseId, uploadId, maxPagesHint = 200)
   }
   return out;
 }
-export async function setPageTag({ caseId, uploadId, pageNumber, tag }) {
-  const id = pageTagDocId(uploadId, pageNumber);
-  const ref = doc(db, COLLECTIONS.pageTags, id);
-  await setDoc(ref, { caseId, uploadId, pageNumber, tag, updatedAt: serverTimestamp() }, { merge: true });
-}
 
-/* ----------------------------- Tag Options ----------------------------- */
 export async function getTagOptions() {
   try {
     const ref = doc(db, COLLECTIONS.settings, "tags");
     const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const arr = snap.data()?.options || [];
-      if (Array.isArray(arr) && arr.length) return arr;
-    }
-  } catch(_) {}
+    const arr = snap.exists() ? (snap.data()?.options || []) : [];
+    if (Array.isArray(arr) && arr.length) return arr;
+  } catch {}
   return ["progress note", "vital chart", "doctor order", "lab tests", "medical questionnaire"];
 }
+
 
 /* -------------------------- Export helpers ----------------------------- */
 export { sortCasesForDashboard } from "/js/utils.js";
