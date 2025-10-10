@@ -3,7 +3,9 @@ import { listUploads } from "/js/api.js";
 import { collection, query, where, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "/js/firebase.js";
 import { fab } from "/js/fab.js";
-import { getDriveIds, streamFileUrl } from "/js/api.js";
+
+import { streamFileUrl, getDriveIds, isMultipartUpload } from "/js/api.js";
+import { mapWithConcurrency } from "/js/semaphore.js";
 
 fab.useDocTop(() => window.scrollTo({ top: 0, behavior: "smooth" }));
 
@@ -141,8 +143,6 @@ async function loadDocviewData() {
 // Render left-panel file list as ONE row per logical doc (handles multipart)
 
 
-import { streamFileUrl, getDriveIds, isMultipartUpload } from "/js/api.js";
-import { mapWithConcurrency } from "/js/semaphore.js";
 
 // Local pdf.js loader (same CDN/version as tagging.js)
 const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120";
