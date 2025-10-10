@@ -80,7 +80,7 @@ async function openUploadedForTagging(uf) {
 
   // Show the viewer loading overlay (you already style this)
   ensurePreviewOverlay();
-  turnOnViewerLoading();
+  //ensurePreviewOverlay();
 
   try {
     const isMultipart = Number(uf.filePartsCount || 0) > 1;
@@ -114,7 +114,7 @@ async function openUploadedForTagging(uf) {
       });
     }
   } finally {
-    turnOffViewerLoading();
+    hidePreviewOverlay();
   }
 }
 
