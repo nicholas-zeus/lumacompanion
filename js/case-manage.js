@@ -16,6 +16,9 @@ const previewArea   = document.getElementById("previewArea");
 const saveSection   = document.getElementById("saveSection");
 const saveBtn       = document.getElementById("saveBtn");
 const savingOverlay = document.getElementById("savingOverlay");
+// at top with other DOM nodes, if you actually have it in HTML
+const bannerArea = document.getElementById("bannerArea");
+// or simply remove `bannerArea,` from the saveStagedFile({ ... }) options
 
 // Use whichever id your HTML currently has for the Manage panel
 const sidebar       = document.getElementById("managePanel");
@@ -29,7 +32,7 @@ let dirty = false;
 let stagedCounter = 0;      // stable keys for staged items
 
 // --- Preview loading overlay (Manage tab only) ---
-let previewOverlay;
+/*let previewOverlay;
 function ensurePreviewOverlay() {
   if (previewOverlay) return;
   previewOverlay = document.createElement("div");
@@ -73,7 +76,72 @@ function ensurePreviewOverlay() {
   document.body.appendChild(previewOverlay);
 }
 function showPreviewOverlay() { ensurePreviewOverlay(); previewOverlay.style.display = "flex"; }
-function hidePreviewOverlay() { if (previewOverlay) previewOverlay.style.display = "none"; }
+function hidePreviewOverlay() { if (previewOverlay) previewOverlay.style.display = "none"; }*/
+
+// --- Preview loading overlay (Manage tab only) ---
+let previewOverlay;
+let __overlayCount = 0;
+
+function ensurePreviewOverlay() {
+  if (previewOverlay) return previewOverlay;
+  previewOverlay = document.createElement("div");
+  previewOverlay.id = "previewOverlay";
+  Object.assign(previewOverlay.style, {
+    position: "fixed",
+    inset: "0",
+    background: "rgba(255,255,255,0.8)",
+    display: "none",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: "2000",
+  });
+
+  const card = document.createElement("div");
+  Object.assign(card.style, {
+    background: "#fff",
+    border: "1px solid var(--line)",
+    borderRadius: "12px",
+    padding: "16px 18px",
+    boxShadow: "var(--shadow)",
+    display: "grid",
+    gap: "10px",
+    justifyItems: "center",
+  });
+
+  const spinner = document.createElement("div");
+  Object.assign(spinner.style, {
+    width: "32px",
+    height: "32px",
+    border: "4px solid #ccc",
+    borderTopColor: "var(--brand)",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+  });
+
+  const text = document.createElement("div");
+  text.textContent = "Loading preview…";
+
+  const style = document.createElement("style");
+  style.textContent = "@keyframes spin { to { transform: rotate(360deg); } }";
+  document.head.appendChild(style);
+
+  card.appendChild(spinner);
+  card.appendChild(text);
+  previewOverlay.appendChild(card);
+  document.body.appendChild(previewOverlay);
+  return previewOverlay;
+}
+
+function showPreviewOverlay() {
+  ensurePreviewOverlay();
+  __overlayCount++;
+  previewOverlay.style.display = "flex";
+}
+function hidePreviewOverlay() {
+  __overlayCount = Math.max(0, __overlayCount - 1);
+  if (!__overlayCount && previewOverlay) previewOverlay.style.display = "none";
+}
+
 async function openUploadedForTagging(uf) {
   // Clear previous preview
   previewArea.innerHTML = "";
@@ -110,7 +178,11 @@ async function openUploadedForTagging(uf) {
         containerEl: previewArea,
         caseId: state.caseId,
         uploadId: uf.id,
-        driveFileId: firstId
+        driveFileId: firstId,
+        onTagChange: (pageNumber, tag) => {
+    // keep an in-memory mirror if you like
+    pageTags.set(`${uf.id}:${pageNumber}`, tag);
+    markDirty(true);}
       });
     }
   } finally {
