@@ -32,53 +32,6 @@ let dirty = false;
 let stagedCounter = 0;      // stable keys for staged items
 
 // --- Preview loading overlay (Manage tab only) ---
-/*let previewOverlay;
-function ensurePreviewOverlay() {
-  if (previewOverlay) return;
-  previewOverlay = document.createElement("div");
-  previewOverlay.id = "previewOverlay";
-  previewOverlay.style.position = "fixed";
-  previewOverlay.style.inset = "0";
-  previewOverlay.style.background = "rgba(255,255,255,0.8)";
-  previewOverlay.style.display = "none";
-  previewOverlay.style.alignItems = "center";
-  previewOverlay.style.justifyContent = "center";
-  previewOverlay.style.zIndex = "1000";
-
-  const card = document.createElement("div");
-  card.style.background = "#fff";
-  card.style.border = "1px solid var(--line)";
-  card.style.borderRadius = "12px";
-  card.style.padding = "16px 18px";
-  card.style.boxShadow = "var(--shadow)";
-  card.style.display = "grid";
-  card.style.gap = "10px";
-  card.style.justifyItems = "center";
-
-  const spinner = document.createElement("div");
-  spinner.style.width = "32px";
-  spinner.style.height = "32px";
-  spinner.style.border = "4px solid #ccc";
-  spinner.style.borderTopColor = "var(--brand)";
-  spinner.style.borderRadius = "50%";
-  spinner.style.animation = "spin 1s linear infinite";
-
-  const text = document.createElement("div");
-  text.textContent = "Loading preview…";
-
-  const style = document.createElement("style");
-  style.textContent = "@keyframes spin { to { transform: rotate(360deg); } }";
-  document.head.appendChild(style);
-
-  card.appendChild(spinner);
-  card.appendChild(text);
-  previewOverlay.appendChild(card);
-  document.body.appendChild(previewOverlay);
-}
-function showPreviewOverlay() { ensurePreviewOverlay(); previewOverlay.style.display = "flex"; }
-function hidePreviewOverlay() { if (previewOverlay) previewOverlay.style.display = "none"; }*/
-
-// --- Preview loading overlay (Manage tab only) ---
 let previewOverlay;
 let __overlayCount = 0;
 
@@ -147,8 +100,9 @@ async function openUploadedForTagging(uf) {
   previewArea.innerHTML = "";
 
   // Show the viewer loading overlay (you already style this)
-  ensurePreviewOverlay();
   //ensurePreviewOverlay();
+  showPreviewOverlay();
+ 
 
   try {
     const isMultipart = Number(uf.filePartsCount || 0) > 1;
@@ -409,79 +363,7 @@ function renderUploadedList() {
 }
 
 
-// --- Preview ---
-/*async function renderPreview(fileOrMeta, fileKey) {
-  showPreviewOverlay();
-  try {
-    clearPreview();
 
-    if (fileOrMeta instanceof File) {
-      const type = (fileOrMeta.type || "").toLowerCase();
-      if (type.includes("pdf")) {
-        await renderPdf(fileOrMeta, fileKey, null);
-      } else if (type.startsWith("image/")) {
-        renderImage(URL.createObjectURL(fileOrMeta), fileKey, null);
-      } else {
-        previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
-      }
-    } else {
-      const altKey = fileOrMeta.driveFileId || null; // fallback if pageTags used driveFileId
-      if (isPdfMeta(fileOrMeta)) {
-        const url = streamFileUrl(fileOrMeta.driveFileId);
-        await renderPdf(url, fileKey, altKey);
-      } else if (isImageMeta(fileOrMeta)) {
-        const url = streamFileUrl(fileOrMeta.driveFileId);
-        renderImage(url, fileKey, altKey);
-      } else {
-        previewArea.innerHTML = `<div class="muted">Unsupported file type.</div>`;
-      }
-    }
-  } finally {
-    hidePreviewOverlay();
-  }
-}
-
-async function renderPdf(source, fileKey, altKey) {
-  await loadPdfJsIfNeeded();
-  const pdf = await window.pdfjsLib.getDocument(source).promise;
-
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 0.5 });
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "thumb-card";
-    wrapper.appendChild(canvas);
-
-    const sel = document.createElement("select");
-    sel.innerHTML = `<option value="">— tag —</option>
-      <option>progress note</option>
-      <option>vital chart</option>
-      <option>doctor order</option>
-      <option>lab tests</option>
-      <option>medical questionnaire</option>`;
-
-    const k1 = `${fileKey}:${p}`;
-    const k2 = altKey ? `${altKey}:${p}` : null;
-    sel.value = (pageTags.get(k1) ?? (k2 ? pageTags.get(k2) : "")) || "";
-
-    sel.addEventListener("change", () => {
-      pageTags.set(`${fileKey}:${p}`, sel.value);
-      markDirty(true);
-    });
-
-    wrapper.appendChild(sel);
-    previewArea.appendChild(wrapper);
-    state.pageIndex?.set?.(`${fileKey}:${p}`, wrapper);
-  }
-}*/
-
-// --- Preview ---
 // --- Preview (drop-in) ---
 async function renderPreview(fileOrMeta, fileKey) {
   showPreviewOverlay();
