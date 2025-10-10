@@ -204,7 +204,7 @@ async function openDocViewer(uf) {
       return;
     }
 
-    // Concurrency policy: pre-load PDFs with concurrency=2, then render in order
+    // pre-load with limited concurrency, then render in order
     const sources = driveIds.map((id) => streamFileUrl(id));
     const pdfDocs = await mapWithConcurrency(sources, 2, async (src) => {
       return pdfjsLib.getDocument(src).promise;
@@ -214,7 +214,6 @@ async function openDocViewer(uf) {
     const DPR = Math.max(1, window.devicePixelRatio || 1);
     const SCALE = 1.6 * DPR;
 
-    // Render in strict order: part1..partN, page1..pageM
     for (let partIdx = 0; partIdx < pdfDocs.length; partIdx++) {
       const pdf = pdfDocs[partIdx];
       for (let p = 1; p <= pdf.numPages; p++) {
@@ -223,7 +222,6 @@ async function openDocViewer(uf) {
         const page = await pdf.getPage(p);
         const viewport = page.getViewport({ scale: SCALE });
 
-        // Card for each rendered page
         const card = document.createElement("div");
         card.className = "page-card";
 
@@ -234,10 +232,8 @@ async function openDocViewer(uf) {
         canvas.style.width = "100%";
         canvas.style.height = "auto";
 
-        const renderTask = page.render({ canvasContext: ctx, viewport });
-        await renderTask.promise;
+        await page.render({ canvasContext: ctx, viewport }).promise;
 
-        // Page header (optional)
         const hdr = document.createElement("div");
         hdr.className = "doc-sub";
         hdr.textContent = `Page ${globalPageIdx}`;
@@ -245,15 +241,16 @@ async function openDocViewer(uf) {
         card.appendChild(hdr);
         card.appendChild(canvas);
         pdfStack.appendChild(card);
+
+        // 🔑 index by GLOBAL page number so Firestore tags match
+        state.pageIndex.set(`${uf.id}:${globalPageIdx}`, card);
       }
     }
-
-    // After render, scroll to first page of part 1 if the user clicked the filename
-    // (This function always starts from the first canvas, so no extra scroll needed.)
   } finally {
     hideViewerLoading();
   }
 }
+
 
 function isPdf(u) {
   const n = (u.fileName || "").toLowerCase();
@@ -347,55 +344,77 @@ async function renderPdfFileAsCanvases(u) {
   const pagesWrap = document.createElement("div");
   section.appendChild(pagesWrap);
   pdfStack.appendChild(section);
-  const fileId = firstDriveId(u);
-  if (!fileId) {
+
+  const ids = getDriveIds(u);
+  if (!ids.length) {
     pagesWrap.innerHTML = `<div class="muted">No Drive file ID.</div>`;
     return;
   }
-    const url = `${streamFileUrl(fileId)}?proxy=1`;
-  // ✅ Use proxy for PDF.js (bypass CORS)
-  /*const url = `/.netlify/functions/file/${encodeURIComponent(u.driveFileId)}?proxy=1`;*/
 
-  showViewerLoading();
-  let pdf;
-  try {
-    pdf = await window.pdfjsLib.getDocument({ url }).promise;
-  } catch {
-    pagesWrap.innerHTML = `<div class="muted">Failed to load PDF.</div>`;
-    hideViewerLoading();
-    return;
-  }
+  await loadPdfJsIfNeeded();
 
   const dpr = Math.max(1, window.devicePixelRatio || 1);
+  let globalPage = 0;
 
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const viewport0 = page.getViewport({ scale: 1 });
-    const maxWidth = Math.min(pagesWrap.clientWidth || 1000, 1400);
-    const cssScale = maxWidth / viewport0.width;
-    const renderScale = cssScale * dpr;
-    const cssViewport = page.getViewport({ scale: cssScale });
-    const renderViewport = page.getViewport({ scale: renderScale });
+  showViewerLoading();
+  try {
+    for (const fileId of ids) {
+      const url = `${streamFileUrl(fileId)}?proxy=1`;
 
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d", { alpha: false });
+      let pdf;
+      try {
+        pdf = await window.pdfjsLib.getDocument({ url }).promise;
+      } catch {
+        const err = document.createElement("div");
+        err.className = "muted";
+        err.textContent = "Failed to load one part of this PDF.";
+        pagesWrap.appendChild(err);
+        continue;
+      }
 
-    canvas.width = Math.floor(renderViewport.width);
-    canvas.height = Math.floor(renderViewport.height);
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
+      for (let p = 1; p <= pdf.numPages; p++) {
+        globalPage++;
 
-    await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
+        const page = await pdf.getPage(p);
 
-    const pageCard = document.createElement("div");
-    pageCard.className = "page-card";
-    pageCard.appendChild(canvas);
-    pagesWrap.appendChild(pageCard);
-    state.pageIndex.set(`${u.id}:${p}`, pageCard);
+        // compute CSS and render scales
+        const baseViewport = page.getViewport({ scale: 1 });
+        const maxWidth = Math.min(pagesWrap.clientWidth || 1000, 1400);
+        const cssScale = maxWidth / baseViewport.width;
+        const renderScale = cssScale * dpr;
+        const cssViewport = page.getViewport({ scale: cssScale });
+        const renderViewport = page.getViewport({ scale: renderScale });
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { alpha: false });
+        canvas.width = Math.floor(renderViewport.width);
+        canvas.height = Math.floor(renderViewport.height);
+        canvas.style.width = "100%";
+        canvas.style.height = "auto";
+
+        await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
+
+        const pageCard = document.createElement("div");
+        pageCard.className = "page-card";
+
+        // optional header with the GLOBAL page number
+        const hdr = document.createElement("div");
+        hdr.className = "doc-sub";
+        hdr.textContent = `Page ${globalPage}`;
+        pageCard.appendChild(hdr);
+
+        pageCard.appendChild(canvas);
+        pagesWrap.appendChild(pageCard);
+
+        // 🔑 index by GLOBAL page number so the tag filter matches Firestore
+        state.pageIndex.set(`${u.id}:${globalPage}`, pageCard);
+      }
+    }
+  } finally {
+    hideViewerLoading();
   }
-
-  hideViewerLoading();
 }
+
 
 async function renderImageFile(u) {
   const section = document.createElement("div");
