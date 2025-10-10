@@ -49,7 +49,7 @@ input, button, textarea, select { font: inherit; }
 
 /* Light theme */
 :root[data-theme="light"]{
-  --fab-bg: linear-gradient(180deg, #222, #000); /* 3D black */
+  --fab-bg: linear-gradient(180deg, #383838, #000); /* 3D black */
   --fab-text: #fff;
   --fab-border: #000;
   --fab-shadow-extra: inset 0 1px 1px rgba(255,255,255,0.2);
@@ -86,7 +86,7 @@ input, button, textarea, select { font: inherit; }
   /* Hover surface */
   --hover: #232A40; /* slightly brighter panel hover */
     --input-readonly-bg: color-mix(in srgb, var(--panel) 80%, black 20%);
-  --input-disabled-bg: color-mix(in srgb, var(--panel) 72%, black 28%);
+  --input-disabled-bg: color-mix(in srgb, var(--panel) 72%, rgb(70, 70, 70) 28%);
 
 }
 :root[data-theme="sunrise"] {
