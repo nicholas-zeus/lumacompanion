@@ -3,6 +3,7 @@ import { listUploads } from "/js/api.js";
 import { collection, query, where, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "/js/firebase.js";
 import { fab } from "/js/fab.js";
+import { getDriveIds, streamFileUrl } from "/js/api.js";
 
 fab.useDocTop(() => window.scrollTo({ top: 0, behavior: "smooth" }));
 
@@ -32,7 +33,10 @@ function ensureViewerLoading() {
   }
   return viewerLoadingEl;
 }
-
+function firstDriveId(u) {
+  const ids = getDriveIds(u);
+  return ids && ids.length ? ids[0] : (u.driveFileId || "");
+}
 function showViewerLoading() {
   const el = ensureViewerLoading();
   viewerLoadingCount++;
@@ -77,12 +81,26 @@ async function renderFileList() {
       <div class="doc-file">${name}</div>
       <div class="doc-sub">${parts > 1 ? `${parts} parts` : ""}</div>
     `;
-    row.addEventListener("click", () => {
-      openDocViewer(f).catch(err => {
-        console.error("openDocViewer failed:", err);
-        alert(err?.message || "Failed to open file.");
-      });
+row.addEventListener("click", (e) => {
+  e.preventDefault();
+  // if the bulk render already created the first-page anchor, just scroll
+  const key = `${f.id}:1`;
+  const el = state.pageIndex.get(key);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    // fallback: if for some reason it isn't rendered (e.g., after a filter),
+    // render just this file and then scroll.
+    openDocViewer(f).then(() => {
+      const after = state.pageIndex.get(key);
+      if (after) after.scrollIntoView({ behavior: "smooth", block: "start" });
+    }).catch(err => {
+      console.error("openDocViewer failed:", err);
+      alert(err?.message || "Failed to open file.");
     });
+  }
+});
+
     docList.appendChild(row);
   });
 }
@@ -329,9 +347,14 @@ async function renderPdfFileAsCanvases(u) {
   const pagesWrap = document.createElement("div");
   section.appendChild(pagesWrap);
   pdfStack.appendChild(section);
-
+  const fileId = firstDriveId(u);
+  if (!fileId) {
+    pagesWrap.innerHTML = `<div class="muted">No Drive file ID.</div>`;
+    return;
+  }
+    const url = `${streamFileUrl(fileId)}?proxy=1`;
   // ✅ Use proxy for PDF.js (bypass CORS)
-  const url = `/.netlify/functions/file/${encodeURIComponent(u.driveFileId)}?proxy=1`;
+  /*const url = `/.netlify/functions/file/${encodeURIComponent(u.driveFileId)}?proxy=1`;*/
 
   showViewerLoading();
   let pdf;
@@ -377,7 +400,13 @@ async function renderPdfFileAsCanvases(u) {
 async function renderImageFile(u) {
   const section = document.createElement("div");
   section.className = "pdf-block";
-
+  const fileId = firstDriveId(u);
+  if (!fileId) {
+    section.innerHTML = `<div class="muted">No Drive file ID.</div>`;
+    pdfStack.appendChild(section);
+    return;
+  }
+  const url = `${streamFileUrl(fileId)}?proxy=1`;
   const img = document.createElement("img");
   img.decoding = "async";
   img.loading = "lazy";
@@ -388,9 +417,7 @@ async function renderImageFile(u) {
   img.onload = () => hideViewerLoading();
   img.onerror = () => hideViewerLoading();
 
-  img.src = `/.netlify/functions/file/${encodeURIComponent(u.driveFileId)}?proxy=1`;
-
-
+  img.src = url;
   section.appendChild(img);
   pdfStack.appendChild(section);
   state.pageIndex.set(`${u.id}:1`, section);
