@@ -551,6 +551,18 @@ async function writeUploadMetadata({ meta, caseId, batchNo = 1 }) {
 
   return upRef.id; // Firestore document id (uploadId for tagging)
 }
+function collectExistingTagChanges() {
+  // keys look like "<key>:<page>", where key is either "staged-<n>" or an uploadId
+  const changes = [];
+  for (const [k, tag] of pageTags.entries()) {
+    const [key, pStr] = k.split(":");
+    const pageNumber = parseInt(pStr, 10);
+    if (!pageNumber) continue;
+    if (key.startsWith("staged-")) continue; // those will be handled when we save the staged file
+    changes.push({ uploadId: key, pageNumber, tag });
+  }
+  return changes;
+}
 
 // --- Save flow ---
 // --- Save flow (SPLIT PDF at SAVE time) ---
@@ -559,50 +571,75 @@ async function saveAll() {
     alert("Create/save the case first before uploading documents.");
     return;
   }
-  if (!stagedFiles.length) return;
 
-  // UI: lock with overlay
+  // Work to do?
+  const hasStaged = stagedFiles.length > 0;
+  const tagOnlyChanges = collectExistingTagChanges();
+  const hasTagOnly = tagOnlyChanges.length > 0;
+
+  if (!hasStaged && !hasTagOnly) {
+    // nothing to save
+    return;
+  }
+
+  // Lock UI
   savingOverlay.classList.remove("hidden");
+  saveBtn?.setAttribute("disabled", "disabled");
 
   try {
+    // 1) Save staged uploads (your existing logic)
     for (const sf of stagedFiles) {
-      // 1) Upload (split if needed) → 1 logical uploads doc even for multi-part PDFs
       const logical = await saveStagedFile({
         file: sf.file,
         caseId: state.caseId,
         batchNo: 1,
-        bannerArea,                       // your existing banner area for dup warnings
-        onProgress: (pct) => {
-          // Optional: if you later add a progress bar node, update it here
-          // e.g., progressEl.style.width = `${pct.toFixed(0)}%`;
-        }
+        bannerArea,
+        onProgress: (pct) => { /* optional progress hook */ }
       });
       const newUploadId = logical.uploadId;
 
-      // 2) Save page tags (view-time sync will handle global order across parts)
-      // Move staged tag keys from `${sf.key}:<page>` → `${newUploadId}:<page>`
+      // Move staged tag keys "staged-<n>:<page>" → "<uploadId>:<page>" and persist
       for (const [k, v] of [...pageTags.entries()]) {
         if (!k.startsWith(`${sf.key}:`)) continue;
         const pageNo = parseInt(k.split(":")[1], 10);
         await setPageTag({ caseId: state.caseId, uploadId: newUploadId, pageNumber: pageNo, tag: v });
-        // re-key for future edits (avoid rendering drift)
         pageTags.delete(k);
         pageTags.set(`${newUploadId}:${pageNo}`, v);
       }
     }
 
-    // 3) Clear staging + dirty state; refresh the uploaded list
-    stagedFiles = [];
-    renderStagedList();
+    // 2) Save tag-only edits for existing uploads (this is the new bit)
+    for (const { uploadId, pageNumber, tag } of tagOnlyChanges) {
+      await setPageTag({ caseId: state.caseId, uploadId, pageNumber, tag });
+    }
+
+    // 3) Cleanup + refresh UI
+    if (hasStaged) {
+      stagedFiles = [];
+      renderStagedList();
+      await refreshUploadedList();
+    }
+
+    // Saved successfully → clear dirty
     markDirty(false);
-    await refreshUploadedList();
+
+    // (Optional) tiny “Saved” toast
+    try {
+      const toast = document.createElement("div");
+      toast.textContent = "Saved";
+      toast.style.cssText = "position:fixed;right:16px;bottom:16px;background:#111;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;z-index:3000";
+      document.body.appendChild(toast);
+      setTimeout(()=>toast.remove(), 1200);
+    } catch {}
   } catch (err) {
     console.error("saveAll failed:", err);
-    alert(err?.message || "Upload failed.");
+    alert(err?.message || "Save failed.");
   } finally {
     savingOverlay.classList.add("hidden");
+    saveBtn?.removeAttribute("disabled");
   }
 }
+
 
 
 // Desktop save button
