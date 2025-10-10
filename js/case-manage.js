@@ -1,6 +1,6 @@
 // case-manage.js
 import { state } from "/js/case-shared.js";
-import { uploadFile, listUploads, setPageTag, streamFileUrl } from "/js/api.js";
+import { uploadFile, listUploads, setPageTag, streamFileUrl, getDriveIds } from "/js/api.js";
 import { fab } from "/js/fab.js";
 import { saveStagedFile } from "/js/uploader.js";
 import { renderPdfWithTags /* existing */ } from "/js/tagging.js";
@@ -344,22 +344,26 @@ function renderUploadedList() {
       });
     });
 
-    // Soft delete (Firestore row only — Drive cleanup handled by GAS later)
+    // HARD delete (Drive binaries + Firestore metadata + pageTags)
     div.querySelector(".trash").addEventListener("click", async (e) => {
       e.stopPropagation();
-      if (!confirm("Remove this document entry? Files on Drive will be cleaned up by your scheduled job.")) return;
+      const ok = await confirmUI(`Permanently delete “${name}” from Drive and this case? This cannot be undone.`);
+      if (!ok) return;
+      savingOverlay.classList.remove("hidden");
       try {
-        const { softDeleteUpload } = await import("/js/api.js");
-        await softDeleteUpload(uf.id);
+        await hardDeleteFile(uf);
         await refreshUploadedList();
       } catch (err) {
-        console.error("delete failed:", err);
-        alert(err?.message || "Delete failed.");
+        console.error("hardDelete failed:", err);
+        alert(err?.message || "Hard delete failed.");
+      } finally {
+        savingOverlay.classList.add("hidden");
       }
     });
 
     uploadedList.appendChild(div);
   });
+  
 }
 
 
@@ -669,14 +673,30 @@ async function refreshUploadedList() {
 }
 
 // --- Hard delete (Drive + Firestore metadata) ---
+// --- Hard delete (Drive + Firestore metadata + pageTags) ---
 async function hardDeleteFile(uf) {
-  // 1) Delete binary from Google Drive (Netlify function)
-  const driveId = uf.driveFileId;
-  if (!driveId) throw new Error("Missing driveFileId for deletion");
-  const res = await fetch(`/.netlify/functions/file/${encodeURIComponent(driveId)}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Delete failed");
+  // Collect every Drive file id across schemas (single + multipart)
+  let ids = [];
+  try {
+    const viaHelper = getDriveIds?.(uf);
+    if (Array.isArray(viaHelper) && viaHelper.length) ids = viaHelper;
+  } catch {}
+  if (!ids.length && Array.isArray(uf.driveFileIds)) ids = uf.driveFileIds.filter(Boolean);
+  if (!ids.length && uf.fileParts && Array.isArray(uf.fileParts)) {
+    ids = uf.fileParts.map(p => p?.driveFileId).filter(Boolean);
+  }
+  if (!ids.length && uf.driveFileId) ids = [uf.driveFileId];
 
-  // 2) Delete Firestore metadata row (uploads/{id}) — best-effort
+  // 1) Delete binaries from Drive (via Netlify function), one by one
+  for (const id of ids) {
+    const res = await fetch(`/.netlify/functions/file/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(`Drive delete failed for ${id}: ${res.status} ${msg}`.trim());
+    }
+  }
+
+  // 2) Delete Firestore uploads/{id}
   try {
     const uploadId = uf.id || uf.uploadId;
     if (uploadId) {
@@ -686,9 +706,31 @@ async function hardDeleteFile(uf) {
       await deleteDoc(doc(db, "uploads", uploadId));
     }
   } catch (e) {
-    console.warn("Metadata delete non-fatal:", e);
+    console.warn("uploads metadata delete non-fatal:", e);
+  }
+
+  // 3) Delete related pageTags for this uploadId
+  try {
+    const uploadId = uf.id || uf.uploadId;
+    if (uploadId) {
+      const { db } = await import("/js/firebase.js");
+      const { collection, query, where, getDocs, writeBatch } =
+        await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      const col = collection(db, "pageTags");
+      // if there is no composite index for (caseId, uploadId), Firestore will prompt
+      const qRef = query(col, where("caseId", "==", state.caseId), where("uploadId", "==", uploadId));
+      const snap = await getDocs(qRef);
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+  } catch (e) {
+    console.warn("pageTags delete non-fatal:", e);
   }
 }
+
 
 // --- Overlay helpers (mobile) ---
 function openManageOverlay(){
