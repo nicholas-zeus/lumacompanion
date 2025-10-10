@@ -79,7 +79,7 @@ async function openUploadedForTagging(uf) {
   previewArea.innerHTML = "";
 
   // Show the viewer loading overlay (you already style this)
-  ensureViewerLoading();
+  ensurePreviewOverlay();
   turnOnViewerLoading();
 
   try {
